@@ -1,0 +1,149 @@
+import { useState, type FormEvent } from "react";
+import type { League, LeagueRules, RosterSlot } from "../shared/api/types";
+
+const playerPositions = ["QB", "RB", "WR", "TE"] as const;
+const scoringFields = [
+  ["reception", "Points per reception", 0.5],
+  ["passingYard", "Points per passing yard", 0.01],
+  ["passingTouchdown", "Points per passing touchdown", 1],
+  ["interception", "Points per interception", 0.5],
+  ["rushingYard", "Points per rushing yard", 0.01],
+  ["rushingTouchdown", "Points per rushing touchdown", 1],
+  ["receivingYard", "Points per receiving yard", 0.01],
+  ["receivingTouchdown", "Points per receiving touchdown", 1],
+] as const;
+
+const defaultRoster: RosterSlot[] = [
+  { name: "QB", count: 1, positions: ["QB"], isStarting: true },
+  { name: "RB", count: 2, positions: ["RB"], isStarting: true },
+  { name: "WR", count: 2, positions: ["WR"], isStarting: true },
+  { name: "TE", count: 1, positions: ["TE"], isStarting: true },
+  { name: "FLEX", count: 1, positions: ["RB", "WR", "TE"], isStarting: true },
+  { name: "Bench", count: 6, positions: [...playerPositions], isStarting: false },
+];
+
+function defaultRules(): LeagueRules {
+  return {
+    name: "My League",
+    teamCount: 12,
+    draftPosition: 1,
+    draftType: "snake",
+    rosterSlots: defaultRoster.map((slot) => ({ ...slot, positions: [...slot.positions] })),
+    scoringRules: {
+      reception: 1,
+      passingYard: 0.04,
+      passingTouchdown: 4,
+      interception: -2,
+      rushingYard: 0.1,
+      rushingTouchdown: 6,
+      receivingYard: 0.1,
+      receivingTouchdown: 6,
+    },
+  };
+}
+
+interface LeagueFormProps {
+  league?: League;
+  busy: boolean;
+  onCancel: () => void;
+  onSave: (rules: LeagueRules) => Promise<void>;
+}
+
+export function LeagueForm({ league, busy, onCancel, onSave }: LeagueFormProps) {
+  const [rules, setRules] = useState<LeagueRules>(() => league ? toRules(league) : defaultRules());
+
+  function updateSlot(index: number, update: Partial<RosterSlot>) {
+    setRules((current) => ({
+      ...current,
+      rosterSlots: current.rosterSlots.map((slot, slotIndex) => slotIndex === index ? { ...slot, ...update } : slot),
+    }));
+  }
+
+  function togglePosition(index: number, position: string) {
+    const slot = rules.rosterSlots[index];
+    const positions = slot.positions.includes(position)
+      ? slot.positions.filter((candidate) => candidate !== position)
+      : [...slot.positions, position];
+    updateSlot(index, { positions });
+  }
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    await onSave(rules);
+  }
+
+  return (
+    <form className="league-form" onSubmit={handleSubmit}>
+      <div className="form-heading">
+        <div>
+          <p className="eyebrow">League setup</p>
+          <h2>{league ? `Edit ${league.name}` : "Create a league"}</h2>
+        </div>
+        <button type="button" className="secondary-button" onClick={onCancel} disabled={busy}>Cancel</button>
+      </div>
+
+      <fieldset disabled={busy}>
+        <legend>Basic information</legend>
+        <div className="form-grid">
+          <label>League name<input required maxLength={80} value={rules.name} onChange={(event) => setRules({ ...rules, name: event.target.value })} /></label>
+          <label>Draft format<select value={rules.draftType} onChange={(event) => setRules({ ...rules, draftType: event.target.value as LeagueRules["draftType"] })}>
+            <option value="snake">Snake</option><option value="linear">Linear</option><option value="auction">Auction</option>
+          </select></label>
+          <label>Number of teams<input type="number" min="2" max="32" required value={rules.teamCount} onChange={(event) => {
+            const teamCount = Number(event.target.value);
+            setRules({ ...rules, teamCount, draftPosition: Math.min(rules.draftPosition, teamCount) });
+          }} /></label>
+          <label>Your draft position<input type="number" min="1" max={rules.teamCount} required value={rules.draftPosition} onChange={(event) => setRules({ ...rules, draftPosition: Number(event.target.value) })} /></label>
+          <label>Scoring preset<select value={scoringPreset(rules.scoringRules.reception)} onChange={(event) => {
+            if (event.target.value === "custom") return;
+            setRules({ ...rules, scoringRules: { ...rules.scoringRules, reception: Number(event.target.value) } });
+          }}>
+            <option value="0">Standard</option><option value="0.5">Half PPR</option><option value="1">PPR</option><option value="custom">Custom</option>
+          </select></label>
+        </div>
+      </fieldset>
+
+      <fieldset disabled={busy}>
+        <legend>Roster slots</legend>
+        <p className="field-help">Choose how many players can fill each slot and which positions are eligible.</p>
+        <div className="roster-editor">
+          {rules.rosterSlots.map((slot, index) => (
+            <fieldset className="roster-slot" key={index}>
+              <legend>Roster slot {index + 1}</legend>
+              <label>Slot name<input required value={slot.name} onChange={(event) => updateSlot(index, { name: event.target.value })} /></label>
+              <label>Count<input type="number" min="1" max="30" required value={slot.count} onChange={(event) => updateSlot(index, { count: Number(event.target.value) })} /></label>
+              <fieldset className="position-options">
+                <legend>Eligible positions</legend>
+                {playerPositions.map((position) => <label key={position}><input type="checkbox" checked={slot.positions.includes(position)} onChange={() => togglePosition(index, position)} />{position}</label>)}
+              </fieldset>
+              <label className="checkbox-label"><input type="checkbox" checked={slot.isStarting} onChange={(event) => updateSlot(index, { isStarting: event.target.checked })} />Starting lineup slot</label>
+              <button type="button" className="danger-text-button" onClick={() => setRules({ ...rules, rosterSlots: rules.rosterSlots.filter((_, slotIndex) => slotIndex !== index) })} disabled={rules.rosterSlots.length === 1}>Remove slot</button>
+            </fieldset>
+          ))}
+        </div>
+        <button type="button" className="secondary-button" onClick={() => setRules({ ...rules, rosterSlots: [...rules.rosterSlots, { name: "FLEX", count: 1, positions: ["RB", "WR", "TE"], isStarting: true }] })}>Add roster slot</button>
+      </fieldset>
+
+      <fieldset disabled={busy}>
+        <legend>Scoring values</legend>
+        <div className="form-grid scoring-grid">
+          {scoringFields.map(([name, label, step]) => <label key={name}>{label}<input type="number" step={step} value={rules.scoringRules[name] ?? 0} onChange={(event) => setRules({ ...rules, scoringRules: { ...rules.scoringRules, [name]: Number(event.target.value) } })} /></label>)}
+        </div>
+      </fieldset>
+
+      <div className="form-actions">
+        <button type="submit" className="primary-button" disabled={busy}>{busy ? "Saving…" : "Save league"}</button>
+        <button type="button" className="secondary-button" onClick={onCancel} disabled={busy}>Cancel</button>
+      </div>
+    </form>
+  );
+}
+
+function toRules(league: League): LeagueRules {
+  const { id: _id, ...rules } = league;
+  return { ...rules, rosterSlots: rules.rosterSlots.map((slot) => ({ ...slot, positions: [...slot.positions] })), scoringRules: { ...rules.scoringRules } };
+}
+
+function scoringPreset(receptions: number): string {
+  return receptions === 0 || receptions === 0.5 || receptions === 1 ? String(receptions) : "custom";
+}

@@ -2,7 +2,7 @@ import { axe } from "jest-axe";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DraftSnapshot, Player } from "../shared/api/types";
+import type { DraftSnapshot, League, Player } from "../shared/api/types";
 import { App } from "./App";
 
 const alex: Player = {
@@ -31,7 +31,13 @@ function snapshot(overrides: Partial<DraftSnapshot> = {}): DraftSnapshot {
   };
 }
 
-function jsonResponse(body: DraftSnapshot, status = 200) {
+const demoLeague: League = {
+  id: "demo", name: "Demo League", teamCount: 12, draftPosition: 1, draftType: "snake",
+  rosterSlots: [{ name: "RB", count: 2, positions: ["RB"], isStarting: true }],
+  scoringRules: { reception: 1 },
+};
+
+function jsonResponse(body: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
@@ -41,24 +47,59 @@ function jsonResponse(body: DraftSnapshot, status = 200) {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  localStorage.clear();
 });
 
 describe("accessible draft board", () => {
+  it("creates a customized league through an accessible setup form", async () => {
+    let configuredLeagues = [demoLeague];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const request = input instanceof Request ? input : new Request(input);
+      const path = new URL(request.url).pathname;
+      if (path.endsWith("/leagues") && request.method === "GET") return jsonResponse(configuredLeagues);
+      if (path.endsWith("/leagues") && request.method === "POST") {
+        const rules = await request.clone().json() as Omit<League, "id">;
+        const created = { id: "family-league", ...rules };
+        configuredLeagues = [...configuredLeagues, created];
+        return jsonResponse(created, 201);
+      }
+      return jsonResponse(snapshot());
+    }));
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Manage leagues" }));
+    await user.click(screen.getByRole("button", { name: "Create league" }));
+    const name = screen.getByRole("textbox", { name: "League name" });
+    await user.clear(name);
+    await user.type(name, "Family League");
+    expect((await axe(container)).violations).toHaveLength(0);
+    await user.click(screen.getByRole("button", { name: "Save league" }));
+
+    expect(await screen.findByRole("heading", { name: "Family League" })).toBeInTheDocument();
+    expect(screen.getByText("Family League was saved.")).toBeInTheDocument();
+  });
+
   it("loads the league selected by the application shell", async () => {
-    const fetchMock = vi.fn((_input: RequestInfo | URL) =>
-      jsonResponse(snapshot({ leagueId: "league-a", leagueName: "League A" })),
-    );
+    localStorage.setItem("draftmeld.active-league.v1", "league-a");
+    const leagueA = { ...demoLeague, id: "league-a", name: "League A" };
+    const fetchMock = vi.fn()
+      .mockImplementationOnce(() => jsonResponse([leagueA]))
+      .mockImplementationOnce(() => jsonResponse(snapshot({ leagueId: "league-a", leagueName: "League A" })));
     vi.stubGlobal("fetch", fetchMock);
-    render(<App leagueId="league-a" />);
+    render(<App />);
 
     expect(await screen.findByText("League A")).toBeInTheDocument();
-    const requestInput = fetchMock.mock.calls[0][0];
+    const requestInput = fetchMock.mock.calls[1][0];
     const requestUrl = requestInput instanceof Request ? requestInput.url : requestInput.toString();
     expect(new URL(requestUrl).searchParams.get("leagueId")).toBe("league-a");
   });
 
   it("exposes landmarks, names every player action, and has no automatic axe violations", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => jsonResponse(snapshot())));
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : input.toString();
+      return jsonResponse(new URL(url).pathname.endsWith("/leagues") ? [demoLeague] : snapshot());
+    }));
     const { container } = render(<App />);
 
     expect(await screen.findByRole("heading", { name: "Available players" })).toBeInTheDocument();
@@ -81,6 +122,7 @@ describe("accessible draft board", () => {
       canUndo: true,
     });
     const fetchMock = vi.fn()
+      .mockImplementationOnce(() => jsonResponse([demoLeague]))
       .mockImplementationOnce(() => jsonResponse(snapshot()))
       .mockImplementationOnce(() => jsonResponse(drafted));
     vi.stubGlobal("fetch", fetchMock);
@@ -105,6 +147,7 @@ describe("accessible draft board", () => {
       canUndo: true,
     });
     const fetchMock = vi.fn()
+      .mockImplementationOnce(() => jsonResponse([demoLeague]))
       .mockImplementationOnce(() => jsonResponse(drafted))
       .mockImplementationOnce(() => jsonResponse(snapshot()));
     vi.stubGlobal("fetch", fetchMock);

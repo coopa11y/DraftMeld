@@ -1,0 +1,168 @@
+package application
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"regexp"
+	"strings"
+	"sync"
+
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/league"
+)
+
+var (
+	ErrInvalidLeague  = errors.New("league configuration is invalid")
+	ErrLeagueNotFound = errors.New("league configuration was not found")
+)
+
+type LeagueConfigurationRepository interface {
+	ListLeagues(context.Context) ([]LeagueConfiguration, error)
+	GetLeague(context.Context, string) (LeagueConfiguration, bool, error)
+	SaveLeague(context.Context, LeagueConfiguration) error
+	DeleteLeague(context.Context, string) (bool, error)
+}
+
+type LeagueService struct {
+	repository LeagueConfigurationRepository
+	mu         sync.Mutex
+}
+
+func NewLeagueService(repository LeagueConfigurationRepository) *LeagueService {
+	return &LeagueService{repository: repository}
+}
+
+func (service *LeagueService) EnsureDefault(ctx context.Context) error {
+	leagues, err := service.repository.ListLeagues(ctx)
+	if err != nil {
+		return fmt.Errorf("list leagues: %w", err)
+	}
+	if len(leagues) > 0 {
+		return nil
+	}
+	if err = service.repository.SaveLeague(ctx, DemoLeagueConfiguration()); err != nil {
+		return fmt.Errorf("create default league: %w", err)
+	}
+	return nil
+}
+
+func (service *LeagueService) List(ctx context.Context) ([]LeagueConfiguration, error) {
+	return service.repository.ListLeagues(ctx)
+}
+
+func (service *LeagueService) Get(ctx context.Context, id string) (LeagueConfiguration, error) {
+	configuration, found, err := service.repository.GetLeague(ctx, id)
+	if err != nil {
+		return LeagueConfiguration{}, err
+	}
+	if !found {
+		return LeagueConfiguration{}, fmt.Errorf("%w: %s", ErrLeagueNotFound, id)
+	}
+	return configuration, nil
+}
+
+func (service *LeagueService) Create(ctx context.Context, rules league.Rules) (LeagueConfiguration, error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+
+	configuration := LeagueConfiguration{
+		ID: slugify(rules.Name), Rules: rules, Recommendation: DefaultRecommendationPolicy(),
+	}
+	if err := configuration.Validate(); err != nil {
+		return LeagueConfiguration{}, fmt.Errorf("%w: %v", ErrInvalidLeague, err)
+	}
+	id, err := service.availableID(ctx, configuration.ID)
+	if err != nil {
+		return LeagueConfiguration{}, err
+	}
+	configuration.ID = id
+	if err = service.repository.SaveLeague(ctx, configuration); err != nil {
+		return LeagueConfiguration{}, err
+	}
+	return configuration, nil
+}
+
+func (service *LeagueService) Update(ctx context.Context, id string, rules league.Rules) (LeagueConfiguration, error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+
+	configuration, err := service.Get(ctx, id)
+	if err != nil {
+		return LeagueConfiguration{}, err
+	}
+	configuration.Rules = rules
+	if err = configuration.Validate(); err != nil {
+		return LeagueConfiguration{}, fmt.Errorf("%w: %v", ErrInvalidLeague, err)
+	}
+	if err = service.repository.SaveLeague(ctx, configuration); err != nil {
+		return LeagueConfiguration{}, err
+	}
+	return configuration, nil
+}
+
+func (service *LeagueService) Duplicate(ctx context.Context, id string) (LeagueConfiguration, error) {
+	source, err := service.Get(ctx, id)
+	if err != nil {
+		return LeagueConfiguration{}, err
+	}
+	rules := source.Rules
+	rules.Name = "Copy of " + rules.Name
+	rules.RosterSlots = cloneRosterSlots(rules.RosterSlots)
+	rules.ScoringRules = cloneScoringRules(rules.ScoringRules)
+	return service.Create(ctx, rules)
+}
+
+func (service *LeagueService) Delete(ctx context.Context, id string) error {
+	deleted, err := service.repository.DeleteLeague(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !deleted {
+		return fmt.Errorf("%w: %s", ErrLeagueNotFound, id)
+	}
+	return nil
+}
+
+func (service *LeagueService) availableID(ctx context.Context, base string) (string, error) {
+	for suffix := 1; suffix < 10_000; suffix++ {
+		candidate := base
+		if suffix > 1 {
+			candidate = fmt.Sprintf("%s-%d", base, suffix)
+		}
+		_, found, err := service.repository.GetLeague(ctx, candidate)
+		if err != nil {
+			return "", err
+		}
+		if !found {
+			return candidate, nil
+		}
+	}
+	return "", errors.New("unable to allocate a league ID")
+}
+
+var nonSlugCharacter = regexp.MustCompile(`[^a-z0-9]+`)
+
+func slugify(name string) string {
+	slug := strings.Trim(nonSlugCharacter.ReplaceAllString(strings.ToLower(name), "-"), "-")
+	if slug == "" {
+		return "league"
+	}
+	return slug
+}
+
+func cloneRosterSlots(slots []league.RosterSlot) []league.RosterSlot {
+	cloned := make([]league.RosterSlot, len(slots))
+	for index, slot := range slots {
+		cloned[index] = slot
+		cloned[index].Positions = append([]string(nil), slot.Positions...)
+	}
+	return cloned
+}
+
+func cloneScoringRules(rules map[string]float64) map[string]float64 {
+	cloned := make(map[string]float64, len(rules))
+	for name, value := range rules {
+		cloned[name] = value
+	}
+	return cloned
+}

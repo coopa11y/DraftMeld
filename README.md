@@ -8,7 +8,7 @@ Current development version: **0.2.0**
 
 ## Project status
 
-DraftMeld is in its foundation phase. The product model and architecture are being established before the first application milestone.
+DraftMeld is in active `0.2.0` development. It includes an accessible manual draft loop and persistent, customizable multi-league setup; ranking imports and consensus melding are the next major milestones.
 
 ## Product goals
 
@@ -72,6 +72,8 @@ go run ./cmd/draftmeld
 ```
 
 The frontend proxies `/api` requests to `http://localhost:8080`. A production build compiles the frontend into the Go executable.
+
+On first launch, DraftMeld creates a customizable demo league. Use **Manage leagues** to create, edit, duplicate, or delete leagues and switch the active draft board.
 
 Run the same contract, type, unit-test, vet, and production-build checks used for pull requests:
 

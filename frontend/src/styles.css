@@ -30,7 +30,7 @@
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body { margin: 0; min-width: 320px; min-height: 100vh; overflow-x: clip; background: var(--color-background); }
-button, input { font: inherit; }
+button, input, select { font: inherit; }
 button { min-height: 44px; }
 a { color: inherit; }
 
@@ -76,10 +76,21 @@ a { color: inherit; }
   border-bottom: 1px solid var(--color-border);
 }
 
-.brand { font-size: 1.35rem; font-weight: 850; letter-spacing: -0.04em; text-decoration: none; }
+.brand {
+  align-items: center;
+  display: inline-flex;
+  font-size: 1.35rem;
+  font-weight: 850;
+  letter-spacing: -0.04em;
+  min-height: 44px;
+  text-decoration: none;
+}
 .version { margin-left: 0.6rem; color: var(--color-text-subtle); font-size: 0.78rem; }
-.draft-status { display: flex; gap: 0.8rem; align-items: baseline; }
-.draft-status span { color: var(--color-text-muted); font-size: 0.9rem; }
+.league-navigation { display: flex; align-items: end; gap: 0.75rem; }
+.league-navigation label { display: grid; gap: 0.25rem; color: var(--color-text-label); font-size: 0.78rem; font-weight: 750; }
+.league-navigation select { min-width: min(240px, 45vw); }
+.workspace-status { display: flex; justify-content: flex-end; gap: 0.8rem; align-items: baseline; padding: 0.8rem clamp(1rem, 3vw, 2.25rem) 0; }
+.workspace-status span { color: var(--color-text-muted); font-size: 0.9rem; }
 
 .error-banner {
   margin: 1rem clamp(1rem, 3vw, 2.25rem) 0;
@@ -118,6 +129,17 @@ h3 { margin: 0; font-size: 1rem; }
   border-radius: 0.55rem;
   cursor: pointer;
 }
+
+.primary-button, .secondary-button, .danger-button, .danger-text-button {
+  padding: 0.65rem 0.9rem;
+  border-radius: 0.55rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.primary-button { color: var(--color-on-accent); background: var(--color-accent); border: 1px solid var(--color-accent); }
+.secondary-button { color: var(--color-text); background: var(--color-control); border: 1px solid var(--color-border-control); }
+.danger-button { color: var(--color-danger-text); background: var(--color-danger); border: 2px solid var(--color-danger-border); }
+.danger-text-button { color: var(--color-danger-border); background: transparent; border: 1px solid var(--color-danger-border); }
 
 .undo-button { padding: 0.65rem 1rem; font-weight: 750; }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -167,18 +189,57 @@ tbody tr:focus-within { background: var(--color-control); }
 .table-scroll > .empty-state { padding: 1.5rem; text-align: center; }
 .centered-status { display: grid; min-height: 100vh; place-items: center; font-size: 1.2rem; }
 
+.league-setup-layout { width: min(1120px, calc(100% - 2rem)); margin: 1.25rem auto 3rem; }
+.league-manager, .league-form { padding: clamp(1rem, 3vw, 2rem); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 0.9rem; }
+.form-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
+.form-heading p:not(.eyebrow) { max-width: 65ch; margin: 0.6rem 0 0; color: var(--color-text-muted); line-height: 1.5; }
+.league-list { display: grid; gap: 1rem; margin: 0; padding: 0; list-style: none; }
+.league-list > li { padding: 1.2rem; background: var(--color-surface-deep); border: 1px solid var(--color-border-subtle); border-radius: 0.75rem; }
+.league-list > li.active-league { border-color: var(--color-accent); }
+.league-list article > div:first-child p { margin: 0.45rem 0 0; color: var(--color-text-muted); }
+.active-badge { display: inline-block; margin-top: 0.75rem; padding: 0.25rem 0.5rem; color: var(--color-on-accent); background: var(--color-accent); border-radius: 999px; font-size: 0.75rem; font-weight: 850; }
+.league-actions, .form-actions { display: flex; flex-wrap: wrap; gap: 0.65rem; margin-top: 1rem; }
+.delete-confirmation { margin-top: 1rem; padding: 1rem; background: var(--color-control); border: 2px solid var(--color-danger-border); border-radius: 0.65rem; }
+.delete-confirmation p { margin-top: 0; }
+.delete-confirmation button { margin-right: 0.65rem; }
+.empty-leagues { padding: 2rem; text-align: center; border: 1px dashed var(--color-border-control); border-radius: 0.7rem; }
+
+.league-form > fieldset { margin: 0 0 1.5rem; padding: 1.25rem; border: 1px solid var(--color-border); border-radius: 0.75rem; }
+.league-form > fieldset > legend { padding: 0 0.4rem; color: var(--color-text); font-size: 1.05rem; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.form-grid label, .roster-slot > label { display: grid; gap: 0.4rem; color: var(--color-text-label); font-size: 0.86rem; font-weight: 750; }
+.form-grid input, .form-grid select, .roster-slot input, .league-navigation select {
+  width: 100%; min-height: 44px; padding: 0.65rem 0.75rem; color: var(--color-text); background: var(--color-background); border: 1px solid var(--color-border-input); border-radius: 0.5rem;
+}
+.field-help { margin: 0 0 1rem; color: var(--color-text-muted); }
+.roster-editor { display: grid; gap: 0.8rem; margin-bottom: 1rem; }
+.roster-slot { display: grid; grid-template-columns: minmax(130px, 1fr) 100px minmax(260px, 2fr) auto auto; align-items: end; gap: 0.8rem; padding: 1rem; background: var(--color-surface-deep); border: 1px solid var(--color-border-subtle); border-radius: 0.65rem; }
+.roster-slot > legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+.position-options { display: flex; flex-wrap: wrap; gap: 0.7rem; }
+.position-options legend { width: 100%; margin: 0; }
+.position-options label, .checkbox-label { display: flex; align-items: center; gap: 0.35rem; color: var(--color-text-label); font-size: 0.85rem; }
+.position-options input, .checkbox-label input { width: 1.2rem; min-height: 1.2rem; }
+
 @media (max-width: 980px) {
   .draft-layout { grid-template-columns: minmax(0, 1fr); }
   .sidebar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sidebar .side-panel:first-child { grid-column: 1 / -1; }
+  .roster-slot { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .position-options { grid-column: 1 / -1; }
 }
 
 @media (max-width: 680px) {
-  .app-header, .section-heading { align-items: flex-start; }
+  .app-header, .section-heading, .form-heading { align-items: flex-start; flex-direction: column; }
+  .league-navigation { width: 100%; align-items: stretch; flex-direction: column; }
+  .league-navigation select { min-width: 0; }
+  .workspace-status { justify-content: flex-start; flex-wrap: wrap; }
   .section-heading, .board-controls { grid-template-columns: 1fr; flex-direction: column; }
   .undo-button { width: 100%; }
   .sidebar { display: flex; }
   th, td { padding: 0.75rem 0.6rem; }
+  .form-grid, .roster-slot { grid-template-columns: minmax(0, 1fr); }
+  .position-options { grid-column: auto; }
+  .league-actions > button, .form-actions > button { flex: 1 1 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {

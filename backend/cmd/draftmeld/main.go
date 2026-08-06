@@ -33,7 +33,12 @@ func main() {
 		os.Exit(1)
 	}
 	defer store.Close()
-	draftService, err := application.NewDraftService(store, draft.DemoCatalog(), application.DemoLeagueConfiguration())
+	leagueService := application.NewLeagueService(store)
+	if err = leagueService.EnsureDefault(context.Background()); err != nil {
+		logger.Error("initialize leagues", "error", err)
+		os.Exit(1)
+	}
+	draftService, err := application.NewDraftServiceWithLeagues(store, store, draft.DemoCatalog())
 	if err != nil {
 		logger.Error("configure draft service", "error", err)
 		os.Exit(1)
@@ -41,7 +46,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              address,
-		Handler:           draftapi.NewRouter(logger, version, draftService),
+		Handler:           draftapi.NewRouter(logger, version, draftService, leagueService),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}

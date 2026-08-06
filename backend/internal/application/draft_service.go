@@ -10,7 +10,6 @@ import (
 )
 
 var (
-	ErrLeagueNotFound    = errors.New("league configuration was not found")
 	ErrPlayerUnavailable = errors.New("player is no longer available")
 	ErrNothingToUndo     = errors.New("there is no draft action to undo")
 )
@@ -21,17 +20,38 @@ type DraftEventRepository interface {
 }
 
 type DraftService struct {
-	repository     DraftEventRepository
-	players        []draft.Player
-	playerByID     map[string]draft.Player
-	configurations map[string]LeagueConfiguration
-	mu             sync.Mutex
+	repository DraftEventRepository
+	players    []draft.Player
+	playerByID map[string]draft.Player
+	leagues    LeagueConfigurationRepository
+	mu         sync.Mutex
 }
 
 func NewDraftService(
 	repository DraftEventRepository,
 	players []draft.Player,
 	configurations ...LeagueConfiguration,
+) (*DraftService, error) {
+	if len(configurations) == 0 {
+		return nil, errors.New("at least one league configuration is required")
+	}
+	seenLeagueIDs := make(map[string]struct{}, len(configurations))
+	for _, configuration := range configurations {
+		if err := configuration.Validate(); err != nil {
+			return nil, err
+		}
+		if _, exists := seenLeagueIDs[configuration.ID]; exists {
+			return nil, fmt.Errorf("duplicate league configuration: %s", configuration.ID)
+		}
+		seenLeagueIDs[configuration.ID] = struct{}{}
+	}
+	return NewDraftServiceWithLeagues(repository, NewMemoryLeagueRepository(configurations...), players)
+}
+
+func NewDraftServiceWithLeagues(
+	repository DraftEventRepository,
+	leagues LeagueConfigurationRepository,
+	players []draft.Player,
 ) (*DraftService, error) {
 	playerByID := make(map[string]draft.Player, len(players))
 	for _, player := range players {
@@ -43,26 +63,16 @@ func NewDraftService(
 		}
 		playerByID[player.ID] = player
 	}
-	configurationByID := make(map[string]LeagueConfiguration, len(configurations))
-	for _, configuration := range configurations {
-		if err := configuration.Validate(); err != nil {
-			return nil, err
-		}
-		if _, exists := configurationByID[configuration.ID]; exists {
-			return nil, fmt.Errorf("duplicate league configuration: %s", configuration.ID)
-		}
-		configurationByID[configuration.ID] = configuration
-	}
-	if len(configurationByID) == 0 {
-		return nil, errors.New("at least one league configuration is required")
+	if leagues == nil {
+		return nil, errors.New("league configuration repository is required")
 	}
 	return &DraftService{
-		repository: repository, players: players, playerByID: playerByID, configurations: configurationByID,
+		repository: repository, players: players, playerByID: playerByID, leagues: leagues,
 	}, nil
 }
 
 func (service *DraftService) Snapshot(ctx context.Context, leagueID string) (draft.Snapshot, error) {
-	configuration, err := service.configuration(leagueID)
+	configuration, err := service.configuration(ctx, leagueID)
 	if err != nil {
 		return draft.Snapshot{}, err
 	}
@@ -77,7 +87,7 @@ func (service *DraftService) Record(ctx context.Context, leagueID, playerID stri
 	service.mu.Lock()
 	defer service.mu.Unlock()
 
-	if _, err := service.configuration(leagueID); err != nil {
+	if _, err := service.configuration(ctx, leagueID); err != nil {
 		return draft.Snapshot{}, err
 	}
 	if action != draft.ActionDraft && action != draft.ActionTaken {
@@ -104,7 +114,7 @@ func (service *DraftService) Undo(ctx context.Context, leagueID string) (draft.S
 	service.mu.Lock()
 	defer service.mu.Unlock()
 
-	if _, err := service.configuration(leagueID); err != nil {
+	if _, err := service.configuration(ctx, leagueID); err != nil {
 		return draft.Snapshot{}, err
 	}
 	events, err := service.repository.List(ctx, leagueID)
@@ -124,8 +134,11 @@ func (service *DraftService) Undo(ctx context.Context, leagueID string) (draft.S
 	return service.Snapshot(ctx, leagueID)
 }
 
-func (service *DraftService) configuration(leagueID string) (LeagueConfiguration, error) {
-	configuration, exists := service.configurations[leagueID]
+func (service *DraftService) configuration(ctx context.Context, leagueID string) (LeagueConfiguration, error) {
+	configuration, exists, err := service.leagues.GetLeague(ctx, leagueID)
+	if err != nil {
+		return LeagueConfiguration{}, fmt.Errorf("load league configuration: %w", err)
+	}
 	if !exists {
 		return LeagueConfiguration{}, fmt.Errorf("%w: %s", ErrLeagueNotFound, leagueID)
 	}

@@ -41,7 +41,7 @@ REST endpoints are defined in `contracts/openapi.yaml`. The contract is the sour
 
 ## Persistence
 
-Local development should use a relational database with migrations. Draft picks are append-only events with compensating undo events, allowing the current board to be reconstructed and audited.
+Local development uses a relational database with migrations. League rules and roster slots are persisted configuration. Draft picks are append-only events with compensating undo events, allowing each league's current board to be reconstructed and audited.
 
 SQLite is the initial persistence target. Only the backend process accesses the database file. PostgreSQL is deferred until hosted multi-user write concurrency justifies it.
 
