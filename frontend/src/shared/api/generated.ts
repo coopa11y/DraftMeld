@@ -79,6 +79,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ranking-sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List built-in open ranking feeds and their refresh status */
+        get: operations["listRankingSources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ranking-sources/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Download and normalize every built-in ranking feed */
+        post: operations["refreshRankingSources"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rankings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Build the default weighted consensus from imported feeds */
+        get: operations["getConsensusRankings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/draft": {
         parameters: {
             query?: never;
@@ -164,6 +215,35 @@ export interface components {
             count: number;
             positions: string[];
             isStarting: boolean;
+        };
+        RankingSource: {
+            id: string;
+            name: string;
+            description: string;
+            methodology: string;
+            license: string;
+            /** Format: uri */
+            projectUrl: string;
+            /** Format: uri */
+            dataUrl: string;
+            defaultWeight: number;
+            recordCount: number;
+            /** Format: date-time */
+            refreshedAt?: string | null;
+            publishedAt?: string;
+        };
+        ConsensusRanking: {
+            playerKey: string;
+            name: string;
+            /** @enum {string} */
+            position: "QB" | "RB" | "WR" | "TE";
+            team: string;
+            rank: number;
+            score: number;
+            sourceCount: number;
+            sourceRanks: {
+                [key: string]: number;
+            };
         };
         Player: {
             id: string;
@@ -406,6 +486,77 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    listRankingSources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ranking source catalog. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RankingSource"][];
+                };
+            };
+            500: components["responses"]["ServerError"];
+        };
+    };
+    refreshRankingSources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Refreshed ranking sources. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RankingSource"][];
+                };
+            };
+            /** @description An upstream ranking feed could not be downloaded or parsed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getConsensusRankings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Normalized consensus rankings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsensusRanking"][];
+                };
+            };
+            500: components["responses"]["ServerError"];
         };
     };
     getDraft: {

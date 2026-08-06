@@ -220,6 +220,22 @@ tbody tr:focus-within { background: var(--color-control); }
 .position-options label, .checkbox-label { display: flex; align-items: center; gap: 0.35rem; color: var(--color-text-label); font-size: 0.85rem; }
 .position-options input, .checkbox-label input { width: 1.2rem; min-height: 1.2rem; }
 
+.ranking-page { display: grid; gap: 1.25rem; width: min(1180px, calc(100% - 2rem)); margin: 1.25rem auto 3rem; }
+.ranking-panel { overflow: hidden; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 0.9rem; }
+.section-description { max-width: 70ch; margin: 0.65rem 0 0; color: var(--color-text-muted); line-height: 1.55; }
+.status-message { min-height: 1.5rem; margin: 0; padding: 0 1.4rem 1rem; color: var(--color-text-muted); }
+.source-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 0; padding: 0 1.4rem 1.4rem; list-style: none; }
+.source-card { height: 100%; padding: 1.2rem; background: var(--color-surface-deep); border: 1px solid var(--color-border-subtle); border-radius: 0.75rem; }
+.source-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.source-card-heading span { flex: 0 0 auto; padding: 0.25rem 0.5rem; color: var(--color-on-accent); background: var(--color-accent); border-radius: 999px; font-size: 0.72rem; font-weight: 850; }
+.source-card > p { color: var(--color-text-muted); line-height: 1.5; }
+.source-card dl { display: grid; gap: 0.55rem; margin: 1rem 0; }
+.source-card dl div { display: grid; grid-template-columns: 8rem 1fr; gap: 0.6rem; }
+.source-card dt { color: var(--color-text-label); font-weight: 800; }
+.source-card dd { margin: 0; color: var(--color-text-muted); }
+.source-card a { display: inline-flex; align-items: center; min-height: 44px; color: var(--color-accent); font-weight: 800; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+
 @media (max-width: 980px) {
   .draft-layout { grid-template-columns: minmax(0, 1fr); }
   .sidebar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -240,6 +256,8 @@ tbody tr:focus-within { background: var(--color-control); }
   .form-grid, .roster-slot { grid-template-columns: minmax(0, 1fr); }
   .position-options { grid-column: auto; }
   .league-actions > button, .form-actions > button { flex: 1 1 100%; }
+  .source-grid { grid-template-columns: minmax(0, 1fr); }
+  .source-card dl div { grid-template-columns: 1fr; gap: 0.15rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

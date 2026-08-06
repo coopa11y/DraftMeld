@@ -34,6 +34,32 @@ func TestHealth(t *testing.T) {
 	}
 }
 
+func TestRankingSourcesExposeBuiltInProvenance(t *testing.T) {
+	router, closeStore := testRouter(t)
+	defer closeStore()
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/ranking-sources", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusOK, response.Code, response.Body.String())
+	}
+	var sources []struct {
+		ID         string `json:"id"`
+		License    string `json:"license"`
+		ProjectURL string `json:"projectUrl"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&sources); err != nil {
+		t.Fatalf("decode ranking sources: %v", err)
+	}
+	if len(sources) != 4 {
+		t.Fatalf("expected four built-in sources, got %d", len(sources))
+	}
+	for _, source := range sources {
+		if source.ID == "" || source.License == "" || source.ProjectURL == "" {
+			t.Fatalf("source is missing provenance: %#v", source)
+		}
+	}
+}
+
 func TestDraftActionAndUndoEndpoints(t *testing.T) {
 	router, closeStore := testRouter(t)
 	defer closeStore()
@@ -142,5 +168,5 @@ func testRouter(t *testing.T) (http.Handler, func()) {
 	if err != nil {
 		t.Fatalf("create persisted draft service: %v", err)
 	}
-	return NewRouter(slog.New(slog.NewTextHandler(io.Discard, nil)), "test", service, leagueService), func() { _ = store.Close() }
+	return NewRouter(slog.New(slog.NewTextHandler(io.Discard, nil)), "test", service, leagueService, application.NewRankingService(store)), func() { _ = store.Close() }
 }

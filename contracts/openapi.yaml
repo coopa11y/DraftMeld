@@ -112,6 +112,49 @@ paths:
                 $ref: "#/components/schemas/League"
         "404":
           $ref: "#/components/responses/NotFound"
+  /ranking-sources:
+    get:
+      operationId: listRankingSources
+      summary: List built-in open ranking feeds and their refresh status
+      responses:
+        "200":
+          description: Ranking source catalog.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/RankingSource" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /ranking-sources/refresh:
+    post:
+      operationId: refreshRankingSources
+      summary: Download and normalize every built-in ranking feed
+      responses:
+        "200":
+          description: Refreshed ranking sources.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/RankingSource" }
+        "502":
+          description: An upstream ranking feed could not be downloaded or parsed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /rankings:
+    get:
+      operationId: getConsensusRankings
+      summary: Build the default weighted consensus from imported feeds
+      responses:
+        "200":
+          description: Normalized consensus rankings.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ConsensusRanking" }
+        "500": { $ref: "#/components/responses/ServerError" }
   /draft:
     get:
       operationId: getDraft
@@ -298,6 +341,37 @@ components:
             type: string
         isStarting:
           type: boolean
+    RankingSource:
+      type: object
+      additionalProperties: false
+      required: [id, name, description, methodology, license, projectUrl, dataUrl, defaultWeight, recordCount]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        methodology: { type: string }
+        license: { type: string }
+        projectUrl: { type: string, format: uri }
+        dataUrl: { type: string, format: uri }
+        defaultWeight: { type: number, exclusiveMinimum: 0 }
+        recordCount: { type: integer, minimum: 0 }
+        refreshedAt: { type: [string, "null"], format: date-time }
+        publishedAt: { type: string }
+    ConsensusRanking:
+      type: object
+      additionalProperties: false
+      required: [playerKey, name, position, team, rank, score, sourceCount, sourceRanks]
+      properties:
+        playerKey: { type: string }
+        name: { type: string }
+        position: { type: string, enum: [QB, RB, WR, TE] }
+        team: { type: string }
+        rank: { type: integer, minimum: 1 }
+        score: { type: number }
+        sourceCount: { type: integer, minimum: 1 }
+        sourceRanks:
+          type: object
+          additionalProperties: { type: integer, minimum: 1 }
     Player:
       type: object
       required: [id, name, nflTeam, position, byeWeek, overallRank, positionRank, adp, tier]

@@ -9,4 +9,6 @@ export type Recommendation = components["schemas"]["Recommendation"];
 export type League = components["schemas"]["League"];
 export type LeagueRules = components["schemas"]["LeagueRules"];
 export type RosterSlot = components["schemas"]["RosterSlot"];
+export type RankingSource = components["schemas"]["RankingSource"];
+export type ConsensusRanking = components["schemas"]["ConsensusRanking"];
 export type DraftAction = DraftActionRequest["action"];
