@@ -1,10 +1,14 @@
 openapi: 3.1.0
 info:
   title: DraftMeld API
-  version: 0.1.0
+  version: 0.2.0
   description: Public contract between the DraftMeld frontend and backend.
+  license:
+    name: GNU Affero General Public License v3.0
+    identifier: AGPL-3.0-only
 servers:
   - url: /api/v1
+security: []
 paths:
   /health:
     get:
@@ -17,7 +21,70 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Health"
+  /draft:
+    get:
+      operationId: getDraft
+      summary: Get the current draft board and recommendations
+      parameters:
+        - $ref: "#/components/parameters/LeagueId"
+      responses:
+        "200":
+          description: Current draft state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DraftSnapshot"
+  /draft/actions:
+    post:
+      operationId: recordDraftAction
+      summary: Draft a player to my team or mark the player taken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DraftActionRequest"
+      responses:
+        "200":
+          description: Updated draft state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DraftSnapshot"
+        "409":
+          description: Player is no longer available.
+  /draft/undo:
+    post:
+      operationId: undoDraftAction
+      summary: Undo the most recent active draft action
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [leagueId]
+              properties:
+                leagueId:
+                  type: string
+      responses:
+        "200":
+          description: Updated draft state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DraftSnapshot"
+        "409":
+          description: There is no active action to undo.
 components:
+  parameters:
+    LeagueId:
+      name: leagueId
+      in: query
+      required: false
+      schema:
+        type: string
+        default: demo
   schemas:
     Health:
       type: object
@@ -74,3 +141,61 @@ components:
             type: string
         isStarting:
           type: boolean
+    Player:
+      type: object
+      required: [id, name, nflTeam, position, byeWeek, overallRank, positionRank, adp, tier]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        nflTeam: { type: string }
+        position: { type: string, enum: [QB, RB, WR, TE] }
+        byeWeek: { type: integer }
+        overallRank: { type: integer, minimum: 1 }
+        positionRank: { type: integer, minimum: 1 }
+        adp: { type: number }
+        tier: { type: integer, minimum: 1 }
+    Recommendation:
+      type: object
+      required: [player, score, reasons]
+      properties:
+        player: { $ref: "#/components/schemas/Player" }
+        score: { type: number }
+        reasons:
+          type: array
+          items: { type: string }
+    Pick:
+      type: object
+      required: [eventId, number, action, player, createdAt]
+      properties:
+        eventId: { type: integer }
+        number: { type: integer, minimum: 1 }
+        action: { type: string, enum: [draft, taken] }
+        player: { $ref: "#/components/schemas/Player" }
+        createdAt: { type: string, format: date-time }
+    DraftSnapshot:
+      type: object
+      required: [leagueId, leagueName, pickNumber, available, myTeam, history, recommendations, canUndo]
+      properties:
+        leagueId: { type: string }
+        leagueName: { type: string }
+        pickNumber: { type: integer, minimum: 1 }
+        available:
+          type: array
+          items: { $ref: "#/components/schemas/Player" }
+        myTeam:
+          type: array
+          items: { $ref: "#/components/schemas/Player" }
+        history:
+          type: array
+          items: { $ref: "#/components/schemas/Pick" }
+        recommendations:
+          type: array
+          items: { $ref: "#/components/schemas/Recommendation" }
+        canUndo: { type: boolean }
+    DraftActionRequest:
+      type: object
+      required: [leagueId, playerId, action]
+      properties:
+        leagueId: { type: string }
+        playerId: { type: string }
+        action: { type: string, enum: [draft, taken] }
