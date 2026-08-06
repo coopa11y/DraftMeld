@@ -13,7 +13,7 @@ import (
 	draftapi "github.com/coopa11y/DraftMeld/backend/internal/api"
 )
 
-var version = "dev"
+var version = "0.1.0-dev"
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))

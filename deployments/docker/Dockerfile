@@ -9,12 +9,13 @@ RUN npm run build
 
 FROM golang:1.26-alpine AS backend-build
 WORKDIR /src/backend
+COPY VERSION /src/VERSION
 COPY backend/go.mod ./
 RUN go mod download
 COPY backend/ ./
 COPY --from=frontend-build /src/backend/internal/webui/dist ./internal/webui/dist
-ARG VERSION=dev
-RUN CGO_ENABLED=0 go test ./... && \
+RUN VERSION="$(cat /src/VERSION)" && \
+    CGO_ENABLED=0 go test ./... && \
     CGO_ENABLED=0 go build -tags production -trimpath \
       -ldflags="-s -w -X main.version=${VERSION}" \
       -o /out/draftmeld ./cmd/draftmeld

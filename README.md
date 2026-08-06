@@ -4,6 +4,8 @@
 
 DraftMeld is an open-source fantasy football draft command center. It combines rankings, projections, average draft position, league rules, roster construction, and live draft state into one explainable board.
 
+Current version: **0.1.0**
+
 ## Project status
 
 DraftMeld is in its foundation phase. The product model and architecture are being established before the first application milestone.
@@ -90,3 +92,7 @@ DraftMeld welcomes ideas and contributions. Read [CONTRIBUTING.md](CONTRIBUTING.
 ## License
 
 DraftMeld is licensed under the GNU Affero General Public License v3.0. See [LICENSE](LICENSE).
+
+## Versioning
+
+DraftMeld follows Semantic Versioning. While the project remains below `1.0.0`, minor releases may contain breaking changes. Patch releases contain compatible fixes to the current minor line.

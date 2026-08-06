@@ -1,13 +1,14 @@
 {
   "name": "draftmeld",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Open-source fantasy football draft command center.",
   "license": "AGPL-3.0-only",
   "scripts": {
     "build": "npm --prefix frontend run build",
     "check": "npm --prefix frontend run check",
-    "dev": "npm --prefix frontend run dev"
+    "dev": "npm --prefix frontend run dev",
+    "version:check": "node scripts/check-version.mjs"
   },
   "engines": {
     "node": ">=22"
