@@ -40,9 +40,14 @@ func NewRouter(logger *slog.Logger, version string, draftService *application.Dr
 	mux.HandleFunc("GET /api/v1/draft", func(response http.ResponseWriter, request *http.Request) {
 		leagueID := request.URL.Query().Get("leagueId")
 		if leagueID == "" {
-			leagueID = "demo"
+			writeError(response, http.StatusBadRequest, "A league ID is required.")
+			return
 		}
 		snapshot, err := draftService.Snapshot(request.Context(), leagueID)
+		if errors.Is(err, application.ErrLeagueNotFound) {
+			writeError(response, http.StatusNotFound, "That league was not found.")
+			return
+		}
 		if err != nil {
 			writeError(response, http.StatusInternalServerError, "Unable to load the draft.")
 			return
@@ -56,9 +61,14 @@ func NewRouter(logger *slog.Logger, version string, draftService *application.Dr
 			return
 		}
 		if input.LeagueID == "" {
-			input.LeagueID = "demo"
+			writeError(response, http.StatusBadRequest, "A league ID is required.")
+			return
 		}
 		snapshot, err := draftService.Record(request.Context(), input.LeagueID, input.PlayerID, input.Action)
+		if errors.Is(err, application.ErrLeagueNotFound) {
+			writeError(response, http.StatusNotFound, "That league was not found.")
+			return
+		}
 		if errors.Is(err, application.ErrPlayerUnavailable) {
 			writeError(response, http.StatusConflict, "That player is no longer available.")
 			return
@@ -76,9 +86,14 @@ func NewRouter(logger *slog.Logger, version string, draftService *application.Dr
 			return
 		}
 		if input.LeagueID == "" {
-			input.LeagueID = "demo"
+			writeError(response, http.StatusBadRequest, "A league ID is required.")
+			return
 		}
 		snapshot, err := draftService.Undo(request.Context(), input.LeagueID)
+		if errors.Is(err, application.ErrLeagueNotFound) {
+			writeError(response, http.StatusNotFound, "That league was not found.")
+			return
+		}
 		if errors.Is(err, application.ErrNothingToUndo) {
 			writeError(response, http.StatusConflict, "There is no draft action to undo.")
 			return

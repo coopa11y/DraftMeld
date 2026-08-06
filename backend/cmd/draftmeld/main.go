@@ -33,7 +33,11 @@ func main() {
 		os.Exit(1)
 	}
 	defer store.Close()
-	draftService := application.NewDraftService(store, draft.DemoCatalog())
+	draftService, err := application.NewDraftService(store, draft.DemoCatalog(), application.DemoLeagueConfiguration())
+	if err != nil {
+		logger.Error("configure draft service", "error", err)
+		os.Exit(1)
+	}
 
 	server := &http.Server{
 		Addr:              address,

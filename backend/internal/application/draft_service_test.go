@@ -14,7 +14,7 @@ func TestDraftTakenAndUndo(t *testing.T) {
 		t.Fatalf("open database: %v", err)
 	}
 	defer store.Close()
-	service := NewDraftService(store, draft.DemoCatalog())
+	service := newTestDraftService(t, store)
 	ctx := context.Background()
 
 	afterDraft, err := service.Record(ctx, "demo", "p001", draft.ActionDraft)
@@ -51,7 +51,7 @@ func TestRecommendationsReactToRosterNeed(t *testing.T) {
 		t.Fatalf("open database: %v", err)
 	}
 	defer store.Close()
-	service := NewDraftService(store, draft.DemoCatalog())
+	service := newTestDraftService(t, store)
 	before, err := service.Snapshot(context.Background(), "demo")
 	if err != nil {
 		t.Fatalf("load snapshot: %v", err)
@@ -66,6 +66,38 @@ func TestRecommendationsReactToRosterNeed(t *testing.T) {
 	if after.Recommendations[0].Player.ID == before.Recommendations[0].Player.ID {
 		t.Fatalf("taken player remained recommended")
 	}
+}
+
+func TestLeagueConfigurationControlsSnapshotAndRecommendationLimit(t *testing.T) {
+	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	defer store.Close()
+	configuration := DemoLeagueConfiguration()
+	configuration.ID = "custom"
+	configuration.Rules.Name = "Custom League"
+	configuration.Recommendation.RecommendationLimit = 2
+	service, err := NewDraftService(store, draft.DemoCatalog(), configuration)
+	if err != nil {
+		t.Fatalf("create service: %v", err)
+	}
+	snapshot, err := service.Snapshot(context.Background(), "custom")
+	if err != nil {
+		t.Fatalf("load snapshot: %v", err)
+	}
+	if snapshot.LeagueName != "Custom League" || len(snapshot.Recommendations) != 2 {
+		t.Fatalf("configuration was not applied: %#v", snapshot)
+	}
+}
+
+func newTestDraftService(t *testing.T, repository DraftEventRepository) *DraftService {
+	t.Helper()
+	service, err := NewDraftService(repository, draft.DemoCatalog(), DemoLeagueConfiguration())
+	if err != nil {
+		t.Fatalf("create draft service: %v", err)
+	}
+	return service
 }
 
 func containsPlayer(players []draft.Player, playerID string) bool {

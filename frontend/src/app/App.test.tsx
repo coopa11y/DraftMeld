@@ -44,6 +44,19 @@ afterEach(() => {
 });
 
 describe("accessible draft board", () => {
+  it("loads the league selected by the application shell", async () => {
+    const fetchMock = vi.fn((_input: RequestInfo | URL) =>
+      jsonResponse(snapshot({ leagueId: "league-a", leagueName: "League A" })),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App leagueId="league-a" />);
+
+    expect(await screen.findByText("League A")).toBeInTheDocument();
+    const requestInput = fetchMock.mock.calls[0][0];
+    const requestUrl = requestInput instanceof Request ? requestInput.url : requestInput.toString();
+    expect(new URL(requestUrl).searchParams.get("leagueId")).toBe("league-a");
+  });
+
   it("exposes landmarks, names every player action, and has no automatic axe violations", async () => {
     vi.stubGlobal("fetch", vi.fn(() => jsonResponse(snapshot())));
     const { container } = render(<App />);

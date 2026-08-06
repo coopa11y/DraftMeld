@@ -1,22 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getDraft, recordDraftAction, undoDraftAction } from "../shared/api/draft";
 import type { DraftAction, DraftSnapshot, Player } from "../shared/api/types";
-import { PlayerActions } from "./PlayerActions";
+import { DraftSidebar } from "./DraftSidebar";
+import { PlayerBoard } from "./PlayerBoard";
 
-const positions = ["Overall", "QB", "RB", "WR", "TE"] as const;
-type PositionFilter = (typeof positions)[number];
-
-function valueLabel(player: Player) {
-  const value = player.adp - player.overallRank;
-  if (value >= 1) return `Plus ${value.toFixed(1)}`;
-  if (value <= -1) return `Minus ${Math.abs(value).toFixed(1)}`;
-  return "Even";
+interface AppProps {
+  leagueId?: string;
 }
 
-export function App() {
+export function App({ leagueId = "demo" }: AppProps) {
   const [snapshot, setSnapshot] = useState<DraftSnapshot | null>(null);
-  const [position, setPosition] = useState<PositionFilter>("Overall");
-  const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [announcement, setAnnouncement] = useState("Draft board loading.");
   const [error, setError] = useState("");
@@ -25,13 +18,21 @@ export function App() {
   const errorAlert = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    getDraft()
+    let active = true;
+    setSnapshot(null);
+    setError("");
+    setAnnouncement("Draft board loading.");
+    getDraft(leagueId)
       .then((data) => {
+        if (!active) return;
         setSnapshot(data);
         setAnnouncement(`Draft board loaded. ${data.available.length} players are available.`);
       })
-      .catch((reason: Error) => setError(reason.message));
-  }, []);
+      .catch((reason: Error) => {
+        if (active) setError(reason.message);
+      });
+    return () => { active = false; };
+  }, [leagueId]);
 
   useEffect(() => {
     if (!snapshot || !pendingFocus.current) return;
@@ -45,17 +46,6 @@ export function App() {
     if (error) errorAlert.current?.focus();
   }, [error]);
 
-  const visiblePlayers = useMemo(() => {
-    if (!snapshot) return [];
-    const normalizedSearch = search.trim().toLowerCase();
-    return snapshot.available.filter((player) => {
-      const matchesPosition = position === "Overall" || player.position === position;
-      const matchesSearch = !normalizedSearch ||
-        `${player.name} ${player.nflTeam} ${player.position}`.toLowerCase().includes(normalizedSearch);
-      return matchesPosition && matchesSearch;
-    });
-  }, [position, search, snapshot]);
-
   async function handleAction(player: Player, action: DraftAction) {
     if (!snapshot || busy) return;
     const index = snapshot.available.findIndex((candidate) => candidate.id === player.id);
@@ -63,7 +53,7 @@ export function App() {
     setBusy(true);
     setError("");
     try {
-      const updated = await recordDraftAction(player.id, action);
+      const updated = await recordDraftAction(leagueId, player.id, action);
       setSnapshot(updated);
       setAnnouncement(
         action === "draft"
@@ -85,7 +75,7 @@ export function App() {
     setBusy(true);
     setError("");
     try {
-      const updated = await undoDraftAction();
+      const updated = await undoDraftAction(leagueId);
       setSnapshot(updated);
       setAnnouncement(`${lastPick.player.name} was restored to the available-player list.`);
     } catch (reason) {
@@ -110,152 +100,29 @@ export function App() {
           <a className="brand" href="/" aria-label="DraftMeld home">DraftMeld</a>
           <span className="version">v{__APP_VERSION__}</span>
         </div>
-        {snapshot && (
+        {snapshot ? (
           <div className="draft-status" aria-label={`Draft status. Pick ${snapshot.pickNumber}. ${snapshot.available.length} players available.`}>
             <strong>Pick {snapshot.pickNumber}</strong>
             <span>{snapshot.available.length} available</span>
           </div>
-        )}
+        ) : null}
       </header>
 
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</div>
-      {error && <div className="error-banner" role="alert" tabIndex={-1} ref={errorAlert}>{error}</div>}
+      {error ? <div className="error-banner" role="alert" tabIndex={-1} ref={errorAlert}>{error}</div> : null}
 
-      {snapshot && (
+      {snapshot ? (
         <main className="draft-layout" aria-busy={busy}>
-          <section className="board-panel" id="player-board" aria-labelledby="board-title">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">{snapshot.leagueName}</p>
-                <h1 id="board-title" ref={boardHeading} tabIndex={-1}>Available players</h1>
-              </div>
-              <button
-                className="undo-button"
-                type="button"
-                disabled={!snapshot.canUndo || busy}
-                onClick={handleUndo}
-                aria-describedby="undo-help"
-              >
-                Undo last action
-              </button>
-              <span className="sr-only" id="undo-help">Restores the most recently drafted or taken player.</span>
-            </div>
-
-            <div className="board-controls">
-              <fieldset>
-                <legend>Rankings by position</legend>
-                <div className="filter-buttons">
-                  {positions.map((option) => (
-                    <button
-                      type="button"
-                      key={option}
-                      aria-pressed={position === option}
-                      onClick={() => setPosition(option)}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
-              <label className="search-field">
-                <span>Search available players</span>
-                <input
-                  type="search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Name, team, or position"
-                />
-              </label>
-            </div>
-
-            <p className="result-summary" role="status">
-              Showing {visiblePlayers.length} of {snapshot.available.length} available players.
-            </p>
-
-            <div className="table-scroll" role="region" aria-label="Available player rankings" tabIndex={0}>
-              <table>
-                <caption>Available players sorted by overall rank</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Rank</th>
-                    <th scope="col">Player</th>
-                    <th scope="col">Position</th>
-                    <th scope="col">Tier</th>
-                    <th scope="col"><abbr title="Average draft position">ADP</abbr></th>
-                    <th scope="col">Value</th>
-                    <th scope="col">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visiblePlayers.map((player) => (
-                    <tr key={player.id}>
-                      <td>{player.overallRank}</td>
-                      <th scope="row">
-                        <span className="player-name">{player.name}</span>
-                        <span className="player-meta">{player.nflTeam}, bye week {player.byeWeek}</span>
-                      </th>
-                      <td>{player.position}{player.positionRank}</td>
-                      <td>{player.tier}</td>
-                      <td>{player.adp.toFixed(1)}</td>
-                      <td>
-                        <span aria-hidden="true">{(player.adp - player.overallRank).toFixed(1)}</span>
-                        <span className="sr-only">{valueLabel(player)}</span>
-                      </td>
-                      <td><PlayerActions player={player} busy={busy} primary onAction={handleAction} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {visiblePlayers.length === 0 && <p className="empty-state">No available players match these filters.</p>}
-            </div>
-          </section>
-
-          <aside className="sidebar" aria-label="Draft assistant">
-            <section className="side-panel" id="recommendations" aria-labelledby="recommendations-title">
-              <p className="eyebrow">Updated after every pick</p>
-              <h2 id="recommendations-title">Recommended</h2>
-              <ol className="recommendation-list">
-                {snapshot.recommendations.map((recommendation) => (
-                  <li key={recommendation.player.id}>
-                    <article>
-                      <h3>{recommendation.player.name} <span>{recommendation.player.position}{recommendation.player.positionRank}</span></h3>
-                      <ul className="reason-list">
-                        {recommendation.reasons.map((reason) => <li key={reason}>{reason}</li>)}
-                      </ul>
-                      <PlayerActions player={recommendation.player} busy={busy} onAction={handleAction} />
-                    </article>
-                  </li>
-                ))}
-              </ol>
-            </section>
-
-            <section className="side-panel" id="my-team" aria-labelledby="my-team-title">
-              <p className="eyebrow">{snapshot.myTeam.length} players</p>
-              <h2 id="my-team-title">My team</h2>
-              {snapshot.myTeam.length ? (
-                <ul className="team-list">
-                  {snapshot.myTeam.map((player) => (
-                    <li key={player.id}><strong>{player.position}</strong><span>{player.name}, {player.nflTeam}</span></li>
-                  ))}
-                </ul>
-              ) : <p className="empty-state">No players drafted yet.</p>}
-            </section>
-
-            <section className="side-panel" aria-labelledby="history-title">
-              <h2 id="history-title">Draft history</h2>
-              {snapshot.history.length ? (
-                <ol className="history-list">
-                  {[...snapshot.history].reverse().slice(0, 8).map((pick) => (
-                    <li key={pick.eventId}>
-                      <strong>Pick {pick.number}:</strong> {pick.player.name} {pick.action === "draft" ? "to my team" : "taken"}
-                    </li>
-                  ))}
-                </ol>
-              ) : <p className="empty-state">No picks recorded yet.</p>}
-            </section>
-          </aside>
+          <PlayerBoard
+            snapshot={snapshot}
+            busy={busy}
+            headingRef={boardHeading}
+            onAction={handleAction}
+            onUndo={handleUndo}
+          />
+          <DraftSidebar snapshot={snapshot} busy={busy} onAction={handleAction} />
         </main>
-      )}
+      ) : null}
     </>
   );
 }

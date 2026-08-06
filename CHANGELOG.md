@@ -14,6 +14,14 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 - Skip links, live announcements, keyboard focus recovery, forced-colors support, and reduced-motion support
 - Automated axe, keyboard interaction, API, domain, and SQLite tests
 
+### Changed
+
+- League configuration now drives roster needs and recommendation policy
+- OpenAPI now generates the frontend API types used by a typed fetch client
+- Database migrations are ordered, transactional, and tracked in the database
+- Draft UI and backend application logic are split into cohesive feature modules
+- Shared CSS tokens and a root `npm run verify` contributor workflow
+
 ## [0.1.0] - 2026-08-05
 
 ### Added
