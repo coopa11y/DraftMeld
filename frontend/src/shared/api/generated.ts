@@ -113,6 +113,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ranking-sources/import-pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Detect and import a supported user-supplied ranking PDF */
+        post: operations["importRankingPDF"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rankings": {
         parameters: {
             query?: never;
@@ -227,10 +244,16 @@ export interface components {
             /** Format: uri */
             dataUrl: string;
             defaultWeight: number;
+            /** @enum {string} */
+            importMode: "download" | "pdf-upload";
             recordCount: number;
             /** Format: date-time */
             refreshedAt?: string | null;
             publishedAt?: string;
+        };
+        RankingPDFImport: {
+            source: components["schemas"]["RankingSource"];
+            pageCount: number;
         };
         ConsensusRanking: {
             playerKey: string;
@@ -529,6 +552,43 @@ export interface operations {
             };
             /** @description An upstream ranking feed could not be downloaded or parsed. */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    importRankingPDF: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The detected ranking source was normalized and imported. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RankingPDFImport"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description The uploaded PDF exceeds the 20 MiB limit. */
+            413: {
                 headers: {
                     [name: string]: unknown;
                 };

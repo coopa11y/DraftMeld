@@ -8,7 +8,7 @@ Current development version: **0.2.0**
 
 ## Project status
 
-DraftMeld is in active `0.2.0` development. It includes an accessible manual draft loop, persistent customizable multi-league setup, and an inspectable five-feed ranking import and consensus preview.
+DraftMeld is in active `0.2.0` development. It includes an accessible manual draft loop, persistent customizable multi-league setup, and an inspectable ranking import and consensus preview. Five downloadable feeds and two user-supplied ESPN PDF formats are currently supported.
 
 ## Product goals
 
@@ -75,7 +75,7 @@ The frontend proxies `/api` requests to `http://localhost:8080`. A production bu
 
 On first launch, DraftMeld creates a customizable demo league. Use **Manage leagues** to create, edit, duplicate, or delete leagues and switch the active draft board.
 
-Use **Ranking sources** to review each feed's method, license, weight, freshness, and project link before refreshing the local data. See [docs/ranking-sources.md](docs/ranking-sources.md) for the initial source set and current matching limitations.
+Use **Ranking sources** to review each feed's method, license, weight, freshness, and project link before refreshing the local data or privately importing a supported PDF. See [docs/ranking-sources.md](docs/ranking-sources.md) for the source set, supported PDF formats, and current matching limitations.
 
 Run the same contract, type, unit-test, vet, and production-build checks used for pull requests:
 

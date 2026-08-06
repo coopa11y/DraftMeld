@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/application"
@@ -50,13 +52,48 @@ func TestRankingSourcesExposeBuiltInProvenance(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&sources); err != nil {
 		t.Fatalf("decode ranking sources: %v", err)
 	}
-	if len(sources) != 5 {
-		t.Fatalf("expected five built-in sources, got %d", len(sources))
+	if len(sources) != 7 {
+		t.Fatalf("expected seven built-in sources, got %d", len(sources))
 	}
 	for _, source := range sources {
 		if source.ID == "" || source.License == "" || source.ProjectURL == "" {
 			t.Fatalf("source is missing provenance: %#v", source)
 		}
+	}
+}
+
+func TestRankingPDFImportRequiresAFile(t *testing.T) {
+	router, closeStore := testRouter(t)
+	defer closeStore()
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/ranking-sources/import-pdf", bytes.NewBufferString("not multipart"))
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusBadRequest, response.Code, response.Body.String())
+	}
+}
+
+func TestRankingPDFImportRejectsMultipleFiles(t *testing.T) {
+	router, closeStore := testRouter(t)
+	defer closeStore()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	for _, filename := range []string{"first.pdf", "second.pdf"} {
+		part, err := writer.CreateFormFile("file", filename)
+		if err != nil {
+			t.Fatalf("create multipart file: %v", err)
+		}
+		_, _ = part.Write([]byte("%PDF-test"))
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close multipart body: %v", err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/ranking-sources/import-pdf", &body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "one PDF at a time") {
+		t.Fatalf("expected duplicate-file error, got %d: %s", response.Code, response.Body.String())
 	}
 }
 

@@ -11,6 +11,7 @@ type SourceDefinition struct {
 	ProjectURL    string  `json:"projectUrl"`
 	DataURL       string  `json:"dataUrl"`
 	DefaultWeight float64 `json:"defaultWeight"`
+	ImportMode    string  `json:"importMode"`
 }
 
 type Record struct {

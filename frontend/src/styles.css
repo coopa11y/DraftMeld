@@ -225,6 +225,9 @@ tbody tr:focus-within { background: var(--color-control); }
 .section-description { max-width: 70ch; margin: 0.65rem 0 0; color: var(--color-text-muted); line-height: 1.55; }
 .status-message { min-height: 1.5rem; margin: 0; padding: 0 1.4rem 1rem; color: var(--color-text-muted); }
 .source-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 0; padding: 0 1.4rem 1.4rem; list-style: none; }
+.pdf-import-form { display: grid; grid-template-columns: minmax(16rem, 1fr) minmax(15rem, 1fr) auto; align-items: end; gap: 1rem; margin: 0 1.4rem 1.4rem; padding: 1rem; background: var(--color-surface-deep); border: 1px solid var(--color-border-subtle); border-radius: 0.75rem; }
+.pdf-import-form p { margin: 0.35rem 0 0; color: var(--color-text-muted); line-height: 1.45; }
+.pdf-import-form input { width: 100%; min-height: 44px; padding: 0.55rem; color: var(--color-text); background: var(--color-background); border: 1px solid var(--color-border-input); border-radius: 0.5rem; }
 .source-card { height: 100%; padding: 1.2rem; background: var(--color-surface-deep); border: 1px solid var(--color-border-subtle); border-radius: 0.75rem; }
 .source-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
 .source-card-heading span { flex: 0 0 auto; padding: 0.25rem 0.5rem; color: var(--color-on-accent); background: var(--color-accent); border-radius: 999px; font-size: 0.72rem; font-weight: 850; }
@@ -262,6 +265,7 @@ tbody tr:focus-within { background: var(--color-control); }
   .position-options { grid-column: auto; }
   .league-actions > button, .form-actions > button { flex: 1 1 100%; }
   .source-grid { grid-template-columns: minmax(0, 1fr); }
+  .pdf-import-form { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
   .coverage-list { grid-template-columns: minmax(0, 1fr); }
   .source-card dl div { grid-template-columns: 1fr; gap: 0.15rem; }
 }

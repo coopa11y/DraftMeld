@@ -11,4 +11,5 @@ export type LeagueRules = components["schemas"]["LeagueRules"];
 export type RosterSlot = components["schemas"]["RosterSlot"];
 export type RankingSource = components["schemas"]["RankingSource"];
 export type ConsensusRanking = components["schemas"]["ConsensusRanking"];
+export type RankingPDFImport = components["schemas"]["RankingPDFImport"];
 export type DraftAction = DraftActionRequest["action"];

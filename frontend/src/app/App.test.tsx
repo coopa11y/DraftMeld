@@ -38,11 +38,13 @@ const demoLeague: League = {
 };
 
 const rankingSources: RankingSource[] = [
-  { id: "redraft-ecr", name: "Redraft expert consensus", description: "Current overall redraft consensus.", methodology: "Average expert rank", license: "GPL-3.0", projectUrl: "https://github.com/dynastyprocess/data", dataUrl: "https://example.test/ecr.csv", defaultWeight: 1, recordCount: 500, publishedAt: "2026-07-31" },
-  { id: "dynasty-1qb", name: "Dynasty market - 1 QB", description: "Long-term 1-QB values.", methodology: "Normalized player value", license: "GPL-3.0", projectUrl: "https://github.com/dynastyprocess/data", dataUrl: "https://example.test/1qb.csv", defaultWeight: 0.7, recordCount: 450, publishedAt: "2026-07-31" },
-  { id: "dynasty-superflex", name: "Dynasty market - Superflex", description: "Long-term Superflex values.", methodology: "Normalized Superflex value", license: "GPL-3.0", projectUrl: "https://github.com/dynastyprocess/data", dataUrl: "https://example.test/superflex.csv", defaultWeight: 0.5, recordCount: 450, publishedAt: "2026-07-31" },
-  { id: "expected-opportunity", name: "Expected opportunity", description: "Prior-season usage quality.", methodology: "Expected fantasy points", license: "CC-BY-SA-4.0", projectUrl: "https://github.com/ffverse/ffopportunity", dataUrl: "https://example.test/opportunity.csv", defaultWeight: 0.6, recordCount: 300, publishedAt: "2025" },
-  { id: "cbs-ppr", name: "CBS Sports PPR Top 200", description: "Current CBS consensus.", methodology: "CBS expert consensus", license: "Proprietary; retrieved on demand", projectUrl: "https://www.cbssports.com/fantasy/football/rankings/", dataUrl: "https://www.cbssports.com/fantasy/football/rankings/", defaultWeight: 0.9, recordCount: 200, publishedAt: "Updated today" },
+  { id: "redraft-ecr", name: "Redraft expert consensus", description: "Current overall redraft consensus.", methodology: "Average expert rank", license: "GPL-3.0", projectUrl: "https://github.com/dynastyprocess/data", dataUrl: "https://example.test/ecr.csv", defaultWeight: 1, importMode: "download", recordCount: 500, publishedAt: "2026-07-31" },
+  { id: "dynasty-1qb", name: "Dynasty market - 1 QB", description: "Long-term 1-QB values.", methodology: "Normalized player value", license: "GPL-3.0", projectUrl: "https://github.com/dynastyprocess/data", dataUrl: "https://example.test/1qb.csv", defaultWeight: 0.7, importMode: "download", recordCount: 450, publishedAt: "2026-07-31" },
+  { id: "dynasty-superflex", name: "Dynasty market - Superflex", description: "Long-term Superflex values.", methodology: "Normalized Superflex value", license: "GPL-3.0", projectUrl: "https://github.com/dynastyprocess/data", dataUrl: "https://example.test/superflex.csv", defaultWeight: 0.5, importMode: "download", recordCount: 450, publishedAt: "2026-07-31" },
+  { id: "expected-opportunity", name: "Expected opportunity", description: "Prior-season usage quality.", methodology: "Expected fantasy points", license: "CC-BY-SA-4.0", projectUrl: "https://github.com/ffverse/ffopportunity", dataUrl: "https://example.test/opportunity.csv", defaultWeight: 0.6, importMode: "download", recordCount: 300, publishedAt: "2025" },
+  { id: "cbs-ppr", name: "CBS Sports PPR Top 200", description: "Current CBS consensus.", methodology: "CBS expert consensus", license: "Proprietary; retrieved on demand", projectUrl: "https://www.cbssports.com/fantasy/football/rankings/", dataUrl: "https://www.cbssports.com/fantasy/football/rankings/", defaultWeight: 0.9, importMode: "download", recordCount: 200, publishedAt: "Updated today" },
+  { id: "espn-ppr-pdf", name: "ESPN PPR Top 300 PDF", description: "User-supplied ESPN rankings.", methodology: "Overall ordinal rank", license: "Proprietary; user-supplied", projectUrl: "https://www.espn.com/fantasy/football/", dataUrl: "https://www.espn.com/fantasy/football/", defaultWeight: 0.9, importMode: "pdf-upload", recordCount: 0 },
+  { id: "espn-dynasty-pdf", name: "ESPN Dynasty PDF", description: "User-supplied ESPN dynasty rankings.", methodology: "Dynasty ordinal rank", license: "Proprietary; user-supplied", projectUrl: "https://www.espn.com/fantasy/football/", dataUrl: "https://www.espn.com/fantasy/football/", defaultWeight: 0.6, importMode: "pdf-upload", recordCount: 0 },
 ];
 
 const consensusRankings: ConsensusRanking[] = [
@@ -129,6 +131,7 @@ describe("accessible draft board", () => {
       const request = input instanceof Request ? input : new Request(input, init);
       const path = new URL(request.url).pathname;
       if (path.endsWith("/leagues")) return jsonResponse([demoLeague]);
+      if (path.endsWith("/ranking-sources/import-pdf") && request.method === "POST") return jsonResponse({ source: { ...rankingSources[5], recordCount: 245, publishedAt: "2026-08-02" }, pageCount: 1 }, 201);
       if (path.endsWith("/ranking-sources/refresh") && request.method === "POST") return jsonResponse(rankingSources);
       if (path.endsWith("/ranking-sources")) return jsonResponse(rankingSources.map((source) => ({ ...source, recordCount: 0, publishedAt: undefined })));
       if (path.endsWith("/rankings")) return jsonResponse(consensusRankings);
@@ -140,9 +143,14 @@ describe("accessible draft board", () => {
     await user.click(await screen.findByRole("button", { name: "Ranking sources" }));
     expect(await screen.findByRole("heading", { name: "Redraft expert consensus" })).toBeInTheDocument();
     expect(screen.getByText("CC-BY-SA-4.0")).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: /View source website/ })).toHaveLength(5);
+    expect(screen.getAllByRole("link", { name: /View source website/ })).toHaveLength(7);
     expect(screen.getByRole("heading", { name: "Platform connector status" })).toBeInTheDocument();
     expect(screen.getByText("The public overall draft table still contains the prior-season board.")).toBeInTheDocument();
+
+    const pdf = new File(["%PDF-test"], "espn-rankings.pdf", { type: "application/pdf" });
+    await user.upload(screen.getByLabelText("Import a ranking PDF"), pdf);
+    await user.click(screen.getByRole("button", { name: "Import PDF" }));
+    expect(await screen.findByText("ESPN PPR Top 300 PDF imported: 245 skill players from 1 page.")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Refresh all sources" }));
     expect(await screen.findByRole("table", { name: "Top 25 blended player rankings" })).toBeInTheDocument();

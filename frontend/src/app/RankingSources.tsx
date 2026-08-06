@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getConsensusRankings, listRankingSources, refreshRankingSources } from "../shared/api/rankings";
+import { getConsensusRankings, importRankingPDF, listRankingSources, refreshRankingSources } from "../shared/api/rankings";
 import type { ConsensusRanking, RankingSource } from "../shared/api/types";
 
 const refreshTimeFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -7,7 +7,7 @@ const providerCoverage = [
   { provider: "CBS Sports", status: "Connected", detail: "Current public PPR Top 200 consensus." },
   { provider: "Yahoo Fantasy", status: "OAuth required", detail: "Public rankings are league-specific; full league data requires approved API access." },
   { provider: "NFL.com", status: "Held out", detail: "The public overall draft table still contains the prior-season board." },
-  { provider: "ESPN", status: "Import planned", detail: "Current free rankings are positional articles and PDFs rather than a stable overall export." },
+  { provider: "ESPN", status: "PDF import", detail: "Upload a PPR Top 300 or Dynasty Cheat Sheet that you are permitted to use." },
 ] as const;
 
 function formatRefreshTime(value?: string | null) {
@@ -20,6 +20,7 @@ export function RankingSources() {
   const [busy, setBusy] = useState(true);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [pdfFile, setPDFFile] = useState<File | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -45,7 +46,8 @@ export function RankingSources() {
   async function refresh() {
     setBusy(true);
     setError("");
-    setMessage(`Downloading and normalizing ${sources.length} ranking feeds. This may take a moment.`);
+    const downloadableCount = sources.filter((source) => source.importMode === "download").length;
+    setMessage(`Downloading and normalizing ${downloadableCount} online ranking feeds. This may take a moment.`);
     try {
       const loaded = await refreshRankingSources();
       setSources(loaded);
@@ -54,6 +56,31 @@ export function RankingSources() {
       setMessage(`Rankings refreshed. ${count} source records were normalized.`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to refresh rankings.");
+      setMessage("");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function uploadPDF(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (!pdfFile) {
+      setError("Choose an ESPN ranking PDF before importing.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setMessage("Reading the PDF locally and normalizing its player rankings.");
+    try {
+      const result = await importRankingPDF(pdfFile);
+      setSources((current) => current.map((source) => source.id === result.source.id ? result.source : source));
+      setRankings(await getConsensusRankings());
+      setMessage(`${result.source.name} imported: ${result.source.recordCount} skill players from ${result.pageCount} page${result.pageCount === 1 ? "" : "s"}.`);
+      setPDFFile(null);
+      form.reset();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to import that PDF.");
       setMessage("");
     } finally {
       setBusy(false);
@@ -73,6 +100,14 @@ export function RankingSources() {
         </div>
         <p className="status-message" role="status" aria-live="polite">{message}</p>
         {error ? <div className="error-banner" role="alert">{error}</div> : null}
+        <form className="pdf-import-form" onSubmit={uploadPDF}>
+          <div>
+            <label htmlFor="ranking-pdf"><strong>Import a ranking PDF</strong></label>
+            <p id="ranking-pdf-help">DraftMeld detects supported ESPN PPR Top 300 and Dynasty cheat sheets. Files are processed in memory and are not retained.</p>
+          </div>
+          <input id="ranking-pdf" name="file" type="file" accept="application/pdf,.pdf" aria-describedby="ranking-pdf-help" onChange={(event) => setPDFFile(event.target.files?.[0] ?? null)} disabled={busy} />
+          <button className="secondary-button" type="submit" disabled={busy || !pdfFile}>Import PDF</button>
+        </form>
         <ul className="source-grid">
           {sources.map((source) => (
             <li key={source.id}>
@@ -107,7 +142,7 @@ export function RankingSources() {
             <table aria-label="Top 25 blended player rankings">
               <caption>Top 25 blended player rankings</caption>
               <thead><tr><th>Rank</th><th>Player</th><th>Pos.</th><th>Sources</th><th>Blended score</th></tr></thead>
-              <tbody>{rankings.slice(0, 25).map((player) => <tr key={player.playerKey}><td>{player.rank}</td><th scope="row"><span className="player-name">{player.name}</span><span className="player-meta">{player.team || "Team unavailable"}</span></th><td>{player.position}</td><td>{player.sourceCount} of {sources.length}</td><td>{player.score.toFixed(1)}</td></tr>)}</tbody>
+              <tbody>{rankings.slice(0, 25).map((player) => <tr key={player.playerKey}><td>{player.rank}</td><th scope="row"><span className="player-name">{player.name}</span><span className="player-meta">{player.team || "Team unavailable"}</span></th><td>{player.position}</td><td>{player.sourceCount} of {sources.filter((source) => source.recordCount > 0).length}</td><td>{player.score.toFixed(1)}</td></tr>)}</tbody>
             </table>
           </div>
         </section>

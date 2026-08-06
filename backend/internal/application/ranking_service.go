@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/coopa11y/DraftMeld/backend/internal/document"
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/ranking"
 )
 
@@ -18,13 +19,15 @@ type RankingRepository interface {
 }
 
 type RankingService struct {
-	repository RankingRepository
-	client     *http.Client
-	sources    []ranking.SourceDefinition
+	repository   RankingRepository
+	client       *http.Client
+	sources      []ranking.SourceDefinition
+	pdfExtractor document.PDFExtractor
+	pdfParsers   []pdfRankingParser
 }
 
 func NewRankingService(repository RankingRepository) *RankingService {
-	return &RankingService{repository: repository, client: &http.Client{Timeout: 60 * time.Second}, sources: BuiltInRankingSources()}
+	return &RankingService{repository: repository, client: &http.Client{Timeout: 60 * time.Second}, sources: BuiltInRankingSources(), pdfExtractor: document.NativePDFExtractor{}, pdfParsers: defaultPDFRankingParsers()}
 }
 
 func (service *RankingService) Sources(ctx context.Context) ([]ranking.SourceStatus, error) {
@@ -41,9 +44,21 @@ func (service *RankingService) Sources(ctx context.Context) ([]ranking.SourceSta
 	return statuses, nil
 }
 
+func (service *RankingService) sourceByID(id string) (ranking.SourceDefinition, bool) {
+	for _, source := range service.sources {
+		if source.ID == id {
+			return source, true
+		}
+	}
+	return ranking.SourceDefinition{}, false
+}
+
 func (service *RankingService) Refresh(ctx context.Context) ([]ranking.SourceStatus, error) {
 	downloads := make(map[string][]byte)
 	for _, source := range service.sources {
+		if source.ImportMode != "download" {
+			continue
+		}
 		contents, exists := downloads[source.DataURL]
 		if !exists {
 			var err error
@@ -116,7 +131,7 @@ func (service *RankingService) Consensus(ctx context.Context) ([]ranking.PlayerR
 	// retired or otherwise undraftable players on their own.
 	eligible := make(map[string]struct{})
 	for _, record := range records {
-		if record.SourceID == "redraft-ecr" {
+		if record.SourceID == "redraft-ecr" || record.SourceID == "espn-ppr-pdf" {
 			eligible[record.PlayerKey] = struct{}{}
 		}
 	}
@@ -138,7 +153,7 @@ func (service *RankingService) Consensus(ctx context.Context) ([]ranking.PlayerR
 		}
 		source.Ranks[record.PlayerKey] = record.Rank
 		sources[record.SourceID] = source
-		if _, exists = metadata[record.PlayerKey]; !exists || record.SourceID == "redraft-ecr" {
+		if _, exists = metadata[record.PlayerKey]; !exists || record.SourceID == "espn-ppr-pdf" || record.SourceID == "redraft-ecr" {
 			metadata[record.PlayerKey] = record
 		}
 		if sourceRanks[record.PlayerKey] == nil {

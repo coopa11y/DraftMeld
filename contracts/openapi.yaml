@@ -142,6 +142,33 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /ranking-sources/import-pdf:
+    post:
+      operationId: importRankingPDF
+      summary: Detect and import a supported user-supplied ranking PDF
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: The detected ranking source was normalized and imported.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RankingPDFImport" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "413":
+          description: The uploaded PDF exceeds the 20 MiB limit.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
   /rankings:
     get:
       operationId: getConsensusRankings
@@ -344,7 +371,7 @@ components:
     RankingSource:
       type: object
       additionalProperties: false
-      required: [id, name, description, methodology, license, projectUrl, dataUrl, defaultWeight, recordCount]
+      required: [id, name, description, methodology, license, projectUrl, dataUrl, defaultWeight, importMode, recordCount]
       properties:
         id: { type: string }
         name: { type: string }
@@ -354,9 +381,17 @@ components:
         projectUrl: { type: string, format: uri }
         dataUrl: { type: string, format: uri }
         defaultWeight: { type: number, exclusiveMinimum: 0 }
+        importMode: { type: string, enum: [download, pdf-upload] }
         recordCount: { type: integer, minimum: 0 }
         refreshedAt: { type: [string, "null"], format: date-time }
         publishedAt: { type: string }
+    RankingPDFImport:
+      type: object
+      additionalProperties: false
+      required: [source, pageCount]
+      properties:
+        source: { $ref: "#/components/schemas/RankingSource" }
+        pageCount: { type: integer, minimum: 1 }
     ConsensusRanking:
       type: object
       additionalProperties: false

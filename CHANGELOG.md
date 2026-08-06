@@ -19,6 +19,8 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 - Current CBS Sports PPR Top 200 connector that retains attribution without redistributing raw data
 - Weighted consensus preview anchored to the current redraft player pool
 - Ranking-source and consensus REST endpoints with generated TypeScript types
+- Private, in-memory imports for user-supplied ESPN PPR and dynasty ranking PDFs
+- Reusable PDF extraction and provider-adapter boundary for adding future ranking sheets
 
 ### Changed
 
