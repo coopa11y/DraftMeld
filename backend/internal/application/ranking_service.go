@@ -131,6 +131,7 @@ func (service *RankingService) Consensus(ctx context.Context) ([]ranking.PlayerR
 	// retired or otherwise undraftable players on their own.
 	eligible := make(map[string]struct{})
 	for _, record := range records {
+		record = canonicalizeRankingRecord(record)
 		if record.SourceID == "redraft-ecr" || record.SourceID == "espn-ppr-pdf" {
 			eligible[record.PlayerKey] = struct{}{}
 		}
@@ -139,6 +140,7 @@ func (service *RankingService) Consensus(ctx context.Context) ([]ranking.PlayerR
 	metadata := make(map[string]ranking.Record)
 	sourceRanks := make(map[string]map[string]int)
 	for _, record := range records {
+		record = canonicalizeRankingRecord(record)
 		if _, exists := eligible[record.PlayerKey]; !exists {
 			continue
 		}

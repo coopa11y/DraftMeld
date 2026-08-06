@@ -33,6 +33,7 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 - Draft configuration is loaded from persisted league rules instead of startup-only configuration
 - Ranking refreshes normalize provider CSV formats and replace each source atomically
 - Ranking downloads use an identifying user agent, bounded response size, timeout, and one transient-failure retry
+- Defense rankings now share one team-based identity across provider names, abbreviations, and position labels
 
 ## [0.1.0] - 2026-08-05
 
