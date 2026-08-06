@@ -1,0 +1,93 @@
+package sqlite
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"time"
+
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/draft"
+	"github.com/coopa11y/DraftMeld/backend/migrations"
+	_ "modernc.org/sqlite"
+)
+
+type DraftEventStore struct {
+	database *sql.DB
+}
+
+func Open(path string) (*DraftEventStore, error) {
+	database, err := sql.Open("sqlite", path)
+	if err != nil {
+		return nil, fmt.Errorf("open SQLite database: %w", err)
+	}
+	database.SetMaxOpenConns(1)
+	store := &DraftEventStore{database: database}
+	if err = store.migrate(context.Background()); err != nil {
+		_ = database.Close()
+		return nil, err
+	}
+	return store, nil
+}
+
+func (store *DraftEventStore) Close() error {
+	return store.database.Close()
+}
+
+func (store *DraftEventStore) migrate(ctx context.Context) error {
+	migration, err := migrations.Files.ReadFile("0001_draft_events.sql")
+	if err != nil {
+		return fmt.Errorf("read SQLite migration: %w", err)
+	}
+	if _, err := store.database.ExecContext(ctx, string(migration)); err != nil {
+		return fmt.Errorf("migrate SQLite database: %w", err)
+	}
+	return nil
+}
+
+func (store *DraftEventStore) List(ctx context.Context, leagueID string) ([]draft.Event, error) {
+	rows, err := store.database.QueryContext(ctx, `
+SELECT id, league_id, player_id, action, target_event_id, created_at
+FROM draft_events
+WHERE league_id = ?
+ORDER BY id`, leagueID)
+	if err != nil {
+		return nil, fmt.Errorf("query draft events: %w", err)
+	}
+	defer rows.Close()
+
+	events := make([]draft.Event, 0)
+	for rows.Next() {
+		var event draft.Event
+		var action string
+		var target sql.NullInt64
+		var created string
+		if err = rows.Scan(&event.ID, &event.LeagueID, &event.PlayerID, &action, &target, &created); err != nil {
+			return nil, fmt.Errorf("scan draft event: %w", err)
+		}
+		event.Action = draft.Action(action)
+		if target.Valid {
+			event.TargetEventID = &target.Int64
+		}
+		event.CreatedAt, err = time.Parse(time.RFC3339Nano, created)
+		if err != nil {
+			return nil, fmt.Errorf("parse draft event time: %w", err)
+		}
+		events = append(events, event)
+	}
+	return events, rows.Err()
+}
+
+func (store *DraftEventStore) Append(ctx context.Context, event draft.Event) (draft.Event, error) {
+	event.CreatedAt = time.Now().UTC()
+	result, err := store.database.ExecContext(ctx, `
+INSERT INTO draft_events (league_id, player_id, action, target_event_id, created_at)
+VALUES (?, ?, ?, ?, ?)`, event.LeagueID, event.PlayerID, event.Action, event.TargetEventID, event.CreatedAt.Format(time.RFC3339Nano))
+	if err != nil {
+		return draft.Event{}, fmt.Errorf("append draft event: %w", err)
+	}
+	event.ID, err = result.LastInsertId()
+	if err != nil {
+		return draft.Event{}, fmt.Errorf("read draft event ID: %w", err)
+	}
+	return event, nil
+}

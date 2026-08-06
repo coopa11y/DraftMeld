@@ -7,21 +7,37 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	draftapi "github.com/coopa11y/DraftMeld/backend/internal/api"
+	"github.com/coopa11y/DraftMeld/backend/internal/application"
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/draft"
+	draftsqlite "github.com/coopa11y/DraftMeld/backend/internal/persistence/sqlite"
 )
 
-var version = "0.1.0-dev"
+var version = "0.2.0-dev"
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	address := envOrDefault("DRAFTMELD_ADDRESS", ":8080")
+	dataDirectory := envOrDefault("DRAFTMELD_DATA_DIR", "./data")
+	if err := os.MkdirAll(dataDirectory, 0o750); err != nil {
+		logger.Error("create data directory", "error", err)
+		os.Exit(1)
+	}
+	store, err := draftsqlite.Open(filepath.Join(dataDirectory, "draftmeld.db"))
+	if err != nil {
+		logger.Error("open persistence", "error", err)
+		os.Exit(1)
+	}
+	defer store.Close()
+	draftService := application.NewDraftService(store, draft.DemoCatalog())
 
 	server := &http.Server{
 		Addr:              address,
-		Handler:           draftapi.NewRouter(logger, version),
+		Handler:           draftapi.NewRouter(logger, version, draftService),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}

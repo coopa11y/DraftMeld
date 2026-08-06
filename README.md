@@ -4,7 +4,7 @@
 
 DraftMeld is an open-source fantasy football draft command center. It combines rankings, projections, average draft position, league rules, roster construction, and live draft state into one explainable board.
 
-Current version: **0.1.0**
+Current development version: **0.2.0**
 
 ## Project status
 
@@ -51,6 +51,8 @@ scripts/        Native build entrypoints
 ```
 
 See the [product brief](docs/product-brief.md) and [architecture overview](docs/architecture.md) for the initial direction.
+
+Accessibility requirements and current limitations are documented in [docs/accessibility.md](docs/accessibility.md).
 
 ## Development
 

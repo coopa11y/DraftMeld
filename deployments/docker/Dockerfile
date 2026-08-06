@@ -18,11 +18,14 @@ RUN VERSION="$(cat /src/VERSION)" && \
     CGO_ENABLED=0 go test ./... && \
     CGO_ENABLED=0 go build -tags production -trimpath \
       -ldflags="-s -w -X main.version=${VERSION}" \
-      -o /out/draftmeld ./cmd/draftmeld
+      -o /out/draftmeld ./cmd/draftmeld && \
+    mkdir -p /out/data
 
 FROM gcr.io/distroless/static-debian12:nonroot AS runtime
 COPY --from=backend-build /out/draftmeld /draftmeld
+COPY --from=backend-build --chown=nonroot:nonroot /out/data /data
 VOLUME ["/data"]
 EXPOSE 8080
 ENV DRAFTMELD_ADDRESS=:8080
+ENV DRAFTMELD_DATA_DIR=/data
 ENTRYPOINT ["/draftmeld"]
