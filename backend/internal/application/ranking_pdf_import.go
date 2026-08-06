@@ -32,7 +32,7 @@ type espnOverallPDFParser struct {
 }
 
 var (
-	espnOverallEntryPattern = regexp.MustCompile(`(?:^|\s)([1-9][0-9]{0,2})\.\s+\((QB|RB|WR|TE|K|DST)[0-9]+\)\s+([^,\r\n]{2,80}),\s+(FA|[A-Z]{2,3})(?:\s+\$?[0-9]|\s+[0-9]{4}-)`)
+	espnOverallEntryPattern = regexp.MustCompile(`(?:^|\s)([1-9][0-9]{0,2})\.\s+\((QB|RB|WR|TE|K|DST|D/ST|DEF)[0-9]+\)\s+([^,\r\n]{2,80}),\s+(FA|[A-Z]{2,3})(?:\s+\$?[0-9]|\s+[0-9]{4}-)`)
 	espnUpdatedPattern      = regexp.MustCompile(`(?i)(?:Last Update|Updated):\s*([^\r\n]+)`)
 )
 
@@ -59,7 +59,7 @@ func (parser espnOverallPDFParser) Parse(input document.TextDocument) ([]ranking
 			continue
 		}
 		name := strings.Join(strings.Fields(match[3]), " ")
-		byRank[rank] = ranking.Record{SourceID: parser.sourceID, PlayerKey: normalizePlayerKey(name), Name: name, Position: match[2], Team: match[4], Rank: rank}
+		byRank[rank] = canonicalizeRankingRecord(ranking.Record{SourceID: parser.sourceID, Name: name, Position: match[2], Team: match[4], Rank: rank})
 	}
 	records := make([]ranking.Record, 0, len(byRank))
 	for _, record := range byRank {

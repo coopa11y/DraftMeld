@@ -18,6 +18,7 @@ DraftMeld starts with seven transparent ranking signals. Four come from two open
 - PDF uploads are limited to 20 MiB and 200 pages, processed in memory, and discarded immediately after text extraction. DraftMeld stores only normalized player records and source status.
 - The importer detects a supported provider and document type from the extracted document text. Users do not need to choose column mappings or a parser.
 - Provider columns are converted to a small common record: source, normalized player key, display name, position, team, and ordinal rank.
+- Team defenses use canonical NFL team identities, so values such as `DEN`, `Denver Defense`, and `Broncos D/ST` contribute to the same consensus player.
 - Each source is replaced transactionally. A later source failing does not roll back sources that refreshed successfully earlier in the same request.
 - The current redraft feed anchors eligibility so prior-season or dynasty-only names cannot enter the draft board by themselves.
 - The UI exposes methodology, license, project link, default weight, publication date, refresh time, and record count.
@@ -35,7 +36,7 @@ This separation keeps file validation, size/page limits, panic recovery, and tex
 
 ## Known limitations
 
-The first matcher uses a normalized player name because these feeds do not share one universal identifier. Suffixes, name changes, and collisions can prevent a valid match. Scanned PDFs are rejected because DraftMeld does not bundle OCR. ESPN's projection guide and positional-only PPR sheet are intentionally rejected because they do not provide the supported overall-ranking layout. Future work will introduce a canonical player table, provider identifiers, a review queue for uncertain matches, league-specific source weights, and normalized/robust consensus methods.
+Individual offensive players still use a normalized player name because these feeds do not share one universal identifier. Suffixes, name changes, and collisions can prevent a valid match. Team defenses are canonicalized separately by NFL team. Scanned PDFs are rejected because DraftMeld does not bundle OCR. ESPN's projection guide and positional-only PPR sheet are intentionally rejected because they do not provide the supported overall-ranking layout. Future work will introduce a canonical player table, provider identifiers, a review queue for uncertain matches, league-specific source weights, and normalized/robust consensus methods.
 
 Source terms and upstream availability can change. Maintainers should verify licenses and attribution before adding a connector, and should never commit or redistribute paid rankings.
 

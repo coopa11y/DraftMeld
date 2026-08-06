@@ -73,3 +73,22 @@ func TestConsensusUsesCurrentRedraftPoolAsEligibilityAnchor(t *testing.T) {
 		t.Fatalf("expected current redraft metadata, got %#v", consensus[0])
 	}
 }
+
+func TestConsensusMergesStoredDefenseAliases(t *testing.T) {
+	repository := &rankingRepositoryStub{records: []ranking.Record{
+		{SourceID: "espn-ppr-pdf", PlayerKey: "denverdefense", Name: "Denver Defense", Position: "DST", Team: "DEN", Rank: 140},
+		{SourceID: "cbs-ppr", PlayerKey: "broncosdst", Name: "Broncos D/ST", Position: "DST", Rank: 132},
+	}}
+	service := NewRankingService(repository)
+
+	consensus, err := service.Consensus(t.Context())
+	if err != nil {
+		t.Fatalf("build consensus: %v", err)
+	}
+	if len(consensus) != 1 || consensus[0].PlayerKey != "dstden" {
+		t.Fatalf("expected one canonical Denver defense, got %#v", consensus)
+	}
+	if consensus[0].SourceCount != 2 || consensus[0].Team != "DEN" {
+		t.Fatalf("expected both defense signals and canonical metadata, got %#v", consensus[0])
+	}
+}

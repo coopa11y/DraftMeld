@@ -38,7 +38,7 @@ func parseRankingSource(sourceID string, input io.Reader) ([]ranking.Record, str
 }
 
 var (
-	cbsRowPattern     = regexp.MustCompile(`(?s)<div class="player-row[^"]*">.*?<div class="rank">([0-9]+)</div>.*?<a href="/nfl/players/[0-9]+/([^/]+)/fantasy/">.*?<span class="team position">(QB|RB|WR|TE|K|DST)(?:\s+\$[0-9]+)?</span>`)
+	cbsRowPattern     = regexp.MustCompile(`(?s)<div class="player-row[^"]*">.*?<div class="rank">([0-9]+)</div>.*?<a href="/nfl/players/[0-9]+/([^/]+)/fantasy/">.*?<span class="team position">(QB|RB|WR|TE|K|DST|D/ST|DEF)(?:\s+\$[0-9]+)?</span>`)
 	cbsUpdatedPattern = regexp.MustCompile(`Updated\s+([^<]+)`)
 )
 
@@ -59,7 +59,7 @@ func parseCBS(input io.Reader) ([]ranking.Record, string, error) {
 			break
 		}
 		name := displayNameFromSlug(match[2])
-		records = append(records, ranking.Record{SourceID: "cbs-ppr", PlayerKey: normalizePlayerKey(name), Name: name, Position: match[3], Rank: rank})
+		records = append(records, canonicalizeRankingRecord(ranking.Record{SourceID: "cbs-ppr", Name: name, Position: match[3], Rank: rank}))
 		lastRank = rank
 	}
 	published := "Current CBS page"
@@ -183,7 +183,9 @@ func parseOpportunity(input io.Reader) ([]ranking.Record, string, error) {
 }
 
 func candidate(name, position, team string, score float64) rankingCandidate {
-	return rankingCandidate{key: normalizePlayerKey(name), name: strings.TrimSpace(name), position: strings.ToUpper(position), team: strings.ToUpper(team), score: score}
+	position = normalizePosition(position)
+	team = strings.ToUpper(strings.TrimSpace(team))
+	return rankingCandidate{key: canonicalRankingKey(name, position, team), name: strings.TrimSpace(name), position: position, team: team, score: score}
 }
 
 func rankCandidates(sourceID string, candidates []rankingCandidate, descending bool) []ranking.Record {
@@ -218,7 +220,7 @@ func normalizePlayerKey(name string) string {
 }
 
 func supportedPosition(position string) bool {
-	switch strings.ToUpper(position) {
+	switch normalizePosition(position) {
 	case "QB", "RB", "WR", "TE", "K", "DST":
 		return true
 	}

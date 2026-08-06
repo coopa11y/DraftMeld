@@ -6,12 +6,12 @@ import (
 )
 
 func TestParseECRFiltersSupportedPlayers(t *testing.T) {
-	input := "page_type,player,pos,team,ecr,scrape_date\nredraft-overall,Alpha Runner,RB,AAA,2.4,2026-07-31\nredraft-overall,Beta Passer,QB,BBB,1.2,2026-07-31\nredraft-dst,Defense,DST,CCC,1,2026-07-31\n"
+	input := "page_type,player,pos,team,ecr,scrape_date\nredraft-overall,Alpha Runner,RB,AAA,2.4,2026-07-31\nredraft-overall,Beta Passer,QB,BBB,1.2,2026-07-31\nredraft-overall,Denver D/ST,D/ST,DEN,3,2026-07-31\nredraft-dst,Defense,DST,CCC,1,2026-07-31\n"
 	records, published, err := parseRankingSource("redraft-ecr", strings.NewReader(input))
 	if err != nil {
 		t.Fatalf("parse ECR: %v", err)
 	}
-	if len(records) != 2 || records[0].Name != "Beta Passer" || records[0].Rank != 1 {
+	if len(records) != 3 || records[0].Name != "Beta Passer" || records[0].Rank != 1 || records[2].PlayerKey != "dstden" {
 		t.Fatalf("unexpected records: %#v", records)
 	}
 	if published != "2026-07-31" {
@@ -45,12 +45,12 @@ func TestParseCBSUsesOnlyTheConsensusRankingGroup(t *testing.T) {
 	row := func(rank, slug, position string) string {
 		return `<div class="player-row"><div class="rank">` + rank + `</div><div><a href="/nfl/players/1/` + slug + `/fantasy/"><span>Player</span></a><span class="team position">` + position + ` $20</span></div></div>`
 	}
-	input := `Updated 2h ago` + row("1", "alpha-runner", "RB") + row("2", "beta-passer", "QB") + row("1", "expert-favorite", "WR")
+	input := `Updated 2h ago` + row("1", "alpha-runner", "RB") + row("2", "beta-passer", "QB") + row("3", "denver-broncos-defense", "D/ST") + row("1", "expert-favorite", "WR")
 	records, published, err := parseRankingSource("cbs-ppr", strings.NewReader(input))
 	if err != nil {
 		t.Fatalf("parse CBS: %v", err)
 	}
-	if len(records) != 2 || records[0].PlayerKey != "alpharunner" || records[1].Position != "QB" {
+	if len(records) != 3 || records[0].PlayerKey != "alpharunner" || records[1].Position != "QB" || records[2].PlayerKey != "dstden" {
 		t.Fatalf("unexpected CBS consensus: %#v", records)
 	}
 	if published != "Updated 2h ago" {
