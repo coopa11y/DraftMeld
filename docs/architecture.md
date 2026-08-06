@@ -1,18 +1,18 @@
 # Architecture overview
 
-DraftMeld will begin as a TypeScript monorepo with a web application and independently testable domain packages.
+DraftMeld is a modular monolith with a React and TypeScript frontend and a Go backend. Development keeps those projects independent; production compiles the frontend into the backend executable.
 
 ## Boundaries
 
-### Web application
+### Frontend
 
 Owns league setup, imports, draft-board interaction, visualizations, authentication when deployed, and accessibility.
 
-### Core package
+### Backend domain
 
 Owns scoring rules, roster constraints, consensus algorithms, VOR, tiers, scarcity, draft-state transitions, and recommendation evidence. It must not depend on a browser or a specific fantasy platform.
 
-### Connectors package
+### Backend connectors
 
 Owns provider adapters, CSV column mapping, canonical-player matching inputs, rate limiting, and provider-specific error handling. Raw provider records must not leak into the core model.
 
@@ -35,9 +35,19 @@ Owns provider adapters, CSV column mapping, canonical-player matching inputs, ra
 
 The first model should support mean rank, median rank, trimmed mean, and weighted rank. Missing players, source coverage, ties, and outliers must be explicit. Projection aggregation and ordinal ranking aggregation remain separate operations.
 
+## API contract
+
+REST endpoints are defined in `contracts/openapi.yaml`. The contract is the source for documentation and generated TypeScript clients. Server-sent events will carry live draft updates; commands continue to use ordinary HTTP requests.
+
 ## Persistence
 
 Local development should use a relational database with migrations. Draft picks are append-only events with compensating undo events, allowing the current board to be reconstructed and audited.
+
+SQLite is the initial persistence target. Only the backend process accesses the database file. PostgreSQL is deferred until hosted multi-user write concurrency justifies it.
+
+## Distribution
+
+The frontend production output is embedded with Go build tags. Native releases produce Windows and Linux executables. Docker uses separate frontend and backend build stages and a minimal final runtime image containing the same executable.
 
 ## Integration policy
 

@@ -1,0 +1,14 @@
+services:
+  draftmeld:
+    build:
+      context: ..
+      dockerfile: deployments/docker/Dockerfile
+    image: draftmeld:local
+    ports:
+      - "8080:8080"
+    volumes:
+      - draftmeld-data:/data
+    restart: unless-stopped
+
+volumes:
+  draftmeld-data:

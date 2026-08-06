@@ -28,18 +28,52 @@ DraftMeld is in its foundation phase. The product model and architecture are bei
 - Keeper leagues
 - Standard, PPR, half-PPR, superflex, and TE-premium scoring
 
+## Technology
+
+- React and TypeScript frontend
+- Go backend and REST API
+- OpenAPI contract with generated-client support
+- SQLite persistence target
+- One native executable with the compiled frontend embedded
+- One multi-stage Docker image
+
 ## Repository layout
 
 ```text
-apps/
-  web/          DraftMeld web application
-packages/
-  core/         League rules, rankings, and draft intelligence
-  connectors/   Ranking and fantasy-platform integrations
-docs/           Product and architecture decisions
+frontend/       React and TypeScript application
+backend/        Go API, domain, application, and adapters
+contracts/      Language-independent OpenAPI contract
+deployments/    Docker and Compose definitions
+docs/           Product briefs and architecture decisions
+scripts/        Native build entrypoints
 ```
 
 See the [product brief](docs/product-brief.md) and [architecture overview](docs/architecture.md) for the initial direction.
+
+## Development
+
+Run the frontend development server:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Run the backend after installing Go:
+
+```bash
+cd backend
+go run ./cmd/draftmeld
+```
+
+The frontend proxies `/api` requests to `http://localhost:8080`. A production build compiles the frontend into the Go executable.
+
+Run the complete application with Docker:
+
+```bash
+docker compose -f deployments/compose.yaml up --build
+```
 
 ## Principles
 

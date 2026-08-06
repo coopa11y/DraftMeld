@@ -1,0 +1,76 @@
+openapi: 3.1.0
+info:
+  title: DraftMeld API
+  version: 0.1.0
+  description: Public contract between the DraftMeld frontend and backend.
+servers:
+  - url: /api/v1
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Report service health and version
+      responses:
+        "200":
+          description: DraftMeld is ready to accept requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+components:
+  schemas:
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status, service, version]
+      properties:
+        status:
+          type: string
+          const: ok
+        service:
+          type: string
+          example: draftmeld
+        version:
+          type: string
+          example: 0.1.0
+    LeagueRules:
+      type: object
+      additionalProperties: false
+      required: [name, teamCount, draftType, rosterSlots, scoringRules]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        teamCount:
+          type: integer
+          minimum: 2
+          maximum: 32
+        draftType:
+          type: string
+          enum: [snake, linear, auction]
+        rosterSlots:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/RosterSlot"
+        scoringRules:
+          type: object
+          additionalProperties:
+            type: number
+    RosterSlot:
+      type: object
+      additionalProperties: false
+      required: [name, count, positions, isStarting]
+      properties:
+        name:
+          type: string
+        count:
+          type: integer
+          minimum: 1
+        positions:
+          type: array
+          minItems: 1
+          items:
+            type: string
+        isStarting:
+          type: boolean
