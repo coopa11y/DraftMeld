@@ -21,6 +21,97 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Health"
+  /leagues:
+    get:
+      operationId: listLeagues
+      summary: List configured fantasy leagues
+      responses:
+        "200":
+          description: Configured leagues ordered by name.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/League"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    post:
+      operationId: createLeague
+      summary: Create a fantasy league
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeagueRules"
+      responses:
+        "201":
+          description: League created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/League"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /leagues/{leagueId}:
+    parameters:
+      - $ref: "#/components/parameters/LeagueIdPath"
+    get:
+      operationId: getLeague
+      summary: Get one league configuration
+      responses:
+        "200":
+          description: League configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/League"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateLeague
+      summary: Replace a league configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeagueRules"
+      responses:
+        "200":
+          description: Updated league configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/League"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteLeague
+      summary: Delete a league and its draft history
+      responses:
+        "204":
+          description: League deleted.
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /leagues/{leagueId}/duplicate:
+    parameters:
+      - $ref: "#/components/parameters/LeagueIdPath"
+    post:
+      operationId: duplicateLeague
+      summary: Duplicate a league configuration without its draft history
+      responses:
+        "201":
+          description: League duplicated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/League"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /draft:
     get:
       operationId: getDraft
@@ -108,6 +199,12 @@ components:
       required: true
       schema:
         type: string
+    LeagueIdPath:
+      name: leagueId
+      in: path
+      required: true
+      schema:
+        type: string
   responses:
     BadRequest:
       description: The request was not valid.
@@ -151,8 +248,7 @@ components:
           example: 0.2.0
     LeagueRules:
       type: object
-      additionalProperties: false
-      required: [name, teamCount, draftType, rosterSlots, scoringRules]
+      required: [name, teamCount, draftPosition, draftType, rosterSlots, scoringRules]
       properties:
         name:
           type: string
@@ -160,6 +256,10 @@ components:
         teamCount:
           type: integer
           minimum: 2
+          maximum: 32
+        draftPosition:
+          type: integer
+          minimum: 1
           maximum: 32
         draftType:
           type: string
@@ -173,6 +273,14 @@ components:
           type: object
           additionalProperties:
             type: number
+    League:
+      allOf:
+        - type: object
+          required: [id]
+          properties:
+            id:
+              type: string
+        - $ref: "#/components/schemas/LeagueRules"
     RosterSlot:
       type: object
       additionalProperties: false

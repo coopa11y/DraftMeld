@@ -86,15 +86,61 @@ func TestDraftEndpointRequiresKnownLeague(t *testing.T) {
 	}
 }
 
+func TestLeagueLifecycleEndpoints(t *testing.T) {
+	router, closeStore := testRouter(t)
+	defer closeStore()
+
+	rules := `{"name":"Work League","teamCount":10,"draftPosition":4,"draftType":"snake","rosterSlots":[{"name":"QB","count":1,"positions":["QB"],"isStarting":true},{"name":"Bench","count":5,"positions":["QB","RB","WR","TE"],"isStarting":false}],"scoringRules":{"reception":0.5}}`
+	createResponse := httptest.NewRecorder()
+	router.ServeHTTP(createResponse, httptest.NewRequest(http.MethodPost, "/api/v1/leagues", bytes.NewBufferString(rules)))
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("expected create status %d, got %d: %s", http.StatusCreated, createResponse.Code, createResponse.Body.String())
+	}
+	var created leagueResponse
+	if err := json.NewDecoder(createResponse.Body).Decode(&created); err != nil {
+		t.Fatalf("decode created league: %v", err)
+	}
+	if created.ID != "work-league" || created.DraftPosition != 4 {
+		t.Fatalf("unexpected created league: %#v", created)
+	}
+
+	draftResponse := httptest.NewRecorder()
+	router.ServeHTTP(draftResponse, httptest.NewRequest(http.MethodGet, "/api/v1/draft?leagueId=work-league", nil))
+	if draftResponse.Code != http.StatusOK {
+		t.Fatalf("new league was not available to draft service: %s", draftResponse.Body.String())
+	}
+
+	duplicateResponse := httptest.NewRecorder()
+	router.ServeHTTP(duplicateResponse, httptest.NewRequest(http.MethodPost, "/api/v1/leagues/work-league/duplicate", nil))
+	if duplicateResponse.Code != http.StatusCreated {
+		t.Fatalf("expected duplicate status %d, got %d", http.StatusCreated, duplicateResponse.Code)
+	}
+
+	deleteResponse := httptest.NewRecorder()
+	router.ServeHTTP(deleteResponse, httptest.NewRequest(http.MethodDelete, "/api/v1/leagues/work-league", nil))
+	if deleteResponse.Code != http.StatusNoContent {
+		t.Fatalf("expected delete status %d, got %d", http.StatusNoContent, deleteResponse.Code)
+	}
+	missingResponse := httptest.NewRecorder()
+	router.ServeHTTP(missingResponse, httptest.NewRequest(http.MethodGet, "/api/v1/leagues/work-league", nil))
+	if missingResponse.Code != http.StatusNotFound {
+		t.Fatalf("expected deleted league status %d, got %d", http.StatusNotFound, missingResponse.Code)
+	}
+}
+
 func testRouter(t *testing.T) (http.Handler, func()) {
 	t.Helper()
 	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
 	if err != nil {
 		t.Fatalf("open database: %v", err)
 	}
-	service, err := application.NewDraftService(store, draft.DemoCatalog(), application.DemoLeagueConfiguration())
-	if err != nil {
-		t.Fatalf("create draft service: %v", err)
+	leagueService := application.NewLeagueService(store)
+	if err = leagueService.EnsureDefault(t.Context()); err != nil {
+		t.Fatalf("initialize leagues: %v", err)
 	}
-	return NewRouter(slog.New(slog.NewTextHandler(io.Discard, nil)), "test", service), func() { _ = store.Close() }
+	service, err := application.NewDraftServiceWithLeagues(store, store, draft.DemoCatalog())
+	if err != nil {
+		t.Fatalf("create persisted draft service: %v", err)
+	}
+	return NewRouter(slog.New(slog.NewTextHandler(io.Discard, nil)), "test", service, leagueService), func() { _ = store.Close() }
 }

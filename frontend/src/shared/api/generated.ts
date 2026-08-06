@@ -21,6 +21,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/leagues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List configured fantasy leagues */
+        get: operations["listLeagues"];
+        put?: never;
+        /** Create a fantasy league */
+        post: operations["createLeague"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leagues/{leagueId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: components["parameters"]["LeagueIdPath"];
+            };
+            cookie?: never;
+        };
+        /** Get one league configuration */
+        get: operations["getLeague"];
+        /** Replace a league configuration */
+        put: operations["updateLeague"];
+        post?: never;
+        /** Delete a league and its draft history */
+        delete: operations["deleteLeague"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leagues/{leagueId}/duplicate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: components["parameters"]["LeagueIdPath"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Duplicate a league configuration without its draft history */
+        post: operations["duplicateLeague"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/draft": {
         parameters: {
             query?: never;
@@ -90,6 +148,7 @@ export interface components {
         LeagueRules: {
             name: string;
             teamCount: number;
+            draftPosition: number;
             /** @enum {string} */
             draftType: "snake" | "linear" | "auction";
             rosterSlots: components["schemas"]["RosterSlot"][];
@@ -97,6 +156,9 @@ export interface components {
                 [key: string]: number;
             };
         };
+        League: {
+            id: string;
+        } & components["schemas"]["LeagueRules"];
         RosterSlot: {
             name: string;
             count: number;
@@ -177,6 +239,7 @@ export interface components {
     };
     parameters: {
         LeagueId: string;
+        LeagueIdPath: string;
     };
     requestBodies: never;
     headers: never;
@@ -202,6 +265,147 @@ export interface operations {
                     "application/json": components["schemas"]["Health"];
                 };
             };
+        };
+    };
+    listLeagues: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Configured leagues ordered by name. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["League"][];
+                };
+            };
+            500: components["responses"]["ServerError"];
+        };
+    };
+    createLeague: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeagueRules"];
+            };
+        };
+        responses: {
+            /** @description League created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["League"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    getLeague: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: components["parameters"]["LeagueIdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description League configuration. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["League"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateLeague: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: components["parameters"]["LeagueIdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeagueRules"];
+            };
+        };
+        responses: {
+            /** @description Updated league configuration. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["League"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteLeague: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: components["parameters"]["LeagueIdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description League deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    duplicateLeague: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: components["parameters"]["LeagueIdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description League duplicated. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["League"];
+                };
+            };
+            404: components["responses"]["NotFound"];
         };
     };
     getDraft: {

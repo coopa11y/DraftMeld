@@ -15,6 +15,14 @@ DraftMeld treats screen-reader and keyboard access as release requirements, not 
 - Controls have visible focus indicators and at least a 44-pixel activation target.
 - The interface supports browser zoom, narrow viewports, reduced motion, and forced-colors mode.
 
+## League-setup requirements
+
+- Every league, roster, and scoring input has a persistent visible label.
+- Related roster-position controls are grouped with fieldsets and legends.
+- Destructive deletion requires a second, clearly labeled confirmation action.
+- Save, duplicate, and delete results are announced without moving focus unexpectedly.
+- Default presets reduce required input while every stored rule remains editable.
+
 ## Verification
 
 Pull requests affecting the draft interface must include keyboard interaction tests. Automated axe scans run with the frontend test suite. Manual checks with NVDA on Windows and VoiceOver on a supported Apple platform should be completed before a stable `1.0.0` release.

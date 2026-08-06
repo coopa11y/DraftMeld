@@ -13,6 +13,8 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 - Dynamic recommendation updates for roster needs, ADP value, and positional scarcity
 - Skip links, live announcements, keyboard focus recovery, forced-colors support, and reduced-motion support
 - Automated axe, keyboard interaction, API, domain, and SQLite tests
+- Persistent multi-league setup with create, edit, duplicate, delete, and active-league selection
+- Custom team count, draft position, format, roster slots, and scoring controls with beginner-friendly presets
 
 ### Changed
 
@@ -21,6 +23,7 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 - Database migrations are ordered, transactional, and tracked in the database
 - Draft UI and backend application logic are split into cohesive feature modules
 - Shared CSS tokens and a root `npm run verify` contributor workflow
+- Draft configuration is loaded from persisted league rules instead of startup-only configuration
 
 ## [0.1.0] - 2026-08-05
 

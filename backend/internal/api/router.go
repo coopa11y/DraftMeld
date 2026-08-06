@@ -28,7 +28,12 @@ type undoRequest struct {
 	LeagueID string `json:"leagueId"`
 }
 
-func NewRouter(logger *slog.Logger, version string, draftService *application.DraftService) http.Handler {
+func NewRouter(
+	logger *slog.Logger,
+	version string,
+	draftService *application.DraftService,
+	leagueService *application.LeagueService,
+) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/health", func(response http.ResponseWriter, _ *http.Request) {
 		writeJSON(response, http.StatusOK, healthResponse{
@@ -104,6 +109,7 @@ func NewRouter(logger *slog.Logger, version string, draftService *application.Dr
 		}
 		writeJSON(response, http.StatusOK, snapshot)
 	})
+	registerLeagueRoutes(mux, leagueService)
 	mux.Handle("/", webui.Handler())
 	return requestLogger(logger, mux)
 }
