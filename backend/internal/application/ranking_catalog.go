@@ -6,6 +6,7 @@ const (
 	dynastyDataURL = "https://raw.githubusercontent.com/dynastyprocess/data/master/files/values-players.csv"
 	ecrDataURL     = "https://raw.githubusercontent.com/dynastyprocess/data/master/files/db_fpecr_latest.csv"
 	opportunityURL = "https://github.com/ffverse/ffopportunity/releases/download/latest-data/ep_weekly_2025.csv"
+	cbsRankingsURL = "https://www.cbssports.com/fantasy/football/rankings/"
 )
 
 func BuiltInRankingSources() []ranking.SourceDefinition {
@@ -14,5 +15,6 @@ func BuiltInRankingSources() []ranking.SourceDefinition {
 		{ID: "dynasty-1qb", Name: "Dynasty market — 1 QB", Description: "Long-term player market values for traditional one-quarterback leagues.", Methodology: "DynastyProcess normalized 1-QB player value", License: "GPL-3.0", ProjectURL: "https://github.com/dynastyprocess/data", DataURL: dynastyDataURL, DefaultWeight: 0.7},
 		{ID: "dynasty-superflex", Name: "Dynasty market — Superflex", Description: "Long-term values that account for elevated quarterback demand.", Methodology: "DynastyProcess normalized 2-QB/Superflex player value", License: "GPL-3.0", ProjectURL: "https://github.com/dynastyprocess/data", DataURL: dynastyDataURL, DefaultWeight: 0.5},
 		{ID: "expected-opportunity", Name: "Expected opportunity", Description: "Prior-season usage quality measured independently of box-score luck.", Methodology: "2025 ffopportunity expected fantasy points, summed by player", License: "CC-BY-SA-4.0", ProjectURL: "https://github.com/ffverse/ffopportunity", DataURL: opportunityURL, DefaultWeight: 0.6},
+		{ID: "cbs-ppr", Name: "CBS Sports PPR Top 200", Description: "Current CBS Sports expert-consensus rankings for PPR redraft leagues.", Methodology: "CBS Fantasy Experts consensus order", License: "Proprietary; retrieved on demand and not redistributed", ProjectURL: cbsRankingsURL, DataURL: cbsRankingsURL, DefaultWeight: 0.9},
 	}
 }

@@ -234,6 +234,11 @@ tbody tr:focus-within { background: var(--color-control); }
 .source-card dt { color: var(--color-text-label); font-weight: 800; }
 .source-card dd { margin: 0; color: var(--color-text-muted); }
 .source-card a { display: inline-flex; align-items: center; min-height: 44px; color: var(--color-accent); font-weight: 800; }
+.coverage-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; margin: 0; padding: 0 1.4rem 1.4rem; list-style: none; }
+.coverage-list li { padding: 1rem; background: var(--color-surface-deep); border: 1px solid var(--color-border-subtle); border-radius: 0.7rem; }
+.coverage-list li > div { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
+.coverage-list span { color: var(--color-accent); font-size: 0.8rem; font-weight: 800; }
+.coverage-list p { margin-bottom: 0; color: var(--color-text-muted); line-height: 1.5; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 
 @media (max-width: 980px) {
@@ -257,6 +262,7 @@ tbody tr:focus-within { background: var(--color-control); }
   .position-options { grid-column: auto; }
   .league-actions > button, .form-actions > button { flex: 1 1 100%; }
   .source-grid { grid-template-columns: minmax(0, 1fr); }
+  .coverage-list { grid-template-columns: minmax(0, 1fr); }
   .source-card dl div { grid-template-columns: 1fr; gap: 0.15rem; }
 }
 

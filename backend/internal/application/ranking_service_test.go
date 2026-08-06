@@ -2,6 +2,8 @@ package application
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -10,6 +12,31 @@ import (
 
 type rankingRepositoryStub struct {
 	records []ranking.Record
+}
+
+func TestRankingDownloadRetriesTransientServerFailure(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		attempts++
+		if request.Header.Get("User-Agent") != "DraftMeld/0.2 (+https://github.com/coopa11y/DraftMeld)" {
+			t.Errorf("unexpected user agent: %s", request.Header.Get("User-Agent"))
+		}
+		if attempts == 1 {
+			response.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		_, _ = response.Write([]byte("rankings"))
+	}))
+	defer server.Close()
+	service := NewRankingService(&rankingRepositoryStub{})
+
+	contents, err := service.download(t.Context(), ranking.SourceDefinition{Name: "Test source", DataURL: server.URL})
+	if err != nil {
+		t.Fatalf("download after transient failure: %v", err)
+	}
+	if string(contents) != "rankings" || attempts != 2 {
+		t.Fatalf("expected one retry and downloaded contents, got %q after %d attempts", contents, attempts)
+	}
 }
 
 func (repository *rankingRepositoryStub) ReplaceRankings(context.Context, ranking.SourceDefinition, []ranking.Record, string, time.Time) error {

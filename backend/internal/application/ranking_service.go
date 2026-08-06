@@ -24,7 +24,7 @@ type RankingService struct {
 }
 
 func NewRankingService(repository RankingRepository) *RankingService {
-	return &RankingService{repository: repository, client: &http.Client{Timeout: 30 * time.Second}, sources: BuiltInRankingSources()}
+	return &RankingService{repository: repository, client: &http.Client{Timeout: 60 * time.Second}, sources: BuiltInRankingSources()}
 }
 
 func (service *RankingService) Sources(ctx context.Context) ([]ranking.SourceStatus, error) {
@@ -46,22 +46,10 @@ func (service *RankingService) Refresh(ctx context.Context) ([]ranking.SourceSta
 	for _, source := range service.sources {
 		contents, exists := downloads[source.DataURL]
 		if !exists {
-			request, err := http.NewRequestWithContext(ctx, http.MethodGet, source.DataURL, nil)
+			var err error
+			contents, err = service.download(ctx, source)
 			if err != nil {
-				return nil, fmt.Errorf("build %s request: %w", source.Name, err)
-			}
-			response, err := service.client.Do(request)
-			if err != nil {
-				return nil, fmt.Errorf("download %s: %w", source.Name, err)
-			}
-			if response.StatusCode != http.StatusOK {
-				response.Body.Close()
-				return nil, fmt.Errorf("download %s: HTTP %d", source.Name, response.StatusCode)
-			}
-			contents, err = io.ReadAll(io.LimitReader(response.Body, 20<<20))
-			response.Body.Close()
-			if err != nil {
-				return nil, fmt.Errorf("read %s: %w", source.Name, err)
+				return nil, err
 			}
 			downloads[source.DataURL] = contents
 		}
@@ -77,6 +65,41 @@ func (service *RankingService) Refresh(ctx context.Context) ([]ranking.SourceSta
 		}
 	}
 	return service.Sources(ctx)
+}
+
+func (service *RankingService) download(ctx context.Context, source ranking.SourceDefinition) ([]byte, error) {
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, source.DataURL, nil)
+		if err != nil {
+			return nil, fmt.Errorf("build %s request: %w", source.Name, err)
+		}
+		request.Header.Set("User-Agent", "DraftMeld/0.2 (+https://github.com/coopa11y/DraftMeld)")
+		response, err := service.client.Do(request)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if response.StatusCode != http.StatusOK {
+			response.Body.Close()
+			if response.StatusCode >= http.StatusInternalServerError {
+				lastErr = fmt.Errorf("HTTP %d", response.StatusCode)
+				continue
+			}
+			return nil, fmt.Errorf("download %s: HTTP %d", source.Name, response.StatusCode)
+		}
+		contents, readErr := io.ReadAll(io.LimitReader(response.Body, (20<<20)+1))
+		response.Body.Close()
+		if readErr != nil {
+			lastErr = readErr
+			continue
+		}
+		if len(contents) > 20<<20 {
+			return nil, fmt.Errorf("download %s: response exceeds 20 MiB", source.Name)
+		}
+		return contents, nil
+	}
+	return nil, fmt.Errorf("download %s after retry: %w", source.Name, lastErr)
 }
 
 func (service *RankingService) Consensus(ctx context.Context) ([]ranking.PlayerRanking, error) {

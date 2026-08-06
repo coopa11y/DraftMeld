@@ -50,8 +50,8 @@ func TestRankingSourcesExposeBuiltInProvenance(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&sources); err != nil {
 		t.Fatalf("decode ranking sources: %v", err)
 	}
-	if len(sources) != 4 {
-		t.Fatalf("expected four built-in sources, got %d", len(sources))
+	if len(sources) != 5 {
+		t.Fatalf("expected five built-in sources, got %d", len(sources))
 	}
 	for _, source := range sources {
 		if source.ID == "" || source.License == "" || source.ProjectURL == "" {

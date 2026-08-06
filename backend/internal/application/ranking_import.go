@@ -3,8 +3,10 @@ package application
 import (
 	"encoding/csv"
 	"fmt"
+	"html"
 	"io"
 	"math"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -28,9 +30,57 @@ func parseRankingSource(sourceID string, input io.Reader) ([]ranking.Record, str
 		return parseDynasty(input, sourceID, "value_2qb")
 	case "expected-opportunity":
 		return parseOpportunity(input)
+	case "cbs-ppr":
+		return parseCBS(input)
 	default:
 		return nil, "", fmt.Errorf("unsupported ranking source %q", sourceID)
 	}
+}
+
+var (
+	cbsRowPattern     = regexp.MustCompile(`(?s)<div class="player-row[^"]*">.*?<div class="rank">([0-9]+)</div>.*?<a href="/nfl/players/[0-9]+/([^/]+)/fantasy/">.*?<span class="team position">(QB|RB|WR|TE)(?:\s+\$[0-9]+)?</span>`)
+	cbsUpdatedPattern = regexp.MustCompile(`Updated\s+([^<]+)`)
+)
+
+func parseCBS(input io.Reader) ([]ranking.Record, string, error) {
+	contents, err := io.ReadAll(input)
+	if err != nil {
+		return nil, "", fmt.Errorf("read CBS rankings: %w", err)
+	}
+	matches := cbsRowPattern.FindAllStringSubmatch(string(contents), -1)
+	records := make([]ranking.Record, 0, 200)
+	lastRank := 0
+	for _, match := range matches {
+		rank, rankErr := strconv.Atoi(match[1])
+		if rankErr != nil {
+			continue
+		}
+		if lastRank > 0 && rank <= lastRank {
+			break
+		}
+		name := displayNameFromSlug(match[2])
+		records = append(records, ranking.Record{SourceID: "cbs-ppr", PlayerKey: normalizePlayerKey(name), Name: name, Position: match[3], Rank: rank})
+		lastRank = rank
+	}
+	published := "Current CBS page"
+	if updated := cbsUpdatedPattern.FindSubmatch(contents); len(updated) == 2 {
+		published = "Updated " + strings.TrimSpace(html.UnescapeString(string(updated[1])))
+	}
+	return records, published, nil
+}
+
+func displayNameFromSlug(slug string) string {
+	words := strings.Split(slug, "-")
+	for index, word := range words {
+		if word == "ii" || word == "iii" || word == "iv" {
+			words[index] = strings.ToUpper(word)
+			continue
+		}
+		if word != "" {
+			words[index] = strings.ToUpper(word[:1]) + word[1:]
+		}
+	}
+	return strings.Join(words, " ")
 }
 
 func readCSV(input io.Reader) ([]map[string]string, error) {

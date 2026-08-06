@@ -40,3 +40,20 @@ func TestParseOpportunityAggregatesWeeklyExpectedPoints(t *testing.T) {
 		t.Fatalf("expected aggregated leader, got %#v", records)
 	}
 }
+
+func TestParseCBSUsesOnlyTheConsensusRankingGroup(t *testing.T) {
+	row := func(rank, slug, position string) string {
+		return `<div class="player-row"><div class="rank">` + rank + `</div><div><a href="/nfl/players/1/` + slug + `/fantasy/"><span>Player</span></a><span class="team position">` + position + ` $20</span></div></div>`
+	}
+	input := `Updated 2h ago` + row("1", "alpha-runner", "RB") + row("2", "beta-passer", "QB") + row("1", "expert-favorite", "WR")
+	records, published, err := parseRankingSource("cbs-ppr", strings.NewReader(input))
+	if err != nil {
+		t.Fatalf("parse CBS: %v", err)
+	}
+	if len(records) != 2 || records[0].PlayerKey != "alpharunner" || records[1].Position != "QB" {
+		t.Fatalf("unexpected CBS consensus: %#v", records)
+	}
+	if published != "Updated 2h ago" {
+		t.Fatalf("unexpected CBS update label: %s", published)
+	}
+}

@@ -42,6 +42,7 @@ const rankingSources: RankingSource[] = [
   { id: "dynasty-1qb", name: "Dynasty market - 1 QB", description: "Long-term 1-QB values.", methodology: "Normalized player value", license: "GPL-3.0", projectUrl: "https://github.com/dynastyprocess/data", dataUrl: "https://example.test/1qb.csv", defaultWeight: 0.7, recordCount: 450, publishedAt: "2026-07-31" },
   { id: "dynasty-superflex", name: "Dynasty market - Superflex", description: "Long-term Superflex values.", methodology: "Normalized Superflex value", license: "GPL-3.0", projectUrl: "https://github.com/dynastyprocess/data", dataUrl: "https://example.test/superflex.csv", defaultWeight: 0.5, recordCount: 450, publishedAt: "2026-07-31" },
   { id: "expected-opportunity", name: "Expected opportunity", description: "Prior-season usage quality.", methodology: "Expected fantasy points", license: "CC-BY-SA-4.0", projectUrl: "https://github.com/ffverse/ffopportunity", dataUrl: "https://example.test/opportunity.csv", defaultWeight: 0.6, recordCount: 300, publishedAt: "2025" },
+  { id: "cbs-ppr", name: "CBS Sports PPR Top 200", description: "Current CBS consensus.", methodology: "CBS expert consensus", license: "Proprietary; retrieved on demand", projectUrl: "https://www.cbssports.com/fantasy/football/rankings/", dataUrl: "https://www.cbssports.com/fantasy/football/rankings/", defaultWeight: 0.9, recordCount: 200, publishedAt: "Updated today" },
 ];
 
 const consensusRankings: ConsensusRanking[] = [
@@ -139,11 +140,13 @@ describe("accessible draft board", () => {
     await user.click(await screen.findByRole("button", { name: "Ranking sources" }));
     expect(await screen.findByRole("heading", { name: "Redraft expert consensus" })).toBeInTheDocument();
     expect(screen.getByText("CC-BY-SA-4.0")).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: /View open-source project/ })).toHaveLength(4);
+    expect(screen.getAllByRole("link", { name: /View source website/ })).toHaveLength(5);
+    expect(screen.getByRole("heading", { name: "Platform connector status" })).toBeInTheDocument();
+    expect(screen.getByText("The public overall draft table still contains the prior-season board.")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Refresh all sources" }));
     expect(await screen.findByRole("table", { name: "Top 25 blended player rankings" })).toBeInTheDocument();
-    expect(screen.getByText("Rankings refreshed. 1700 source records were normalized.")).toBeInTheDocument();
+    expect(screen.getByText("Rankings refreshed. 1900 source records were normalized.")).toBeInTheDocument();
     expect((await axe(container)).violations).toHaveLength(0);
   });
 

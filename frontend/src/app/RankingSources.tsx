@@ -3,6 +3,12 @@ import { getConsensusRankings, listRankingSources, refreshRankingSources } from 
 import type { ConsensusRanking, RankingSource } from "../shared/api/types";
 
 const refreshTimeFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
+const providerCoverage = [
+  { provider: "CBS Sports", status: "Connected", detail: "Current public PPR Top 200 consensus." },
+  { provider: "Yahoo Fantasy", status: "OAuth required", detail: "Public rankings are league-specific; full league data requires approved API access." },
+  { provider: "NFL.com", status: "Held out", detail: "The public overall draft table still contains the prior-season board." },
+  { provider: "ESPN", status: "Import planned", detail: "Current free rankings are positional articles and PDFs rather than a stable overall export." },
+] as const;
 
 function formatRefreshTime(value?: string | null) {
   return value ? refreshTimeFormatter.format(new Date(value)) : "Refresh required";
@@ -39,7 +45,7 @@ export function RankingSources() {
   async function refresh() {
     setBusy(true);
     setError("");
-    setMessage("Downloading and normalizing four ranking feeds. This may take a moment.");
+    setMessage(`Downloading and normalizing ${sources.length} ranking feeds. This may take a moment.`);
     try {
       const loaded = await refreshRankingSources();
       setSources(loaded);
@@ -59,7 +65,7 @@ export function RankingSources() {
       <section className="ranking-panel" aria-labelledby="ranking-sources-heading">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Open ranking data</p>
+            <p className="eyebrow">Ranking data</p>
             <h1 id="ranking-sources-heading">Ranking sources</h1>
             <p className="section-description">Every feed keeps its method, license, source link, publication date, and default influence visible.</p>
           </div>
@@ -80,10 +86,17 @@ export function RankingSources() {
                   <div><dt>Published</dt><dd>{source.publishedAt || "Refresh required"}</dd></div>
                   <div><dt>Last refreshed</dt><dd>{formatRefreshTime(source.refreshedAt)}</dd></div>
                 </dl>
-                <a href={source.projectUrl} target="_blank" rel="noreferrer">View open-source project<span className="sr-only"> for {source.name}</span></a>
+                <a href={source.projectUrl} target="_blank" rel="noreferrer">View source website<span className="sr-only"> for {source.name}</span></a>
               </article>
             </li>
           ))}
+        </ul>
+      </section>
+
+      <section className="ranking-panel" aria-labelledby="provider-coverage-heading">
+        <div className="section-heading"><div><p className="eyebrow">Freshness safeguards</p><h2 id="provider-coverage-heading">Platform connector status</h2><p className="section-description">DraftMeld holds a provider out when its available data is stale, incomplete, or requires approval.</p></div></div>
+        <ul className="coverage-list">
+          {providerCoverage.map((provider) => <li key={provider.provider}><div><strong>{provider.provider}</strong><span>{provider.status}</span></div><p>{provider.detail}</p></li>)}
         </ul>
       </section>
 

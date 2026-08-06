@@ -56,3 +56,5 @@ The frontend production output is embedded with Go build tags. Native releases p
 Connectors should prefer documented APIs and user-supplied exports. Scrapers must be isolated, optional, rate-limited, and accompanied by source-specific tests. Paid source data must never be committed or redistributed.
 
 Built-in ranking connectors fetch allowlisted public URLs on demand and retain normalized records rather than vendoring third-party datasets. Each source replacement is transactional and retains its published and refresh timestamps.
+
+Publicly viewable proprietary rankings are optional input signals, not open data. Their adapters identify DraftMeld, keep attribution visible, bound downloads, and store only normalized records. A provider is held out when its current public material cannot produce a trustworthy overall ranking; stale or position-only lists must not silently enter the consensus.

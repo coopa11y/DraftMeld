@@ -86,7 +86,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List built-in open ranking feeds and their refresh status */
+        /** List built-in ranking feeds and their refresh status */
         get: operations["listRankingSources"];
         put?: never;
         post?: never;

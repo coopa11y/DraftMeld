@@ -115,7 +115,7 @@ paths:
   /ranking-sources:
     get:
       operationId: listRankingSources
-      summary: List built-in open ranking feeds and their refresh status
+      summary: List built-in ranking feeds and their refresh status
       responses:
         "200":
           description: Ranking source catalog.

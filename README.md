@@ -8,7 +8,7 @@ Current development version: **0.2.0**
 
 ## Project status
 
-DraftMeld is in active `0.2.0` development. It includes an accessible manual draft loop, persistent customizable multi-league setup, and an inspectable four-feed ranking import and consensus preview.
+DraftMeld is in active `0.2.0` development. It includes an accessible manual draft loop, persistent customizable multi-league setup, and an inspectable five-feed ranking import and consensus preview.
 
 ## Product goals
 
