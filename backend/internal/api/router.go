@@ -33,6 +33,7 @@ func NewRouter(
 	version string,
 	draftService *application.DraftService,
 	leagueService *application.LeagueService,
+	rankingService *application.RankingService,
 ) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/health", func(response http.ResponseWriter, _ *http.Request) {
@@ -110,6 +111,7 @@ func NewRouter(
 		writeJSON(response, http.StatusOK, snapshot)
 	})
 	registerLeagueRoutes(mux, leagueService)
+	registerRankingRoutes(mux, rankingService)
 	mux.Handle("/", webui.Handler())
 	return requestLogger(logger, mux)
 }

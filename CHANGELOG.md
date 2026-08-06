@@ -15,6 +15,13 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 - Automated axe, keyboard interaction, API, domain, and SQLite tests
 - Persistent multi-league setup with create, edit, duplicate, delete, and active-league selection
 - Custom team count, draft position, format, roster slots, and scoring controls with beginner-friendly presets
+- On-demand imports for five ranking signals with source URLs, licenses, timestamps, and record counts
+- Current CBS Sports PPR Top 200 connector that retains attribution without redistributing raw data
+- Weighted consensus preview anchored to the current redraft player pool
+- Ranking-source and consensus REST endpoints with generated TypeScript types
+- Private, in-memory imports for user-supplied ESPN PPR and dynasty ranking PDFs
+- Reusable PDF extraction and provider-adapter boundary for adding future ranking sheets
+- Position-only draft views for QB, RB, WR, TE, K, and DST with position-relative ranks
 
 ### Changed
 
@@ -24,6 +31,8 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 - Draft UI and backend application logic are split into cohesive feature modules
 - Shared CSS tokens and a root `npm run verify` contributor workflow
 - Draft configuration is loaded from persisted league rules instead of startup-only configuration
+- Ranking refreshes normalize provider CSV formats and replace each source atomically
+- Ranking downloads use an identifying user agent, bounded response size, timeout, and one transient-failure retry
 
 ## [0.1.0] - 2026-08-05
 

@@ -2,7 +2,7 @@ import { useMemo, useState, type RefObject } from "react";
 import type { DraftAction, DraftSnapshot, Player } from "../shared/api/types";
 import { PlayerActions } from "./PlayerActions";
 
-const positions = ["Overall", "QB", "RB", "WR", "TE"] as const;
+const positions = ["Overall", "QB", "RB", "WR", "TE", "K", "DST"] as const;
 type PositionFilter = (typeof positions)[number];
 
 interface PlayerBoardProps {
@@ -25,13 +25,22 @@ export function PlayerBoard({ snapshot, busy, headingRef, onAction, onUndo }: Pl
   const [search, setSearch] = useState("");
   const visiblePlayers = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
-    return snapshot.available.filter((player) => {
+    const matchingPlayers = snapshot.available.filter((player) => {
       const matchesPosition = position === "Overall" || player.position === position;
       const matchesSearch = !normalizedSearch ||
         `${player.name} ${player.nflTeam} ${player.position}`.toLowerCase().includes(normalizedSearch);
       return matchesPosition && matchesSearch;
     });
+    if (position !== "Overall") {
+      matchingPlayers.sort((left, right) => left.positionRank - right.positionRank || left.overallRank - right.overallRank);
+    }
+    return matchingPlayers;
   }, [position, search, snapshot.available]);
+  const rankHeading = position === "Overall" ? "Overall rank" : `${position} rank`;
+  const tableCaption = position === "Overall"
+    ? "Available players sorted by overall rank"
+    : `Available ${position} players sorted by ${position} rank`;
+  const resultSubject = position === "Overall" ? "players" : `${position} players`;
 
   return (
     <section className="board-panel" id="player-board" aria-labelledby="board-title">
@@ -80,15 +89,15 @@ export function PlayerBoard({ snapshot, busy, headingRef, onAction, onUndo }: Pl
       </div>
 
       <p className="result-summary" role="status">
-        Showing {visiblePlayers.length} of {snapshot.available.length} available players.
+        Showing {visiblePlayers.length} available {resultSubject} of {snapshot.available.length} total players.
       </p>
 
       <div className="table-scroll" role="region" aria-label="Available player rankings" tabIndex={0}>
         <table>
-          <caption>Available players sorted by overall rank</caption>
+          <caption>{tableCaption}</caption>
           <thead>
             <tr>
-              <th scope="col">Rank</th>
+              <th scope="col">{rankHeading}</th>
               <th scope="col">Player</th>
               <th scope="col">Position</th>
               <th scope="col">Tier</th>
@@ -100,7 +109,7 @@ export function PlayerBoard({ snapshot, busy, headingRef, onAction, onUndo }: Pl
           <tbody>
             {visiblePlayers.map((player) => (
               <tr key={player.id}>
-                <td>{player.overallRank}</td>
+                <td>{position === "Overall" ? player.overallRank : player.positionRank}</td>
                 <th scope="row">
                   <span className="player-name">{player.name}</span>
                   <span className="player-meta">{player.nflTeam}, bye week {player.byeWeek}</span>

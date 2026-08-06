@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import type { League, LeagueRules, RosterSlot } from "../shared/api/types";
 
-const playerPositions = ["QB", "RB", "WR", "TE"] as const;
+const playerPositions = ["QB", "RB", "WR", "TE", "K", "DST"] as const;
 const scoringFields = [
   ["reception", "Points per reception", 0.5],
   ["passingYard", "Points per passing yard", 0.01],
@@ -11,6 +11,13 @@ const scoringFields = [
   ["rushingTouchdown", "Points per rushing touchdown", 1],
   ["receivingYard", "Points per receiving yard", 0.01],
   ["receivingTouchdown", "Points per receiving touchdown", 1],
+  ["fieldGoalMade", "Points per field goal made", 0.5],
+  ["extraPointMade", "Points per extra point made", 0.5],
+  ["defenseSack", "Points per defensive sack", 0.5],
+  ["defenseInterception", "Points per defensive interception", 0.5],
+  ["defenseFumbleRecovery", "Points per defensive fumble recovery", 0.5],
+  ["defenseTouchdown", "Points per defensive touchdown", 1],
+  ["defenseSafety", "Points per defensive safety", 0.5],
 ] as const;
 
 const defaultRoster: RosterSlot[] = [
@@ -19,6 +26,8 @@ const defaultRoster: RosterSlot[] = [
   { name: "WR", count: 2, positions: ["WR"], isStarting: true },
   { name: "TE", count: 1, positions: ["TE"], isStarting: true },
   { name: "FLEX", count: 1, positions: ["RB", "WR", "TE"], isStarting: true },
+  { name: "K", count: 1, positions: ["K"], isStarting: true },
+  { name: "DST", count: 1, positions: ["DST"], isStarting: true },
   { name: "Bench", count: 6, positions: [...playerPositions], isStarting: false },
 ];
 
@@ -38,6 +47,13 @@ function defaultRules(): LeagueRules {
       rushingTouchdown: 6,
       receivingYard: 0.1,
       receivingTouchdown: 6,
+      fieldGoalMade: 3,
+      extraPointMade: 1,
+      defenseSack: 1,
+      defenseInterception: 2,
+      defenseFumbleRecovery: 2,
+      defenseTouchdown: 6,
+      defenseSafety: 2,
     },
   };
 }
