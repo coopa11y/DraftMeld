@@ -32,7 +32,7 @@ type espnOverallPDFParser struct {
 }
 
 var (
-	espnOverallEntryPattern = regexp.MustCompile(`(?:^|\s)([1-9][0-9]{0,2})\.\s+\((QB|RB|WR|TE)[0-9]+\)\s+([^,\r\n]{2,80}),\s+(FA|[A-Z]{2,3})(?:\s+\$?[0-9]|\s+[0-9]{4}-)`)
+	espnOverallEntryPattern = regexp.MustCompile(`(?:^|\s)([1-9][0-9]{0,2})\.\s+\((QB|RB|WR|TE|K|DST)[0-9]+\)\s+([^,\r\n]{2,80}),\s+(FA|[A-Z]{2,3})(?:\s+\$?[0-9]|\s+[0-9]{4}-)`)
 	espnUpdatedPattern      = regexp.MustCompile(`(?i)(?:Last Update|Updated):\s*([^\r\n]+)`)
 )
 
@@ -67,7 +67,7 @@ func (parser espnOverallPDFParser) Parse(input document.TextDocument) ([]ranking
 	}
 	sort.Slice(records, func(left, right int) bool { return records[left].Rank < records[right].Rank })
 	if len(records) < 25 {
-		return nil, "", fmt.Errorf("parse ESPN rankings: found only %d usable skill players", len(records))
+		return nil, "", fmt.Errorf("parse ESPN rankings: found only %d usable players", len(records))
 	}
 	published := "User-supplied PDF"
 	if updated := espnUpdatedPattern.FindStringSubmatch(input.Text); len(updated) == 2 {

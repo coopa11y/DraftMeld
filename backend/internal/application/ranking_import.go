@@ -38,7 +38,7 @@ func parseRankingSource(sourceID string, input io.Reader) ([]ranking.Record, str
 }
 
 var (
-	cbsRowPattern     = regexp.MustCompile(`(?s)<div class="player-row[^"]*">.*?<div class="rank">([0-9]+)</div>.*?<a href="/nfl/players/[0-9]+/([^/]+)/fantasy/">.*?<span class="team position">(QB|RB|WR|TE)(?:\s+\$[0-9]+)?</span>`)
+	cbsRowPattern     = regexp.MustCompile(`(?s)<div class="player-row[^"]*">.*?<div class="rank">([0-9]+)</div>.*?<a href="/nfl/players/[0-9]+/([^/]+)/fantasy/">.*?<span class="team position">(QB|RB|WR|TE|K|DST)(?:\s+\$[0-9]+)?</span>`)
 	cbsUpdatedPattern = regexp.MustCompile(`Updated\s+([^<]+)`)
 )
 
@@ -219,7 +219,7 @@ func normalizePlayerKey(name string) string {
 
 func supportedPosition(position string) bool {
 	switch strings.ToUpper(position) {
-	case "QB", "RB", "WR", "TE":
+	case "QB", "RB", "WR", "TE", "K", "DST":
 		return true
 	}
 	return false

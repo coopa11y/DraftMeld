@@ -1,5 +1,5 @@
 import { axe } from "jest-axe";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ConsensusRanking, DraftSnapshot, League, Player, RankingSource } from "../shared/api/types";
@@ -35,6 +35,18 @@ const demoLeague: League = {
   id: "demo", name: "Demo League", teamCount: 12, draftPosition: 1, draftType: "snake",
   rosterSlots: [{ name: "RB", count: 2, positions: ["RB"], isStarting: true }],
   scoringRules: { reception: 1 },
+};
+const casey: Player = {
+  id: "p003", name: "Casey Brooks", nflTeam: "DET", position: "RB",
+  byeWeek: 8, overallRank: 10, positionRank: 2, adp: 11.4, tier: 2,
+};
+const kicker: Player = {
+  id: "p004", name: "Avery Cole", nflTeam: "DAL", position: "K",
+  byeWeek: 10, overallRank: 11, positionRank: 1, adp: 145.2, tier: 1,
+};
+const defense: Player = {
+  id: "p005", name: "Denver Defense", nflTeam: "DEN", position: "DST",
+  byeWeek: 12, overallRank: 12, positionRank: 1, adp: 137.8, tier: 1,
 };
 
 const rankingSources: RankingSource[] = [
@@ -126,6 +138,32 @@ describe("accessible draft board", () => {
     expect(results.violations).toHaveLength(0);
   });
 
+  it("shows a position-only board sorted and labeled by position rank", async () => {
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : input.toString();
+      return jsonResponse(new URL(url).pathname.endsWith("/leagues") ? [demoLeague] : snapshot({ available: [casey, jordan, defense, kicker, alex] }));
+    }));
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "RB" }));
+
+    const table = screen.getByRole("table", { name: "Available RB players sorted by RB rank" });
+    expect(within(table).getByRole("columnheader", { name: "RB rank" })).toBeInTheDocument();
+    expect(within(table).queryByText("Jordan Hale")).not.toBeInTheDocument();
+    expect(within(table).getAllByRole("rowheader").map((cell) => cell.textContent)).toEqual([
+      "Alex RiversATL, bye week 12",
+      "Casey BrooksDET, bye week 8",
+    ]);
+    expect(screen.getByText("Showing 2 available RB players of 5 total players.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "DST" }));
+    const defenseTable = screen.getByRole("table", { name: "Available DST players sorted by DST rank" });
+    expect(within(defenseTable).getByRole("columnheader", { name: "DST rank" })).toBeInTheDocument();
+    expect(within(defenseTable).getByText("Denver Defense")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "K" })).toBeInTheDocument();
+  });
+
   it("shows source provenance and refreshes the accessible consensus preview", async () => {
     vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const request = input instanceof Request ? input : new Request(input, init);
@@ -150,7 +188,7 @@ describe("accessible draft board", () => {
     const pdf = new File(["%PDF-test"], "espn-rankings.pdf", { type: "application/pdf" });
     await user.upload(screen.getByLabelText("Import a ranking PDF"), pdf);
     await user.click(screen.getByRole("button", { name: "Import PDF" }));
-    expect(await screen.findByText("ESPN PPR Top 300 PDF imported: 245 skill players from 1 page.")).toBeInTheDocument();
+    expect(await screen.findByText("ESPN PPR Top 300 PDF imported: 245 players from 1 page.")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Refresh all sources" }));
     expect(await screen.findByRole("table", { name: "Top 25 blended player rankings" })).toBeInTheDocument();

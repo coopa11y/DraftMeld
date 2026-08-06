@@ -259,7 +259,7 @@ export interface components {
             playerKey: string;
             name: string;
             /** @enum {string} */
-            position: "QB" | "RB" | "WR" | "TE";
+            position: "QB" | "RB" | "WR" | "TE" | "K" | "DST";
             team: string;
             rank: number;
             score: number;
@@ -273,7 +273,7 @@ export interface components {
             name: string;
             nflTeam: string;
             /** @enum {string} */
-            position: "QB" | "RB" | "WR" | "TE";
+            position: "QB" | "RB" | "WR" | "TE" | "K" | "DST";
             byeWeek: number;
             overallRank: number;
             positionRank: number;

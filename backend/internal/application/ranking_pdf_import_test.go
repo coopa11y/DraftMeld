@@ -10,10 +10,10 @@ import (
 	"github.com/coopa11y/DraftMeld/backend/internal/document"
 )
 
-func TestESPNOverallPDFParserNormalizesSkillPlayersAndDeduplicatesRanks(t *testing.T) {
+func TestESPNOverallPDFParserNormalizesSupportedPlayersAndDeduplicatesRanks(t *testing.T) {
 	var text strings.Builder
 	text.WriteString("2026 ESPN Fantasy Football Draft Kit PPR Top 300 Cheat Sheet\n")
-	positions := []string{"RB", "WR", "QB", "TE"}
+	positions := []string{"RB", "WR", "QB", "TE", "K", "DST"}
 	for rank := 1; rank <= 30; rank++ {
 		_, _ = fmt.Fprintf(&text, "%d. (%s%d) Player %d, AAA $10 7\n", rank, positions[(rank-1)%len(positions)], rank, rank)
 	}

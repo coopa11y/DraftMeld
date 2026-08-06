@@ -76,7 +76,7 @@ export function RankingSources() {
       const result = await importRankingPDF(pdfFile);
       setSources((current) => current.map((source) => source.id === result.source.id ? result.source : source));
       setRankings(await getConsensusRankings());
-      setMessage(`${result.source.name} imported: ${result.source.recordCount} skill players from ${result.pageCount} page${result.pageCount === 1 ? "" : "s"}.`);
+      setMessage(`${result.source.name} imported: ${result.source.recordCount} players from ${result.pageCount} page${result.pageCount === 1 ? "" : "s"}.`);
       setPDFFile(null);
       form.reset();
     } catch (reason) {

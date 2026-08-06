@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestParseECRFiltersOverallSkillPlayers(t *testing.T) {
+func TestParseECRFiltersSupportedPlayers(t *testing.T) {
 	input := "page_type,player,pos,team,ecr,scrape_date\nredraft-overall,Alpha Runner,RB,AAA,2.4,2026-07-31\nredraft-overall,Beta Passer,QB,BBB,1.2,2026-07-31\nredraft-dst,Defense,DST,CCC,1,2026-07-31\n"
 	records, published, err := parseRankingSource("redraft-ecr", strings.NewReader(input))
 	if err != nil {

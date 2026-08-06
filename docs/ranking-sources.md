@@ -4,13 +4,13 @@ DraftMeld starts with seven transparent ranking signals. Four come from two open
 
 | DraftMeld source | Signal | Project and license |
 | --- | --- | --- |
-| Redraft expert consensus | Current overall expert consensus for QB, RB, WR, and TE | [DynastyProcess data](https://github.com/dynastyprocess/data), GPL-3.0 repository with upstream FantasyPros attribution |
+| Redraft expert consensus | Current overall expert consensus across supported fantasy positions | [DynastyProcess data](https://github.com/dynastyprocess/data), GPL-3.0 repository with upstream FantasyPros attribution |
 | Dynasty market - 1 QB | DynastyProcess normalized `value_1qb` | [DynastyProcess data](https://github.com/dynastyprocess/data), GPL-3.0 |
 | Dynasty market - Superflex | DynastyProcess normalized `value_2qb` | [DynastyProcess data](https://github.com/dynastyprocess/data), GPL-3.0 |
 | Expected opportunity | Prior-season ffopportunity expected fantasy points aggregated by player | [ffopportunity](https://github.com/ffverse/ffopportunity), CC-BY-SA-4.0 data |
 | CBS Sports PPR Top 200 | Current CBS Fantasy Experts consensus order | [CBS Sports rankings](https://www.cbssports.com/fantasy/football/rankings/), proprietary; on-demand personal retrieval |
-| ESPN PPR Top 300 PDF | Overall PPR rank for skill players | [ESPN Fantasy Football](https://www.espn.com/fantasy/football/), proprietary; user-supplied PDF |
-| ESPN Dynasty PDF | Overall dynasty rank for skill players | [ESPN Fantasy Football](https://www.espn.com/fantasy/football/), proprietary; user-supplied PDF |
+| ESPN PPR Top 300 PDF | Overall PPR rank for QB, RB, WR, TE, K, and DST entries | [ESPN Fantasy Football](https://www.espn.com/fantasy/football/), proprietary; user-supplied PDF |
+| ESPN Dynasty PDF | Overall dynasty rank for supported positions present in the sheet | [ESPN Fantasy Football](https://www.espn.com/fantasy/football/), proprietary; user-supplied PDF |
 
 ## Import behavior
 

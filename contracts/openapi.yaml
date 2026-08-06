@@ -399,7 +399,7 @@ components:
       properties:
         playerKey: { type: string }
         name: { type: string }
-        position: { type: string, enum: [QB, RB, WR, TE] }
+        position: { type: string, enum: [QB, RB, WR, TE, K, DST] }
         team: { type: string }
         rank: { type: integer, minimum: 1 }
         score: { type: number }
@@ -414,7 +414,7 @@ components:
         id: { type: string }
         name: { type: string }
         nflTeam: { type: string }
-        position: { type: string, enum: [QB, RB, WR, TE] }
+        position: { type: string, enum: [QB, RB, WR, TE, K, DST] }
         byeWeek: { type: integer }
         overallRank: { type: integer, minimum: 1 }
         positionRank: { type: integer, minimum: 1 }

@@ -21,6 +21,7 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 - Ranking-source and consensus REST endpoints with generated TypeScript types
 - Private, in-memory imports for user-supplied ESPN PPR and dynasty ranking PDFs
 - Reusable PDF extraction and provider-adapter boundary for adding future ranking sheets
+- Position-only draft views for QB, RB, WR, TE, K, and DST with position-relative ranks
 
 ### Changed
 
