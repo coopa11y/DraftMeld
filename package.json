@@ -1,0 +1,18 @@
+{
+  "name": "draftmeld-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Open-source fantasy football draft command center.",
+  "license": "AGPL-3.0-only",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "check": "npm run check --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
