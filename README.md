@@ -73,6 +73,12 @@ go run ./cmd/draftmeld
 
 The frontend proxies `/api` requests to `http://localhost:8080`. A production build compiles the frontend into the Go executable.
 
+Run the same contract, type, unit-test, vet, and production-build checks used for pull requests:
+
+```bash
+npm run verify
+```
+
 Run the complete application with Docker:
 
 ```bash

@@ -34,6 +34,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DraftSnapshot"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
   /draft/actions:
     post:
       operationId: recordDraftAction
@@ -51,8 +57,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DraftSnapshot"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "409":
           description: Player is no longer available.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /draft/undo:
     post:
       operationId: undoDraftAction
@@ -74,18 +88,53 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DraftSnapshot"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "409":
           description: There is no active action to undo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ServerError"
 components:
   parameters:
     LeagueId:
       name: leagueId
       in: query
-      required: false
+      required: true
       schema:
         type: string
-        default: demo
+  responses:
+    BadRequest:
+      description: The request was not valid.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: The requested resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ServerError:
+      description: The request could not be completed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
   schemas:
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: string
     Health:
       type: object
       additionalProperties: false
@@ -99,7 +148,7 @@ components:
           example: draftmeld
         version:
           type: string
-          example: 0.1.0
+          example: 0.2.0
     LeagueRules:
       type: object
       additionalProperties: false

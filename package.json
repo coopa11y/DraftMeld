@@ -6,8 +6,12 @@
   "license": "AGPL-3.0-only",
   "scripts": {
     "build": "npm --prefix frontend run build",
-    "check": "npm --prefix frontend run check",
+    "check": "npm --prefix frontend run check && cd backend && go vet ./...",
     "dev": "npm --prefix frontend run dev",
+    "test": "npm run test:frontend && npm run test:backend",
+    "test:frontend": "npm --prefix frontend test",
+    "test:backend": "cd backend && go test ./...",
+    "verify": "npm run version:check && npm run check && npm test && npm run build",
     "version:check": "node scripts/check-version.mjs"
   },
   "engines": {

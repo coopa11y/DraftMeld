@@ -4,13 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "api:generate": "openapi-typescript ../contracts/openapi.yaml -o src/shared/api/generated.ts",
+    "api:check": "npm run api:generate && git diff --exit-code -- src/shared/api/generated.ts",
     "build": "tsc -b && vite build",
-    "check": "tsc -b --pretty false",
+    "check": "npm run api:check && tsc -b --pretty false",
     "dev": "vite",
     "preview": "vite preview",
     "test": "vitest run"
   },
   "dependencies": {
+    "draftmeld": "file:..",
+    "openapi-fetch": "0.15.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
@@ -25,7 +29,8 @@
     "@vitejs/plugin-react": "^6.0.5",
     "jest-axe": "^11.0.0",
     "jsdom": "^29.1.1",
-    "typescript": "^7.0.2",
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3",
     "vite": "^8.2.0",
     "vitest": "^4.1.10"
   }

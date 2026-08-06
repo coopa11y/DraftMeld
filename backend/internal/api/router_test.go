@@ -68,12 +68,33 @@ func TestDraftActionAndUndoEndpoints(t *testing.T) {
 	}
 }
 
+func TestDraftEndpointRequiresKnownLeague(t *testing.T) {
+	router, closeStore := testRouter(t)
+	defer closeStore()
+
+	for _, path := range []string{"/api/v1/draft", "/api/v1/draft?leagueId=missing"} {
+		request := httptest.NewRequest(http.MethodGet, path, nil)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		expected := http.StatusBadRequest
+		if path != "/api/v1/draft" {
+			expected = http.StatusNotFound
+		}
+		if response.Code != expected {
+			t.Fatalf("expected %d for %s, got %d", expected, path, response.Code)
+		}
+	}
+}
+
 func testRouter(t *testing.T) (http.Handler, func()) {
 	t.Helper()
 	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
 	if err != nil {
 		t.Fatalf("open database: %v", err)
 	}
-	service := application.NewDraftService(store, draft.DemoCatalog())
+	service, err := application.NewDraftService(store, draft.DemoCatalog(), application.DemoLeagueConfiguration())
+	if err != nil {
+		t.Fatalf("create draft service: %v", err)
+	}
 	return NewRouter(slog.New(slog.NewTextHandler(io.Discard, nil)), "test", service), func() { _ = store.Close() }
 }

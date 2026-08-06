@@ -20,3 +20,11 @@ DraftMeld is early in development. Contributions should strengthen the product m
 ## Pull requests
 
 Keep pull requests focused. Explain what changed, why it changed, how it was tested, and any user-visible or data-model impact.
+
+DraftMeld uses a two-stage branch flow:
+
+1. Create a feature branch from `dev` and open the feature pull request back to `dev`.
+2. Keep `dev` green while related work is integrated and tested together.
+3. Open a release pull request from `dev` to `main`; `main` represents releasable code.
+
+Run `npm run verify` from the repository root before opening a pull request. Generated API files must be committed whenever `contracts/openapi.yaml` changes.

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/draft"
-	"github.com/coopa11y/DraftMeld/backend/migrations"
 	_ "modernc.org/sqlite"
 )
 
@@ -22,7 +21,7 @@ func Open(path string) (*DraftEventStore, error) {
 	}
 	database.SetMaxOpenConns(1)
 	store := &DraftEventStore{database: database}
-	if err = store.migrate(context.Background()); err != nil {
+	if err = migrate(context.Background(), database); err != nil {
 		_ = database.Close()
 		return nil, err
 	}
@@ -31,17 +30,6 @@ func Open(path string) (*DraftEventStore, error) {
 
 func (store *DraftEventStore) Close() error {
 	return store.database.Close()
-}
-
-func (store *DraftEventStore) migrate(ctx context.Context) error {
-	migration, err := migrations.Files.ReadFile("0001_draft_events.sql")
-	if err != nil {
-		return fmt.Errorf("read SQLite migration: %w", err)
-	}
-	if _, err := store.database.ExecContext(ctx, string(migration)); err != nil {
-		return fmt.Errorf("migrate SQLite database: %w", err)
-	}
-	return nil
 }
 
 func (store *DraftEventStore) List(ctx context.Context, leagueID string) ([]draft.Event, error) {
