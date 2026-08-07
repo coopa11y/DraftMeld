@@ -2,7 +2,7 @@
 
 All notable DraftMeld changes will be documented here. DraftMeld follows Semantic Versioning.
 
-## [0.3.0] - Unreleased
+## [0.3.0] - 2026-08-07
 
 ### Added
 
@@ -24,18 +24,7 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 - Versioned league configuration backups with non-destructive restore
 - Consensus ranking CSV exports with source weights, evidence, and spreadsheet-formula protection
 - Current draft result exports in CSV and versioned JSON formats
-
-### Changed
-
-- DraftMeld now separates ordinal rankings, contextual market and usage signals, and granular projections
-- Common player suffixes and defense aliases normalize into more stable canonical identities
-- The ranking workspace now exposes consensus methodology, source roles, projection inputs, identity exceptions, and uncertainty
-- Advanced league settings now persist consensus method, player preferences, and auction calibration together with the existing league configuration
-
-## [0.2.0] - Unreleased
-
-### Added
-
+- Automated Windows and Linux release archives, checksums, provenance attestations, GHCR images, and smoke tests
 - Accessible manual draft board with overall and position rankings
 - Draft and Taken actions with descriptive screen-reader labels
 - My Team, recommendations, and draft-history panels
@@ -57,6 +46,10 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 
 ### Changed
 
+- DraftMeld now separates ordinal rankings, contextual market and usage signals, and granular projections
+- Common player suffixes and defense aliases normalize into more stable canonical identities
+- The ranking workspace now exposes consensus methodology, source roles, projection inputs, identity exceptions, and uncertainty
+- Advanced league settings now persist consensus method, player preferences, and auction calibration together with the existing league configuration
 - League configuration now drives roster needs and recommendation policy
 - OpenAPI now generates the frontend API types used by a typed fetch client
 - Database migrations are ordered, transactional, and tracked in the database

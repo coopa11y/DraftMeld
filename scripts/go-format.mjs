@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const backendRoot = fileURLToPath(new URL("../backend/", import.meta.url));
+const scriptsRoot = fileURLToPath(new URL("../scripts/", import.meta.url));
 const checkOnly = process.argv.includes("--check");
 
 function goFiles(directory) {
@@ -15,7 +16,7 @@ function goFiles(directory) {
     .sort();
 }
 
-const files = goFiles(backendRoot);
+const files = [...goFiles(backendRoot), ...goFiles(scriptsRoot)].sort();
 const executable = process.env.GOFMT || "gofmt";
 const result = spawnSync(executable, [checkOnly ? "-l" : "-w", ...files], { encoding: "utf8" });
 

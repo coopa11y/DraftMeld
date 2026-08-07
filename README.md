@@ -4,7 +4,7 @@
 
 DraftMeld is an open-source fantasy football draft command center. It combines rankings, projections, average draft position, league rules, roster construction, and live draft state into one explainable board.
 
-Current development version: **0.3.0**
+Current prerelease version: **0.3.0**
 
 ## Project status
 
@@ -94,6 +94,8 @@ Run the complete application with Docker:
 ```bash
 docker compose -f deployments/compose.yaml up --build
 ```
+
+Tagged releases provide Windows and Linux archives, SHA-256 checksums, build provenance, and versioned multi-architecture images in GitHub Container Registry. See the [release and installation guide](docs/releasing.md).
 
 ## Principles
 
