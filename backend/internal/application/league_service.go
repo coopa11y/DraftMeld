@@ -65,6 +65,7 @@ func (service *LeagueService) Create(ctx context.Context, rules league.Rules) (L
 	service.mu.Lock()
 	defer service.mu.Unlock()
 
+	rules = withDefaultSourcePreferences(rules)
 	configuration := LeagueConfiguration{
 		ID: slugify(rules.Name), Rules: rules, Recommendation: DefaultRecommendationPolicy(),
 	}
@@ -90,7 +91,7 @@ func (service *LeagueService) Update(ctx context.Context, id string, rules leagu
 	if err != nil {
 		return LeagueConfiguration{}, err
 	}
-	configuration.Rules = rules
+	configuration.Rules = withDefaultSourcePreferences(rules)
 	if err = configuration.Validate(); err != nil {
 		return LeagueConfiguration{}, fmt.Errorf("%w: %v", ErrInvalidLeague, err)
 	}
@@ -109,6 +110,7 @@ func (service *LeagueService) Duplicate(ctx context.Context, id string) (LeagueC
 	rules.Name = "Copy of " + rules.Name
 	rules.RosterSlots = cloneRosterSlots(rules.RosterSlots)
 	rules.ScoringRules = cloneScoringRules(rules.ScoringRules)
+	rules.SourcePreferences = cloneSourcePreferences(rules.SourcePreferences)
 	return service.Create(ctx, rules)
 }
 
@@ -165,4 +167,23 @@ func cloneScoringRules(rules map[string]float64) map[string]float64 {
 		cloned[name] = value
 	}
 	return cloned
+}
+
+func cloneSourcePreferences(preferences map[string]league.RankingSourcePreference) map[string]league.RankingSourcePreference {
+	cloned := make(map[string]league.RankingSourcePreference, len(preferences))
+	for sourceID, preference := range preferences {
+		cloned[sourceID] = preference
+	}
+	return cloned
+}
+
+func withDefaultSourcePreferences(rules league.Rules) league.Rules {
+	defaults := DefaultRankingSourcePreferences()
+	rules.SourcePreferences = cloneSourcePreferences(rules.SourcePreferences)
+	for sourceID, preference := range defaults {
+		if _, exists := rules.SourcePreferences[sourceID]; !exists {
+			rules.SourcePreferences[sourceID] = preference
+		}
+	}
+	return rules
 }

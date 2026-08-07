@@ -1,6 +1,10 @@
 package application
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/league"
+)
 
 func TestLeagueServiceCreatesUniqueIDsAndDuplicatesIndependentRules(t *testing.T) {
 	repository := NewMemoryLeagueRepository()
@@ -26,11 +30,12 @@ func TestLeagueServiceCreatesUniqueIDsAndDuplicatesIndependentRules(t *testing.T
 	}
 	copy.Rules.RosterSlots[0].Positions[0] = "WR"
 	copy.Rules.ScoringRules["reception"] = 0
+	copy.Rules.SourcePreferences["cbs-ppr"] = league.RankingSourcePreference{Weight: 10, Enabled: false}
 	stored, err := service.Get(t.Context(), first.ID)
 	if err != nil {
 		t.Fatalf("reload source league: %v", err)
 	}
-	if stored.Rules.RosterSlots[0].Positions[0] != "QB" || stored.Rules.ScoringRules["reception"] != 1 {
+	if stored.Rules.RosterSlots[0].Positions[0] != "QB" || stored.Rules.ScoringRules["reception"] != 1 || stored.Rules.SourcePreferences["cbs-ppr"].Weight == 10 {
 		t.Fatalf("duplicate mutated source configuration: %#v", stored.Rules)
 	}
 }

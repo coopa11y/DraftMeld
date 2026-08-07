@@ -1,6 +1,9 @@
 package application
 
-import "github.com/coopa11y/DraftMeld/backend/internal/domain/ranking"
+import (
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/league"
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/ranking"
+)
 
 const (
 	dynastyDataURL  = "https://raw.githubusercontent.com/dynastyprocess/data/master/files/values-players.csv"
@@ -20,4 +23,12 @@ func BuiltInRankingSources() []ranking.SourceDefinition {
 		{ID: "espn-ppr-pdf", Name: "ESPN PPR Top 300 PDF", Description: "Overall PPR rankings imported from a user-supplied ESPN draft-kit PDF.", Methodology: "ESPN overall ordinal rank across QB, RB, WR, TE, K, and DST", License: "Proprietary; user-supplied and never redistributed", ProjectURL: espnDraftKitURL, DataURL: espnDraftKitURL, DefaultWeight: 0.9, ImportMode: "pdf-upload"},
 		{ID: "espn-dynasty-pdf", Name: "ESPN Dynasty PDF", Description: "Long-term overall rankings imported from a user-supplied ESPN dynasty cheat sheet.", Methodology: "ESPN dynasty overall ordinal rank for supported positions present in the sheet", License: "Proprietary; user-supplied and never redistributed", ProjectURL: espnDraftKitURL, DataURL: espnDraftKitURL, DefaultWeight: 0.6, ImportMode: "pdf-upload"},
 	}
+}
+
+func DefaultRankingSourcePreferences() map[string]league.RankingSourcePreference {
+	preferences := make(map[string]league.RankingSourcePreference)
+	for _, source := range BuiltInRankingSources() {
+		preferences[source.ID] = league.RankingSourcePreference{Weight: source.DefaultWeight, Enabled: true}
+	}
+	return preferences
 }

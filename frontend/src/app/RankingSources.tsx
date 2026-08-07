@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { getConsensusRankings, importRankingPDF, listRankingSources, refreshRankingSources } from "../shared/api/rankings";
-import type { ConsensusRanking, RankingSource } from "../shared/api/types";
+import { leagueToRules, updateLeague } from "../shared/api/leagues";
+import { getConsensusRankings, getRankingWatchlist, importRankingPDF, listRankingSources, refreshRankingSources } from "../shared/api/rankings";
+import type { ConsensusRanking, League, RankingSource, RankingSourcePreference, WatchlistPlayer } from "../shared/api/types";
 
 const refreshTimeFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 const providerCoverage = [
@@ -14,9 +15,16 @@ function formatRefreshTime(value?: string | null) {
   return value ? refreshTimeFormatter.format(new Date(value)) : "Refresh required";
 }
 
-export function RankingSources() {
+interface RankingSourcesProps {
+  league: League;
+  onLeagueUpdated: (league: League) => void;
+}
+
+export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps) {
   const [sources, setSources] = useState<RankingSource[]>([]);
   const [rankings, setRankings] = useState<ConsensusRanking[]>([]);
+  const [preferences, setPreferences] = useState<Record<string, RankingSourcePreference>>({});
+  const [watchlist, setWatchlist] = useState<WatchlistPlayer[]>([]);
   const [busy, setBusy] = useState(true);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -26,13 +34,14 @@ export function RankingSources() {
     let active = true;
     async function load() {
       try {
-        const loaded = await listRankingSources();
+        const [loaded, consensus, disabledSourcePlayers] = await Promise.all([
+          listRankingSources(), getConsensusRankings(league.id), getRankingWatchlist(league.id),
+        ]);
         if (!active) return;
         setSources(loaded);
-        if (loaded.some((source) => source.recordCount > 0)) {
-          const consensus = await getConsensusRankings();
-          if (active) setRankings(consensus);
-        }
+        setRankings(consensus);
+        setWatchlist(disabledSourcePlayers);
+        setPreferences(Object.fromEntries(loaded.map((source) => [source.id, league.sourcePreferences[source.id] ?? { weight: source.defaultWeight, enabled: true }])));
       } catch (reason) {
         if (active) setError(reason instanceof Error ? reason.message : "Unable to load ranking sources.");
       } finally {
@@ -41,7 +50,7 @@ export function RankingSources() {
     }
     void load();
     return () => { active = false; };
-  }, []);
+  }, [league.id]);
 
   async function refresh() {
     setBusy(true);
@@ -51,7 +60,9 @@ export function RankingSources() {
     try {
       const loaded = await refreshRankingSources();
       setSources(loaded);
-      setRankings(await getConsensusRankings());
+      const [consensus, disabledSourcePlayers] = await Promise.all([getConsensusRankings(league.id), getRankingWatchlist(league.id)]);
+      setRankings(consensus);
+      setWatchlist(disabledSourcePlayers);
       const count = loaded.reduce((total, source) => total + source.recordCount, 0);
       setMessage(`Rankings refreshed. ${count} source records were normalized.`);
     } catch (reason) {
@@ -75,7 +86,9 @@ export function RankingSources() {
     try {
       const result = await importRankingPDF(pdfFile);
       setSources((current) => current.map((source) => source.id === result.source.id ? result.source : source));
-      setRankings(await getConsensusRankings());
+      const [consensus, disabledSourcePlayers] = await Promise.all([getConsensusRankings(league.id), getRankingWatchlist(league.id)]);
+      setRankings(consensus);
+      setWatchlist(disabledSourcePlayers);
       setMessage(`${result.source.name} imported: ${result.source.recordCount} players from ${result.pageCount} page${result.pageCount === 1 ? "" : "s"}.`);
       setPDFFile(null);
       form.reset();
@@ -87,6 +100,39 @@ export function RankingSources() {
     }
   }
 
+  async function saveWeights(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    setMessage(`Saving ranking influence for ${league.name}.`);
+    try {
+      const updated = await updateLeague(league.id, { ...leagueToRules(league), sourcePreferences: preferences });
+      onLeagueUpdated(updated);
+      const [consensus, disabledSourcePlayers] = await Promise.all([getConsensusRankings(updated.id), getRankingWatchlist(updated.id)]);
+      setRankings(consensus);
+      setWatchlist(disabledSourcePlayers);
+      setMessage(`Ranking preferences saved for ${updated.name}. Excluded sources are still checked for players worth another look.`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to save ranking preferences.");
+      setMessage("");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function resetPreferences() {
+    setPreferences(Object.fromEntries(sources.map((source) => [source.id, { weight: source.defaultWeight, enabled: true }])));
+    setMessage("All sources and default influence values restored. Choose Save preferences to apply them.");
+  }
+
+  const preferencesChanged = sources.some((source) => {
+    const current = preferences[source.id] ?? { weight: source.defaultWeight, enabled: true };
+    const saved = league.sourcePreferences[source.id] ?? { weight: source.defaultWeight, enabled: true };
+    return current.weight !== saved.weight || current.enabled !== saved.enabled;
+  });
+  const enabledSourceCount = Object.values(preferences).filter((preference) => preference.enabled).length;
+  const enabledImportedSourceCount = sources.filter((source) => source.recordCount > 0 && (preferences[source.id]?.enabled ?? true)).length;
+
   return (
     <main className="ranking-page" id="main-content">
       <section className="ranking-panel" aria-labelledby="ranking-sources-heading">
@@ -94,7 +140,7 @@ export function RankingSources() {
           <div>
             <p className="eyebrow">Ranking data</p>
             <h1 id="ranking-sources-heading">Ranking sources</h1>
-            <p className="section-description">Every feed keeps its method, license, source link, publication date, and default influence visible.</p>
+            <p className="section-description">Choose which sources shape {league.name}, then tune their relative influence. Equal weights have equal pull.</p>
           </div>
           <button className="primary-button" type="button" onClick={refresh} disabled={busy}>{busy ? "Working..." : "Refresh all sources"}</button>
         </div>
@@ -108,25 +154,73 @@ export function RankingSources() {
           <input id="ranking-pdf" name="file" type="file" accept="application/pdf,.pdf" aria-describedby="ranking-pdf-help" onChange={(event) => setPDFFile(event.target.files?.[0] ?? null)} disabled={busy} />
           <button className="secondary-button" type="submit" disabled={busy || !pdfFile}>Import PDF</button>
         </form>
-        <ul className="source-grid">
-          {sources.map((source) => (
-            <li key={source.id}>
-              <article className="source-card">
-                <div className="source-card-heading"><h2>{source.name}</h2><span>{source.recordCount > 0 ? `${source.recordCount} players` : "Not imported"}</span></div>
-                <p>{source.description}</p>
-                <dl>
-                  <div><dt>Method</dt><dd>{source.methodology}</dd></div>
-                  <div><dt>License</dt><dd>{source.license}</dd></div>
-                  <div><dt>Default weight</dt><dd>{source.defaultWeight}</dd></div>
-                  <div><dt>Published</dt><dd>{source.publishedAt || "Refresh required"}</dd></div>
-                  <div><dt>Last refreshed</dt><dd>{formatRefreshTime(source.refreshedAt)}</dd></div>
-                </dl>
-                <a href={source.projectUrl} target="_blank" rel="noreferrer">View source website<span className="sr-only"> for {source.name}</span></a>
-              </article>
-            </li>
-          ))}
-        </ul>
+        <form className="source-weight-form" onSubmit={saveWeights}>
+          <fieldset disabled={busy}>
+            <legend>Source preferences for {league.name}</legend>
+            <p className="field-help">Included sources shape the consensus. Excluded sources stay available for the compact "Worth another look" list. Weight 2 has twice the pull of weight 1, and matching weights have equal influence. At least one source must remain included.</p>
+            <ul className="source-grid">
+              {sources.map((source) => {
+                const preference = preferences[source.id] ?? { weight: source.defaultWeight, enabled: true };
+                return (
+                  <li key={source.id}>
+                    <article className={`source-card${preference.enabled ? "" : " source-card-disabled"}`}>
+                    <div className="source-card-heading"><h2>{source.name}</h2><span>{source.recordCount > 0 ? `${source.recordCount} players` : "Not imported"}</span></div>
+                    <p>{source.description}</p>
+                    <dl>
+                      <div><dt>Method</dt><dd>{source.methodology}</dd></div>
+                      <div><dt>License</dt><dd>{source.license}</dd></div>
+                      <div><dt>Default weight</dt><dd>{source.defaultWeight}</dd></div>
+                      <div><dt>Published</dt><dd>{source.publishedAt || "Refresh required"}</dd></div>
+                      <div><dt>Last refreshed</dt><dd>{formatRefreshTime(source.refreshedAt)}</dd></div>
+                    </dl>
+                    <label className="source-enabled-control">
+                      <input type="checkbox" checked={preference.enabled} disabled={preference.enabled && enabledSourceCount === 1} onChange={(event) => {
+                        setPreferences((current) => ({ ...current, [source.id]: { ...preference, enabled: event.target.checked } }));
+                      }} />
+                      Include {source.name} in consensus
+                    </label>
+                    <label className="source-weight-control" htmlFor={`source-weight-${source.id}`}>
+                      <span>{source.name} influence</span>
+                      <input id={`source-weight-${source.id}`} type="number" min="0.1" max="10" step="0.1" required disabled={!preference.enabled} value={preference.weight} onChange={(event) => {
+                        const weight = Number(event.target.value);
+                        setPreferences((current) => ({ ...current, [source.id]: { ...preference, weight } }));
+                      }} />
+                    </label>
+                    <a href={source.projectUrl} target="_blank" rel="noreferrer">View source website<span className="sr-only"> for {source.name}</span></a>
+                    </article>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="source-weight-actions">
+              <button className="primary-button" type="submit" disabled={!preferencesChanged || busy}>Save preferences</button>
+              <button className="secondary-button" type="button" onClick={resetPreferences} disabled={busy}>Include all and restore defaults</button>
+            </div>
+          </fieldset>
+        </form>
       </section>
+
+      {watchlist.length > 0 ? (
+        <section className="ranking-panel watchlist-panel" aria-labelledby="watchlist-heading">
+          <div className="section-heading"><div><p className="eyebrow">Excluded-source signals</p><h2 id="watchlist-heading">Worth another look</h2><p className="section-description">A short list of players ranked meaningfully higher by sources you excluded from the main consensus.</p></div></div>
+          <ul className="watchlist-grid">
+            {watchlist.map((player) => (
+              <li key={player.playerKey}>
+                <article>
+                  <h3>{player.name} <span>{player.position} - {player.team}</span></h3>
+                  <ul>
+                    {player.signals.map((signal) => (
+                      <li key={signal.sourceId}>{player.consensusRank === null
+                        ? `${signal.sourceName} ranks this player #${signal.sourceRank}; enabled sources do not currently rank the player.`
+                        : `${signal.sourceName} ranks this player #${signal.sourceRank}, ${signal.spotsHigher} spots above consensus #${player.consensusRank}.`}</li>
+                    ))}
+                  </ul>
+                </article>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section className="ranking-panel" aria-labelledby="provider-coverage-heading">
         <div className="section-heading"><div><p className="eyebrow">Freshness safeguards</p><h2 id="provider-coverage-heading">Platform connector status</h2><p className="section-description">DraftMeld holds a provider out when its available data is stale, incomplete, or requires approval.</p></div></div>
@@ -137,12 +231,12 @@ export function RankingSources() {
 
       {rankings.length > 0 ? (
         <section className="ranking-panel" aria-labelledby="consensus-heading">
-          <div className="section-heading"><div><p className="eyebrow">Normalized preview</p><h2 id="consensus-heading">DraftMeld consensus</h2></div></div>
+          <div className="section-heading"><div><p className="eyebrow">League-weighted preview</p><h2 id="consensus-heading">DraftMeld consensus for {league.name}</h2><p className="section-description">The blended score is the weighted average of every included, imported source that ranks that player. Lower is better.</p></div></div>
           <div className="table-scroll">
             <table aria-label="Top 25 blended player rankings">
               <caption>Top 25 blended player rankings</caption>
               <thead><tr><th>Rank</th><th>Player</th><th>Pos.</th><th>Sources</th><th>Blended score</th></tr></thead>
-              <tbody>{rankings.slice(0, 25).map((player) => <tr key={player.playerKey}><td>{player.rank}</td><th scope="row"><span className="player-name">{player.name}</span><span className="player-meta">{player.team || "Team unavailable"}</span></th><td>{player.position}</td><td>{player.sourceCount} of {sources.filter((source) => source.recordCount > 0).length}</td><td>{player.score.toFixed(1)}</td></tr>)}</tbody>
+              <tbody>{rankings.slice(0, 25).map((player) => <tr key={player.playerKey}><td>{player.rank}</td><th scope="row"><span className="player-name">{player.name}</span><span className="player-meta">{player.team || "Team unavailable"}</span></th><td>{player.position}</td><td>{player.sourceCount} of {enabledImportedSourceCount}</td><td>{player.score.toFixed(1)}</td></tr>)}</tbody>
             </table>
           </div>
         </section>

@@ -45,6 +45,12 @@ export function App() {
     else setView("leagues");
   }
 
+  function handleLeagueUpdated(updated: League) {
+    setLeagues((current) => current.map((league) => league.id === updated.id ? updated : league));
+  }
+
+  const activeLeague = leagues.find((league) => league.id === activeLeagueId);
+
   if (loading) {
     return <main className="centered-status" aria-busy="true"><p role="status">Loading leagues...</p></main>;
   }
@@ -66,13 +72,13 @@ export function App() {
             </label>
           ) : null}
           {view !== "leagues" ? <button type="button" className="secondary-button" onClick={() => setView("leagues")}>Manage leagues</button> : null}
-          {view !== "rankings" ? <button type="button" className="secondary-button" onClick={() => setView("rankings")}>Ranking sources</button> : null}
+          {view !== "rankings" ? <button type="button" className="secondary-button" onClick={() => setView("rankings")} disabled={!activeLeague}>Ranking sources</button> : null}
           {view !== "draft" ? <button type="button" className="secondary-button" onClick={() => setView("draft")} disabled={leagues.length === 0}>Return to draft</button> : null}
         </nav>
       </header>
 
       {error ? <div className="error-banner" role="alert">Unable to load leagues. {error}</div> : null}
-      {view === "rankings" ? <RankingSources /> : view === "leagues" ? (
+      {view === "rankings" && activeLeague ? <RankingSources league={activeLeague} onLeagueUpdated={handleLeagueUpdated} /> : view === "leagues" ? (
         <LeagueManager
           leagues={leagues}
           activeLeagueId={activeLeagueId}

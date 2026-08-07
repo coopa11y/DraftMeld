@@ -35,7 +35,7 @@ Owns provider adapters, CSV column mapping, canonical-player matching inputs, ra
 
 The first model should support mean rank, median rank, trimmed mean, and weighted rank. Missing players, source coverage, ties, and outliers must be explicit. Projection aggregation and ordinal ranking aggregation remain separate operations.
 
-The initial implementation uses a weighted average of ordinal ranks. The current redraft consensus defines the eligible player pool; dynasty value and prior-season expected-opportunity signals may change a player's score but cannot introduce a historical-only player. Every result reports its contributing source count and per-source ranks. League-specific weights and stronger player identity matching remain planned work.
+The initial implementation uses a weighted average of ordinal ranks. The current redraft consensus defines the eligible player pool; dynasty value and prior-season expected-opportunity signals may change a player's score but cannot introduce a historical-only player. Every result reports its contributing source count and per-source ranks. League-specific preferences control inclusion and relative influence, while excluded sources feed a bounded outlier watchlist. Stronger individual-player identity matching remains planned work.
 
 ## API contract
 

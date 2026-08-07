@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/document"
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/league"
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/ranking"
 )
 
@@ -117,7 +118,7 @@ func (service *RankingService) download(ctx context.Context, source ranking.Sour
 	return nil, fmt.Errorf("download %s after retry: %w", source.Name, lastErr)
 }
 
-func (service *RankingService) Consensus(ctx context.Context) ([]ranking.PlayerRanking, error) {
+func (service *RankingService) Consensus(ctx context.Context, preferences map[string]league.RankingSourcePreference) ([]ranking.PlayerRanking, error) {
 	records, err := service.repository.RankingRecords(ctx)
 	if err != nil {
 		return nil, err
@@ -125,6 +126,19 @@ func (service *RankingService) Consensus(ctx context.Context) ([]ranking.PlayerR
 	definitions := make(map[string]ranking.SourceDefinition, len(service.sources))
 	for _, source := range service.sources {
 		definitions[source.ID] = source
+	}
+	enabledSources := 0
+	for _, definition := range service.sources {
+		preference := effectiveSourcePreference(definition, preferences)
+		if preference.Weight <= 0 || preference.Weight > 10 {
+			return nil, fmt.Errorf("ranking source %s requires a weight greater than 0 and no more than 10", definition.ID)
+		}
+		if preference.Enabled {
+			enabledSources++
+		}
+	}
+	if enabledSources == 0 {
+		return nil, fmt.Errorf("at least one ranking source must be enabled")
 	}
 	// The current redraft consensus defines the eligible draft pool. Historical
 	// opportunity and dynasty feeds enrich those players without introducing
@@ -148,8 +162,12 @@ func (service *RankingService) Consensus(ctx context.Context) ([]ranking.PlayerR
 		if !exists {
 			continue
 		}
+		preference := effectiveSourcePreference(definition, preferences)
+		if !preference.Enabled {
+			continue
+		}
 		source := sources[record.SourceID]
-		source.ID, source.Weight = record.SourceID, definition.DefaultWeight
+		source.ID, source.Weight = record.SourceID, preference.Weight
 		if source.Ranks == nil {
 			source.Ranks = make(map[string]int)
 		}
@@ -177,4 +195,11 @@ func (service *RankingService) Consensus(ctx context.Context) ([]ranking.PlayerR
 		result = append(result, ranking.PlayerRanking{PlayerKey: entry.PlayerID, Name: player.Name, Position: player.Position, Team: player.Team, Rank: index + 1, Score: entry.Score, SourceCount: entry.SourceCount, SourceRanks: sourceRanks[entry.PlayerID]})
 	}
 	return result, nil
+}
+
+func effectiveSourcePreference(definition ranking.SourceDefinition, preferences map[string]league.RankingSourcePreference) league.RankingSourcePreference {
+	if preference, exists := preferences[definition.ID]; exists {
+		return preference
+	}
+	return league.RankingSourcePreference{Weight: definition.DefaultWeight, Enabled: true}
 }

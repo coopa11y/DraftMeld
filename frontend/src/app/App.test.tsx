@@ -35,6 +35,12 @@ const demoLeague: League = {
   id: "demo", name: "Demo League", teamCount: 12, draftPosition: 1, draftType: "snake",
   rosterSlots: [{ name: "RB", count: 2, positions: ["RB"], isStarting: true }],
   scoringRules: { reception: 1 },
+  sourcePreferences: {
+    "redraft-ecr": { weight: 1, enabled: true }, "dynasty-1qb": { weight: 0.7, enabled: true },
+    "dynasty-superflex": { weight: 0.5, enabled: true }, "expected-opportunity": { weight: 0.6, enabled: true },
+    "cbs-ppr": { weight: 0.9, enabled: true }, "espn-ppr-pdf": { weight: 0.9, enabled: true },
+    "espn-dynasty-pdf": { weight: 0.6, enabled: true },
+  },
 };
 const casey: Player = {
   id: "p003", name: "Casey Brooks", nflTeam: "DET", position: "RB",
@@ -165,16 +171,27 @@ describe("accessible draft board", () => {
   });
 
   it("shows source provenance and refreshes the accessible consensus preview", async () => {
-    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    let savedPreferences: League["sourcePreferences"] | undefined;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = input instanceof Request ? input : new Request(input, init);
       const path = new URL(request.url).pathname;
       if (path.endsWith("/leagues")) return jsonResponse([demoLeague]);
+      if (path.endsWith("/leagues/demo") && request.method === "PUT") {
+        const rules = await request.clone().json() as Omit<League, "id">;
+        savedPreferences = rules.sourcePreferences;
+        return jsonResponse({ id: "demo", ...rules });
+      }
       if (path.endsWith("/ranking-sources/import-pdf") && request.method === "POST") return jsonResponse({ source: { ...rankingSources[5], recordCount: 245, publishedAt: "2026-08-02" }, pageCount: 1 }, 201);
       if (path.endsWith("/ranking-sources/refresh") && request.method === "POST") return jsonResponse(rankingSources);
       if (path.endsWith("/ranking-sources")) return jsonResponse(rankingSources.map((source) => ({ ...source, recordCount: 0, publishedAt: undefined })));
+      if (path.endsWith("/ranking-watchlist")) return jsonResponse(savedPreferences?.["cbs-ppr"]?.enabled === false ? [{
+        playerKey: "alexrivers", name: "Alex Rivers", position: "RB", team: "ATL", consensusRank: 42,
+        signals: [{ sourceId: "cbs-ppr", sourceName: "CBS Sports PPR Top 200", sourceRank: 11, spotsHigher: 31 }],
+      }] : []);
       if (path.endsWith("/rankings")) return jsonResponse(consensusRankings);
       return jsonResponse(snapshot());
-    }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     const { container } = render(<App />);
 
@@ -184,6 +201,17 @@ describe("accessible draft board", () => {
     expect(screen.getAllByRole("link", { name: /View source website/ })).toHaveLength(7);
     expect(screen.getByRole("heading", { name: "Platform connector status" })).toBeInTheDocument();
     expect(screen.getByText("The public overall draft table still contains the prior-season board.")).toBeInTheDocument();
+
+    const cbsWeight = screen.getByRole("spinbutton", { name: "CBS Sports PPR Top 200 influence" });
+    await user.clear(cbsWeight);
+    await user.type(cbsWeight, "1");
+    await user.click(screen.getByRole("checkbox", { name: "Include CBS Sports PPR Top 200 in consensus" }));
+    await user.click(screen.getByRole("button", { name: "Save preferences" }));
+    expect(await screen.findByText("Ranking preferences saved for Demo League. Excluded sources are still checked for players worth another look.")).toBeInTheDocument();
+    expect(savedPreferences?.["cbs-ppr"]).toEqual({ weight: 1, enabled: false });
+    expect(savedPreferences?.["redraft-ecr"]).toEqual({ weight: 1, enabled: true });
+    expect(await screen.findByRole("heading", { name: "Worth another look" })).toBeInTheDocument();
+    expect(screen.getByText("CBS Sports PPR Top 200 ranks this player #11, 31 spots above consensus #42.")).toBeInTheDocument();
 
     const pdf = new File(["%PDF-test"], "espn-rankings.pdf", { type: "application/pdf" });
     await user.upload(screen.getByLabelText("Import a ranking PDF"), pdf);

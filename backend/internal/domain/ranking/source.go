@@ -40,3 +40,19 @@ type PlayerRanking struct {
 	SourceCount int            `json:"sourceCount"`
 	SourceRanks map[string]int `json:"sourceRanks"`
 }
+
+type WatchlistSignal struct {
+	SourceID    string `json:"sourceId"`
+	SourceName  string `json:"sourceName"`
+	SourceRank  int    `json:"sourceRank"`
+	SpotsHigher int    `json:"spotsHigher"`
+}
+
+type WatchlistPlayer struct {
+	PlayerKey     string            `json:"playerKey"`
+	Name          string            `json:"name"`
+	Position      string            `json:"position"`
+	Team          string            `json:"team"`
+	ConsensusRank *int              `json:"consensusRank"`
+	Signals       []WatchlistSignal `json:"signals"`
+}

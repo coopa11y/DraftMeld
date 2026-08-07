@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"io"
 	"net/http"
 
@@ -8,7 +9,7 @@ import (
 	"github.com/coopa11y/DraftMeld/backend/internal/document"
 )
 
-func registerRankingRoutes(mux *http.ServeMux, service *application.RankingService) {
+func registerRankingRoutes(mux *http.ServeMux, service *application.RankingService, leagues *application.LeagueService) {
 	mux.HandleFunc("GET /api/v1/ranking-sources", func(response http.ResponseWriter, request *http.Request) {
 		sources, err := service.Sources(request.Context())
 		if err != nil {
@@ -77,11 +78,47 @@ func registerRankingRoutes(mux *http.ServeMux, service *application.RankingServi
 		writeJSON(response, http.StatusCreated, result)
 	})
 	mux.HandleFunc("GET /api/v1/rankings", func(response http.ResponseWriter, request *http.Request) {
-		rankings, err := service.Consensus(request.Context())
+		leagueID := request.URL.Query().Get("leagueId")
+		if leagueID == "" {
+			writeError(response, http.StatusBadRequest, "A league ID is required.")
+			return
+		}
+		configuration, err := leagues.Get(request.Context(), leagueID)
+		if err != nil {
+			if errors.Is(err, application.ErrLeagueNotFound) {
+				writeError(response, http.StatusNotFound, "That league was not found.")
+				return
+			}
+			writeError(response, http.StatusInternalServerError, "Unable to load ranking weights.")
+			return
+		}
+		rankings, err := service.Consensus(request.Context(), configuration.Rules.SourcePreferences)
 		if err != nil {
 			writeError(response, http.StatusInternalServerError, "Unable to build consensus rankings.")
 			return
 		}
 		writeJSON(response, http.StatusOK, rankings)
+	})
+	mux.HandleFunc("GET /api/v1/ranking-watchlist", func(response http.ResponseWriter, request *http.Request) {
+		leagueID := request.URL.Query().Get("leagueId")
+		if leagueID == "" {
+			writeError(response, http.StatusBadRequest, "A league ID is required.")
+			return
+		}
+		configuration, err := leagues.Get(request.Context(), leagueID)
+		if err != nil {
+			if errors.Is(err, application.ErrLeagueNotFound) {
+				writeError(response, http.StatusNotFound, "That league was not found.")
+				return
+			}
+			writeError(response, http.StatusInternalServerError, "Unable to load ranking preferences.")
+			return
+		}
+		players, err := service.Watchlist(request.Context(), configuration.Rules.SourcePreferences)
+		if err != nil {
+			writeError(response, http.StatusInternalServerError, "Unable to build the disabled-source watchlist.")
+			return
+		}
+		writeJSON(response, http.StatusOK, players)
 	})
 }

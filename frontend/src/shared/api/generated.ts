@@ -137,8 +137,25 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Build the default weighted consensus from imported feeds */
+        /** Build a league-weighted consensus from every imported feed */
         get: operations["getConsensusRankings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ranking-watchlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Find players favored by sources excluded from the league consensus */
+        get: operations["getRankingWatchlist"];
         put?: never;
         post?: never;
         delete?: never;
@@ -223,6 +240,10 @@ export interface components {
             scoringRules: {
                 [key: string]: number;
             };
+            /** @description Per-source inclusion and influence. Missing source IDs use enabled published defaults. */
+            sourcePreferences: {
+                [key: string]: components["schemas"]["RankingSourcePreference"];
+            };
         };
         League: {
             id: string;
@@ -251,6 +272,10 @@ export interface components {
             refreshedAt?: string | null;
             publishedAt?: string;
         };
+        RankingSourcePreference: {
+            weight: number;
+            enabled: boolean;
+        };
         RankingPDFImport: {
             source: components["schemas"]["RankingSource"];
             pageCount: number;
@@ -267,6 +292,21 @@ export interface components {
             sourceRanks: {
                 [key: string]: number;
             };
+        };
+        WatchlistSignal: {
+            sourceId: string;
+            sourceName: string;
+            sourceRank: number;
+            spotsHigher: number;
+        };
+        WatchlistPlayer: {
+            playerKey: string;
+            name: string;
+            /** @enum {string} */
+            position: "QB" | "RB" | "WR" | "TE" | "K" | "DST";
+            team: string;
+            consensusRank: number | null;
+            signals: components["schemas"]["WatchlistSignal"][];
         };
         Player: {
             id: string;
@@ -600,7 +640,9 @@ export interface operations {
     };
     getConsensusRankings: {
         parameters: {
-            query?: never;
+            query: {
+                leagueId: components["parameters"]["LeagueId"];
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -616,6 +658,31 @@ export interface operations {
                     "application/json": components["schemas"]["ConsensusRanking"][];
                 };
             };
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getRankingWatchlist: {
+        parameters: {
+            query: {
+                leagueId: components["parameters"]["LeagueId"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Up to five meaningful disabled-source ranking outliers. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchlistPlayer"][];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
             500: components["responses"]["ServerError"];
         };
     };

@@ -172,7 +172,9 @@ paths:
   /rankings:
     get:
       operationId: getConsensusRankings
-      summary: Build the default weighted consensus from imported feeds
+      summary: Build a league-weighted consensus from every imported feed
+      parameters:
+        - $ref: "#/components/parameters/LeagueId"
       responses:
         "200":
           description: Normalized consensus rankings.
@@ -181,6 +183,24 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/ConsensusRanking" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /ranking-watchlist:
+    get:
+      operationId: getRankingWatchlist
+      summary: Find players favored by sources excluded from the league consensus
+      parameters:
+        - $ref: "#/components/parameters/LeagueId"
+      responses:
+        "200":
+          description: Up to five meaningful disabled-source ranking outliers.
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 5
+                items: { $ref: "#/components/schemas/WatchlistPlayer" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
         "500": { $ref: "#/components/responses/ServerError" }
   /draft:
     get:
@@ -318,7 +338,7 @@ components:
           example: 0.2.0
     LeagueRules:
       type: object
-      required: [name, teamCount, draftPosition, draftType, rosterSlots, scoringRules]
+      required: [name, teamCount, draftPosition, draftType, rosterSlots, scoringRules, sourcePreferences]
       properties:
         name:
           type: string
@@ -343,6 +363,11 @@ components:
           type: object
           additionalProperties:
             type: number
+        sourcePreferences:
+          type: object
+          description: Per-source inclusion and influence. Missing source IDs use enabled published defaults.
+          additionalProperties:
+            $ref: "#/components/schemas/RankingSourcePreference"
     League:
       allOf:
         - type: object
@@ -385,6 +410,13 @@ components:
         recordCount: { type: integer, minimum: 0 }
         refreshedAt: { type: [string, "null"], format: date-time }
         publishedAt: { type: string }
+    RankingSourcePreference:
+      type: object
+      additionalProperties: false
+      required: [weight, enabled]
+      properties:
+        weight: { type: number, exclusiveMinimum: 0, maximum: 10 }
+        enabled: { type: boolean }
     RankingPDFImport:
       type: object
       additionalProperties: false
@@ -407,6 +439,29 @@ components:
         sourceRanks:
           type: object
           additionalProperties: { type: integer, minimum: 1 }
+    WatchlistSignal:
+      type: object
+      additionalProperties: false
+      required: [sourceId, sourceName, sourceRank, spotsHigher]
+      properties:
+        sourceId: { type: string }
+        sourceName: { type: string }
+        sourceRank: { type: integer, minimum: 1 }
+        spotsHigher: { type: integer }
+    WatchlistPlayer:
+      type: object
+      additionalProperties: false
+      required: [playerKey, name, position, team, consensusRank, signals]
+      properties:
+        playerKey: { type: string }
+        name: { type: string }
+        position: { type: string, enum: [QB, RB, WR, TE, K, DST] }
+        team: { type: string }
+        consensusRank: { type: [integer, "null"], minimum: 1 }
+        signals:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/WatchlistSignal" }
     Player:
       type: object
       required: [id, name, nflTeam, position, byeWeek, overallRank, positionRank, adp, tier]
