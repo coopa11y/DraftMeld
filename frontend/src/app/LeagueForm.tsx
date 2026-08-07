@@ -56,7 +56,7 @@ function defaultRules(): LeagueRules {
       defenseTouchdown: 6,
       defenseSafety: 2,
     },
-    sourceWeights: {},
+    sourcePreferences: {},
   };
 }
 

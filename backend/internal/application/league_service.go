@@ -65,7 +65,7 @@ func (service *LeagueService) Create(ctx context.Context, rules league.Rules) (L
 	service.mu.Lock()
 	defer service.mu.Unlock()
 
-	rules = withDefaultSourceWeights(rules)
+	rules = withDefaultSourcePreferences(rules)
 	configuration := LeagueConfiguration{
 		ID: slugify(rules.Name), Rules: rules, Recommendation: DefaultRecommendationPolicy(),
 	}
@@ -91,7 +91,7 @@ func (service *LeagueService) Update(ctx context.Context, id string, rules leagu
 	if err != nil {
 		return LeagueConfiguration{}, err
 	}
-	configuration.Rules = withDefaultSourceWeights(rules)
+	configuration.Rules = withDefaultSourcePreferences(rules)
 	if err = configuration.Validate(); err != nil {
 		return LeagueConfiguration{}, fmt.Errorf("%w: %v", ErrInvalidLeague, err)
 	}
@@ -110,7 +110,7 @@ func (service *LeagueService) Duplicate(ctx context.Context, id string) (LeagueC
 	rules.Name = "Copy of " + rules.Name
 	rules.RosterSlots = cloneRosterSlots(rules.RosterSlots)
 	rules.ScoringRules = cloneScoringRules(rules.ScoringRules)
-	rules.SourceWeights = cloneSourceWeights(rules.SourceWeights)
+	rules.SourcePreferences = cloneSourcePreferences(rules.SourcePreferences)
 	return service.Create(ctx, rules)
 }
 
@@ -169,17 +169,21 @@ func cloneScoringRules(rules map[string]float64) map[string]float64 {
 	return cloned
 }
 
-func cloneSourceWeights(weights map[string]float64) map[string]float64 {
-	cloned := make(map[string]float64, len(weights))
-	for sourceID, weight := range weights {
-		cloned[sourceID] = weight
+func cloneSourcePreferences(preferences map[string]league.RankingSourcePreference) map[string]league.RankingSourcePreference {
+	cloned := make(map[string]league.RankingSourcePreference, len(preferences))
+	for sourceID, preference := range preferences {
+		cloned[sourceID] = preference
 	}
 	return cloned
 }
 
-func withDefaultSourceWeights(rules league.Rules) league.Rules {
-	if len(rules.SourceWeights) == 0 {
-		rules.SourceWeights = DefaultRankingSourceWeights()
+func withDefaultSourcePreferences(rules league.Rules) league.Rules {
+	defaults := DefaultRankingSourcePreferences()
+	rules.SourcePreferences = cloneSourcePreferences(rules.SourcePreferences)
+	for sourceID, preference := range defaults {
+		if _, exists := rules.SourcePreferences[sourceID]; !exists {
+			rules.SourcePreferences[sourceID] = preference
+		}
 	}
 	return rules
 }

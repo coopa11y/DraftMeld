@@ -233,6 +233,7 @@ tbody tr:focus-within { background: var(--color-control); }
 .pdf-import-form p { margin: 0.35rem 0 0; color: var(--color-text-muted); line-height: 1.45; }
 .pdf-import-form input { width: 100%; min-height: 44px; padding: 0.55rem; color: var(--color-text); background: var(--color-background); border: 1px solid var(--color-border-input); border-radius: 0.5rem; }
 .source-card { height: 100%; padding: 1.2rem; background: var(--color-surface-deep); border: 1px solid var(--color-border-subtle); border-radius: 0.75rem; }
+.source-card-disabled { background: color-mix(in srgb, var(--color-surface-deep) 72%, var(--color-surface)); border-style: dashed; }
 .source-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
 .source-card-heading span { flex: 0 0 auto; padding: 0.25rem 0.5rem; color: var(--color-on-accent); background: var(--color-accent); border-radius: 999px; font-size: 0.72rem; font-weight: 850; }
 .source-card > p { color: var(--color-text-muted); line-height: 1.5; }
@@ -240,10 +241,17 @@ tbody tr:focus-within { background: var(--color-control); }
 .source-card dl div { display: grid; grid-template-columns: 8rem 1fr; gap: 0.6rem; }
 .source-card dt { color: var(--color-text-label); font-weight: 800; }
 .source-card dd { margin: 0; color: var(--color-text-muted); }
+.source-enabled-control { display: flex; align-items: flex-start; gap: 0.6rem; min-height: 44px; font-weight: 850; }
+.source-enabled-control input { flex: 0 0 auto; margin-top: 0.2rem; }
 .source-weight-control { display: grid; grid-template-columns: minmax(0, 1fr) 6rem; align-items: center; gap: 0.75rem; margin-top: 1rem; font-weight: 800; }
 .source-weight-control input { min-width: 0; }
 .source-card a { display: inline-flex; align-items: center; min-height: 44px; color: var(--color-accent); font-weight: 800; }
 .source-weight-actions { display: flex; flex-wrap: wrap; gap: 0.65rem; padding: 0 1.4rem; }
+.watchlist-grid { display: grid; gap: 0.75rem; margin: 0; padding: 0 1.4rem 1.4rem; list-style: none; }
+.watchlist-grid > li { padding: 1rem; background: var(--color-surface-deep); border-left: 4px solid var(--color-accent); border-radius: 0.5rem; }
+.watchlist-grid h3 { margin: 0 0 0.5rem; }
+.watchlist-grid h3 span { color: var(--color-text-muted); font-size: 0.85rem; }
+.watchlist-grid ul { margin: 0; padding-left: 1.2rem; color: var(--color-text-muted); line-height: 1.5; }
 .coverage-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; margin: 0; padding: 0 1.4rem 1.4rem; list-style: none; }
 .coverage-list li { padding: 1rem; background: var(--color-surface-deep); border: 1px solid var(--color-border-subtle); border-radius: 0.7rem; }
 .coverage-list li > div { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }

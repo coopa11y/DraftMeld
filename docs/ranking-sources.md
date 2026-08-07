@@ -22,8 +22,9 @@ DraftMeld starts with seven transparent ranking signals. Four come from two open
 - Each source is replaced transactionally. A later source failing does not roll back sources that refreshed successfully earlier in the same request.
 - The current redraft feed anchors eligibility so prior-season or dynasty-only names cannot enter the draft board by themselves.
 - The UI exposes methodology, license, project link, default weight, publication date, refresh time, and record count.
-- Each league can assign every source a positive influence from 0.1 to 10. Missing settings use the published default, and no imported source can be disabled with a zero weight.
-- A player's blended score is the weighted average of every imported source that ranks that player. Higher influence gives a source more pull without removing the others.
+- Each league can include or exclude a source and assign a positive influence from 0.1 to 10. Missing settings use the enabled published default, and at least one source must remain included.
+- A player's blended score is the weighted average of every included, imported source that ranks that player. Higher influence gives a source more pull, while equal values provide equal influence.
+- Excluded sources retain their weight. DraftMeld compares them with the active consensus and shows at most five players when an excluded source ranks them at least 10 spots higher, or ranks an otherwise-missing player in its top 50.
 
 ## Reusable PDF adapter design
 

@@ -92,11 +92,33 @@ func registerRankingRoutes(mux *http.ServeMux, service *application.RankingServi
 			writeError(response, http.StatusInternalServerError, "Unable to load ranking weights.")
 			return
 		}
-		rankings, err := service.Consensus(request.Context(), configuration.Rules.SourceWeights)
+		rankings, err := service.Consensus(request.Context(), configuration.Rules.SourcePreferences)
 		if err != nil {
 			writeError(response, http.StatusInternalServerError, "Unable to build consensus rankings.")
 			return
 		}
 		writeJSON(response, http.StatusOK, rankings)
+	})
+	mux.HandleFunc("GET /api/v1/ranking-watchlist", func(response http.ResponseWriter, request *http.Request) {
+		leagueID := request.URL.Query().Get("leagueId")
+		if leagueID == "" {
+			writeError(response, http.StatusBadRequest, "A league ID is required.")
+			return
+		}
+		configuration, err := leagues.Get(request.Context(), leagueID)
+		if err != nil {
+			if errors.Is(err, application.ErrLeagueNotFound) {
+				writeError(response, http.StatusNotFound, "That league was not found.")
+				return
+			}
+			writeError(response, http.StatusInternalServerError, "Unable to load ranking preferences.")
+			return
+		}
+		players, err := service.Watchlist(request.Context(), configuration.Rules.SourcePreferences)
+		if err != nil {
+			writeError(response, http.StatusInternalServerError, "Unable to build the disabled-source watchlist.")
+			return
+		}
+		writeJSON(response, http.StatusOK, players)
 	})
 }

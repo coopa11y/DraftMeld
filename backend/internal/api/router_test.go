@@ -65,14 +65,17 @@ func TestRankingSourcesExposeBuiltInProvenance(t *testing.T) {
 func TestConsensusRankingsRequireKnownLeague(t *testing.T) {
 	router, closeStore := testRouter(t)
 	defer closeStore()
-	for _, test := range []struct {
-		path string
-		want int
-	}{{"/api/v1/rankings", http.StatusBadRequest}, {"/api/v1/rankings?leagueId=missing", http.StatusNotFound}, {"/api/v1/rankings?leagueId=demo", http.StatusOK}} {
-		response := httptest.NewRecorder()
-		router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, test.path, nil))
-		if response.Code != test.want {
-			t.Errorf("expected %d for %s, got %d: %s", test.want, test.path, response.Code, response.Body.String())
+	for _, endpoint := range []string{"rankings", "ranking-watchlist"} {
+		for _, test := range []struct {
+			suffix string
+			want   int
+		}{{"", http.StatusBadRequest}, {"?leagueId=missing", http.StatusNotFound}, {"?leagueId=demo", http.StatusOK}} {
+			path := "/api/v1/" + endpoint + test.suffix
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
+			if response.Code != test.want {
+				t.Errorf("expected %d for %s, got %d: %s", test.want, path, response.Code, response.Body.String())
+			}
 		}
 	}
 }
@@ -178,7 +181,7 @@ func TestLeagueLifecycleEndpoints(t *testing.T) {
 	if err := json.NewDecoder(createResponse.Body).Decode(&created); err != nil {
 		t.Fatalf("decode created league: %v", err)
 	}
-	if created.ID != "work-league" || created.DraftPosition != 4 || len(created.SourceWeights) != len(application.BuiltInRankingSources()) {
+	if created.ID != "work-league" || created.DraftPosition != 4 || len(created.SourcePreferences) != len(application.BuiltInRankingSources()) {
 		t.Fatalf("unexpected created league: %#v", created)
 	}
 

@@ -44,12 +44,12 @@ func (store *DraftEventStore) ListLeagues(ctx context.Context) ([]league.Configu
 func (store *DraftEventStore) GetLeague(ctx context.Context, id string) (league.Configuration, bool, error) {
 	var configuration league.Configuration
 	var draftType string
-	var scoringJSON, sourceWeightsJSON, recommendationJSON string
+	var scoringJSON, sourcePreferencesJSON, recommendationJSON string
 	err := store.database.QueryRowContext(ctx, `
-SELECT id, name, team_count, draft_position, draft_type, scoring_rules, source_weights, recommendation_policy
+SELECT id, name, team_count, draft_position, draft_type, scoring_rules, source_preferences, recommendation_policy
 FROM leagues WHERE id = ?`, id).Scan(
 		&configuration.ID, &configuration.Rules.Name, &configuration.Rules.TeamCount,
-		&configuration.Rules.DraftPosition, &draftType, &scoringJSON, &sourceWeightsJSON, &recommendationJSON,
+		&configuration.Rules.DraftPosition, &draftType, &scoringJSON, &sourcePreferencesJSON, &recommendationJSON,
 	)
 	if err == sql.ErrNoRows {
 		return league.Configuration{}, false, nil
@@ -61,8 +61,8 @@ FROM leagues WHERE id = ?`, id).Scan(
 	if err = json.Unmarshal([]byte(scoringJSON), &configuration.Rules.ScoringRules); err != nil {
 		return league.Configuration{}, false, fmt.Errorf("decode league scoring rules: %w", err)
 	}
-	if err = json.Unmarshal([]byte(sourceWeightsJSON), &configuration.Rules.SourceWeights); err != nil {
-		return league.Configuration{}, false, fmt.Errorf("decode ranking source weights: %w", err)
+	if err = json.Unmarshal([]byte(sourcePreferencesJSON), &configuration.Rules.SourcePreferences); err != nil {
+		return league.Configuration{}, false, fmt.Errorf("decode ranking source preferences: %w", err)
 	}
 	if err = json.Unmarshal([]byte(recommendationJSON), &configuration.Recommendation); err != nil {
 		return league.Configuration{}, false, fmt.Errorf("decode recommendation policy: %w", err)
@@ -100,9 +100,9 @@ func (store *DraftEventStore) SaveLeague(ctx context.Context, configuration leag
 	if err != nil {
 		return fmt.Errorf("encode league scoring rules: %w", err)
 	}
-	sourceWeightsJSON, err := json.Marshal(configuration.Rules.SourceWeights)
+	sourcePreferencesJSON, err := json.Marshal(configuration.Rules.SourcePreferences)
 	if err != nil {
-		return fmt.Errorf("encode ranking source weights: %w", err)
+		return fmt.Errorf("encode ranking source preferences: %w", err)
 	}
 	recommendationJSON, err := json.Marshal(configuration.Recommendation)
 	if err != nil {
@@ -116,7 +116,7 @@ func (store *DraftEventStore) SaveLeague(ctx context.Context, configuration leag
 	defer transaction.Rollback()
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	_, err = transaction.ExecContext(ctx, `
-INSERT INTO leagues (id, name, team_count, draft_position, draft_type, scoring_rules, source_weights, recommendation_policy, created_at, updated_at)
+INSERT INTO leagues (id, name, team_count, draft_position, draft_type, scoring_rules, source_preferences, recommendation_policy, created_at, updated_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
   name = excluded.name,
@@ -124,12 +124,12 @@ ON CONFLICT(id) DO UPDATE SET
   draft_position = excluded.draft_position,
   draft_type = excluded.draft_type,
   scoring_rules = excluded.scoring_rules,
-  source_weights = excluded.source_weights,
+  source_preferences = excluded.source_preferences,
   recommendation_policy = excluded.recommendation_policy,
   updated_at = excluded.updated_at`,
 		configuration.ID, configuration.Rules.Name, configuration.Rules.TeamCount,
 		configuration.Rules.DraftPosition, configuration.Rules.DraftType, string(scoringJSON),
-		string(sourceWeightsJSON), string(recommendationJSON), now, now,
+		string(sourcePreferencesJSON), string(recommendationJSON), now, now,
 	)
 	if err != nil {
 		return fmt.Errorf("save league: %w", err)

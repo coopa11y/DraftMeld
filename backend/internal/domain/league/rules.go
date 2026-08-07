@@ -21,14 +21,19 @@ type RosterSlot struct {
 	IsStarting bool     `json:"isStarting"`
 }
 
+type RankingSourcePreference struct {
+	Weight  float64 `json:"weight"`
+	Enabled bool    `json:"enabled"`
+}
+
 type Rules struct {
-	Name          string             `json:"name"`
-	TeamCount     int                `json:"teamCount"`
-	DraftPosition int                `json:"draftPosition"`
-	DraftType     DraftType          `json:"draftType"`
-	RosterSlots   []RosterSlot       `json:"rosterSlots"`
-	ScoringRules  map[string]float64 `json:"scoringRules"`
-	SourceWeights map[string]float64 `json:"sourceWeights"`
+	Name              string                             `json:"name"`
+	TeamCount         int                                `json:"teamCount"`
+	DraftPosition     int                                `json:"draftPosition"`
+	DraftType         DraftType                          `json:"draftType"`
+	RosterSlots       []RosterSlot                       `json:"rosterSlots"`
+	ScoringRules      map[string]float64                 `json:"scoringRules"`
+	SourcePreferences map[string]RankingSourcePreference `json:"sourcePreferences"`
 }
 
 type RecommendationPolicy struct {
@@ -89,10 +94,17 @@ func (rules Rules) Validate() error {
 			return fmt.Errorf("invalid scoring rule: %q", name)
 		}
 	}
-	for sourceID, weight := range rules.SourceWeights {
-		if sourceID == "" || math.IsNaN(weight) || math.IsInf(weight, 0) || weight <= 0 || weight > 10 {
+	enabledSources := 0
+	for sourceID, preference := range rules.SourcePreferences {
+		if sourceID == "" || math.IsNaN(preference.Weight) || math.IsInf(preference.Weight, 0) || preference.Weight <= 0 || preference.Weight > 10 {
 			return fmt.Errorf("ranking source weight must be greater than 0 and no more than 10: %q", sourceID)
 		}
+		if preference.Enabled {
+			enabledSources++
+		}
+	}
+	if len(rules.SourcePreferences) > 0 && enabledSources == 0 {
+		return errors.New("at least one ranking source must be enabled")
 	}
 	return nil
 }

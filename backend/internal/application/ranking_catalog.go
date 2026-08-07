@@ -1,6 +1,9 @@
 package application
 
-import "github.com/coopa11y/DraftMeld/backend/internal/domain/ranking"
+import (
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/league"
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/ranking"
+)
 
 const (
 	dynastyDataURL  = "https://raw.githubusercontent.com/dynastyprocess/data/master/files/values-players.csv"
@@ -22,10 +25,10 @@ func BuiltInRankingSources() []ranking.SourceDefinition {
 	}
 }
 
-func DefaultRankingSourceWeights() map[string]float64 {
-	weights := make(map[string]float64)
+func DefaultRankingSourcePreferences() map[string]league.RankingSourcePreference {
+	preferences := make(map[string]league.RankingSourcePreference)
 	for _, source := range BuiltInRankingSources() {
-		weights[source.ID] = source.DefaultWeight
+		preferences[source.ID] = league.RankingSourcePreference{Weight: source.DefaultWeight, Enabled: true}
 	}
-	return weights
+	return preferences
 }

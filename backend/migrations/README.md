@@ -8,4 +8,4 @@ Use a zero-padded numeric prefix such as `0002_leagues.sql`. Migrations must be 
 
 `0003_ranking_sources.sql` adds ranking-source provenance and normalized ranking entries. Replacing one source's entries and metadata occurs in one transaction.
 
-`0004_league_source_weights.sql` adds per-league ranking-source influence settings without changing existing league behavior.
+`0004_league_source_preferences.sql` adds per-league ranking-source influence and inclusion settings without changing existing league behavior.

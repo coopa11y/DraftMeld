@@ -12,4 +12,6 @@ export type RosterSlot = components["schemas"]["RosterSlot"];
 export type RankingSource = components["schemas"]["RankingSource"];
 export type ConsensusRanking = components["schemas"]["ConsensusRanking"];
 export type RankingPDFImport = components["schemas"]["RankingPDFImport"];
+export type RankingSourcePreference = components["schemas"]["RankingSourcePreference"];
+export type WatchlistPlayer = components["schemas"]["WatchlistPlayer"];
 export type DraftAction = DraftActionRequest["action"];

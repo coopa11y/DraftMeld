@@ -1,5 +1,5 @@
 import { apiClient, unwrap } from "./client";
-import type { ConsensusRanking, ErrorResponse, RankingPDFImport, RankingSource } from "./types";
+import type { ConsensusRanking, ErrorResponse, RankingPDFImport, RankingSource, WatchlistPlayer } from "./types";
 
 export async function listRankingSources(): Promise<RankingSource[]> {
   const { data, error, response } = await apiClient.GET("/ranking-sources");
@@ -13,6 +13,13 @@ export async function refreshRankingSources(): Promise<RankingSource[]> {
 
 export async function getConsensusRankings(leagueId: string): Promise<ConsensusRanking[]> {
   const { data, error, response } = await apiClient.GET("/rankings", {
+    params: { query: { leagueId } },
+  });
+  return unwrap(data, error, response);
+}
+
+export async function getRankingWatchlist(leagueId: string): Promise<WatchlistPlayer[]> {
+  const { data, error, response } = await apiClient.GET("/ranking-watchlist", {
     params: { query: { leagueId } },
   });
   return unwrap(data, error, response);
