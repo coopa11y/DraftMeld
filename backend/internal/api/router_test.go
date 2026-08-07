@@ -210,6 +210,75 @@ func TestLeagueLifecycleEndpoints(t *testing.T) {
 }
 
 func testRouter(t *testing.T) (http.Handler, func()) {
+	router, closeStore, _ := testRouterWithDraftService(t)
+	return router, closeStore
+}
+
+func TestDraftWorkflowEndToEnd(t *testing.T) {
+	router, closeStore, draftService := testRouterWithDraftService(t)
+	defer closeStore()
+
+	var projectionBody bytes.Buffer
+	projectionWriter := multipart.NewWriter(&projectionBody)
+	_ = projectionWriter.WriteField("name", "Mapped projections")
+	_ = projectionWriter.WriteField("mapping", `{"name":"Player Name","position":"Pos","team":"Tm","reception":"REC"}`)
+	projectionFile, err := projectionWriter.CreateFormFile("file", "projections.csv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = projectionFile.Write([]byte("Player Name,Pos,Tm,REC\nAlex Rivers,RB,ATL,70\nJordan Hale,WR,MIN,80\n"))
+	_ = projectionWriter.Close()
+	projectionRequest := httptest.NewRequest(http.MethodPost, "/api/v1/projection-sources/import-csv", &projectionBody)
+	projectionRequest.Header.Set("Content-Type", projectionWriter.FormDataContentType())
+	projectionResponse := httptest.NewRecorder()
+	router.ServeHTTP(projectionResponse, projectionRequest)
+	if projectionResponse.Code != http.StatusCreated {
+		t.Fatalf("projection import failed: %d %s", projectionResponse.Code, projectionResponse.Body.String())
+	}
+
+	preferenceResponse := httptest.NewRecorder()
+	router.ServeHTTP(preferenceResponse, httptest.NewRequest(http.MethodPut, "/api/v1/draft/preferences", bytes.NewBufferString(`{"leagueId":"demo","playerId":"p001","preference":"target"}`)))
+	if preferenceResponse.Code != http.StatusOK || !strings.Contains(preferenceResponse.Body.String(), `"preference":"target"`) {
+		t.Fatalf("target preference failed: %d %s", preferenceResponse.Code, preferenceResponse.Body.String())
+	}
+
+	draftResponse := httptest.NewRecorder()
+	router.ServeHTTP(draftResponse, httptest.NewRequest(http.MethodPost, "/api/v1/draft/actions", bytes.NewBufferString(`{"leagueId":"demo","playerId":"p001","action":"draft"}`)))
+	if draftResponse.Code != http.StatusOK {
+		t.Fatalf("draft action failed: %d %s", draftResponse.Code, draftResponse.Body.String())
+	}
+	mockResponse := httptest.NewRecorder()
+	router.ServeHTTP(mockResponse, httptest.NewRequest(http.MethodPost, "/api/v1/draft/mock", bytes.NewBufferString(`{"leagueId":"demo"}`)))
+	if mockResponse.Code != http.StatusOK {
+		t.Fatalf("mock draft failed: %d %s", mockResponse.Code, mockResponse.Body.String())
+	}
+
+	sleeperServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
+		_, _ = response.Write([]byte(`[{"pick_no":1,"roster_id":7,"metadata":{"first_name":"Alex","last_name":"Rivers","position":"RB","team":"ATL"}},{"pick_no":2,"roster_id":2,"metadata":{"first_name":"Jordan","last_name":"Hale","position":"WR","team":"MIN"}}]`))
+	}))
+	defer sleeperServer.Close()
+	draftService.ConfigureSleeperClient(sleeperServer.Client(), sleeperServer.URL)
+	syncResponse := httptest.NewRecorder()
+	router.ServeHTTP(syncResponse, httptest.NewRequest(http.MethodPost, "/api/v1/draft/sync/sleeper", bytes.NewBufferString(`{"leagueId":"demo","sleeperDraftId":"draft-1","rosterId":7}`)))
+	if syncResponse.Code != http.StatusOK {
+		t.Fatalf("Sleeper sync failed: %d %s", syncResponse.Code, syncResponse.Body.String())
+	}
+	var synced application.SleeperSyncResult
+	if err = json.NewDecoder(syncResponse.Body).Decode(&synced); err != nil {
+		t.Fatal(err)
+	}
+	if len(synced.Snapshot.History) != 2 || len(synced.Snapshot.MyTeam) != 1 || synced.Snapshot.MyTeam[0].ID != "p001" {
+		t.Fatalf("workflow did not reconcile the Sleeper source of truth: %#v", synced)
+	}
+
+	undoResponse := httptest.NewRecorder()
+	router.ServeHTTP(undoResponse, httptest.NewRequest(http.MethodPost, "/api/v1/draft/undo", bytes.NewBufferString(`{"leagueId":"demo"}`)))
+	if undoResponse.Code != http.StatusOK {
+		t.Fatalf("undo failed: %d %s", undoResponse.Code, undoResponse.Body.String())
+	}
+}
+
+func testRouterWithDraftService(t *testing.T) (http.Handler, func(), *application.DraftService) {
 	t.Helper()
 	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
 	if err != nil {
@@ -223,5 +292,8 @@ func testRouter(t *testing.T) (http.Handler, func()) {
 	if err != nil {
 		t.Fatalf("create persisted draft service: %v", err)
 	}
-	return NewRouter(slog.New(slog.NewTextHandler(io.Discard, nil)), "test", service, leagueService, application.NewRankingService(store)), func() { _ = store.Close() }
+	rankingService := application.NewRankingService(store)
+	projectionService := application.NewProjectionService(store)
+	service.UseIntelligence(rankingService, projectionService)
+	return NewRouter(slog.New(slog.NewTextHandler(io.Discard, nil)), "test", service, leagueService, rankingService, projectionService), func() { _ = store.Close() }, service
 }

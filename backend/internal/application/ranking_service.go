@@ -90,7 +90,7 @@ func (service *RankingService) download(ctx context.Context, source ranking.Sour
 		if err != nil {
 			return nil, fmt.Errorf("build %s request: %w", source.Name, err)
 		}
-		request.Header.Set("User-Agent", "DraftMeld/0.2 (+https://github.com/coopa11y/DraftMeld)")
+		request.Header.Set("User-Agent", "DraftMeld/0.3 (+https://github.com/coopa11y/DraftMeld)")
 		response, err := service.client.Do(request)
 		if err != nil {
 			lastErr = err
@@ -123,6 +123,10 @@ func (service *RankingService) Consensus(ctx context.Context, preferences map[st
 	if err != nil {
 		return nil, err
 	}
+	aliases, err := service.identityAliases(ctx)
+	if err != nil {
+		return nil, err
+	}
 	definitions := make(map[string]ranking.SourceDefinition, len(service.sources))
 	for _, source := range service.sources {
 		definitions[source.ID] = source
@@ -146,15 +150,19 @@ func (service *RankingService) Consensus(ctx context.Context, preferences map[st
 	eligible := make(map[string]struct{})
 	for _, record := range records {
 		record = canonicalizeRankingRecord(record)
+		record.PlayerKey = resolveIdentityAlias(record.PlayerKey, aliases)
 		if record.SourceID == "redraft-ecr" || record.SourceID == "espn-ppr-pdf" {
 			eligible[record.PlayerKey] = struct{}{}
 		}
 	}
 	sources := make(map[string]ranking.Source)
 	metadata := make(map[string]ranking.Record)
+	metadataPriority := make(map[string]int)
 	sourceRanks := make(map[string]map[string]int)
 	for _, record := range records {
 		record = canonicalizeRankingRecord(record)
+		originalPlayerKey := record.PlayerKey
+		record.PlayerKey = resolveIdentityAlias(record.PlayerKey, aliases)
 		if _, exists := eligible[record.PlayerKey]; !exists {
 			continue
 		}
@@ -171,15 +179,27 @@ func (service *RankingService) Consensus(ctx context.Context, preferences map[st
 		if source.Ranks == nil {
 			source.Ranks = make(map[string]int)
 		}
-		source.Ranks[record.PlayerKey] = record.Rank
+		if currentRank, ranked := source.Ranks[record.PlayerKey]; !ranked || record.Rank < currentRank {
+			source.Ranks[record.PlayerKey] = record.Rank
+		}
 		sources[record.SourceID] = source
-		if _, exists = metadata[record.PlayerKey]; !exists || record.SourceID == "espn-ppr-pdf" || record.SourceID == "redraft-ecr" {
+		priority := 0
+		if record.SourceID == "espn-ppr-pdf" || record.SourceID == "redraft-ecr" {
+			priority += 2
+		}
+		if originalPlayerKey == record.PlayerKey {
+			priority += 4
+		}
+		if _, exists = metadata[record.PlayerKey]; !exists || priority > metadataPriority[record.PlayerKey] {
 			metadata[record.PlayerKey] = record
+			metadataPriority[record.PlayerKey] = priority
 		}
 		if sourceRanks[record.PlayerKey] == nil {
 			sourceRanks[record.PlayerKey] = make(map[string]int)
 		}
-		sourceRanks[record.PlayerKey][record.SourceID] = record.Rank
+		if currentRank, ranked := sourceRanks[record.PlayerKey][record.SourceID]; !ranked || record.Rank < currentRank {
+			sourceRanks[record.PlayerKey][record.SourceID] = record.Rank
+		}
 	}
 	weighted := make([]ranking.Source, 0, len(sources))
 	for _, source := range sources {

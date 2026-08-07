@@ -79,3 +79,24 @@ VALUES (?, ?, ?, ?, ?, ?)`, event.LeagueID, event.PlayerID, event.Action, event.
 	}
 	return event, nil
 }
+
+func (store *DraftEventStore) ReplaceDraftEvents(ctx context.Context, leagueID string, events []draft.Event) error {
+	tx, err := store.database.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin draft reconciliation: %w", err)
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, `DELETE FROM draft_events WHERE league_id = ?`, leagueID); err != nil {
+		return fmt.Errorf("clear draft events: %w", err)
+	}
+	createdAt := time.Now().UTC()
+	for index, event := range events {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO draft_events (league_id, player_id, action, target_event_id, created_at, cost) VALUES (?, ?, ?, NULL, ?, ?)`, leagueID, event.PlayerID, event.Action, createdAt.Add(time.Duration(index)*time.Nanosecond).Format(time.RFC3339Nano), event.Cost); err != nil {
+			return fmt.Errorf("replace draft event: %w", err)
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("commit draft reconciliation: %w", err)
+	}
+	return nil
+}

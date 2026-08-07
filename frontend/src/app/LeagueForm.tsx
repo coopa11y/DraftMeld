@@ -60,6 +60,10 @@ function defaultRules(): LeagueRules {
     consensusMethod: "weighted-median",
     playerPreferences: {},
     auctionBudget: 200,
+    auctionMinimumBid: 1,
+    keeperBudgetSpent: 0,
+    myKeeperSpend: 0,
+    keeperValueRemoved: 0,
   };
 }
 
@@ -68,6 +72,16 @@ interface LeagueFormProps {
   busy: boolean;
   onCancel: () => void;
   onSave: (rules: LeagueRules) => Promise<void>;
+}
+
+function AuctionSettings({ rules, onChange }: { rules: LeagueRules; onChange: (update: Partial<LeagueRules>) => void }) {
+  return <>
+    <label>Team auction budget<input type="number" min="1" step="1" required value={rules.auctionBudget} onChange={(event) => onChange({ auctionBudget: Number(event.target.value) })} /></label>
+    <label>Minimum bid<input type="number" min="1" max={rules.auctionBudget} step="1" required value={rules.auctionMinimumBid} onChange={(event) => onChange({ auctionMinimumBid: Number(event.target.value) })} /></label>
+    <label>My keeper spend<input type="number" min="0" max={rules.auctionBudget} step="1" value={rules.myKeeperSpend} onChange={(event) => onChange({ myKeeperSpend: Number(event.target.value) })} /><span className="field-help">Dollars already committed by your team.</span></label>
+    <label>League-wide keeper spend<input type="number" min={rules.myKeeperSpend} max={rules.auctionBudget * rules.teamCount} step="1" value={rules.keeperBudgetSpent} onChange={(event) => onChange({ keeperBudgetSpent: Number(event.target.value) })} /><span className="field-help">Total dollars already committed to keepers across every team.</span></label>
+    <label>Keeper value removed<input type="number" min="0" step="1" value={rules.keeperValueRemoved} onChange={(event) => onChange({ keeperValueRemoved: Number(event.target.value) })} /><span className="field-help">DraftMeld baseline dollar value of players already kept.</span></label>
+  </>;
 }
 
 export function LeagueForm({ league, busy, onCancel, onSave }: LeagueFormProps) {
@@ -124,7 +138,7 @@ export function LeagueForm({ league, busy, onCancel, onSave }: LeagueFormProps) 
           <label>Consensus method<select value={rules.consensusMethod} onChange={(event) => setRules({ ...rules, consensusMethod: event.target.value as LeagueRules["consensusMethod"] })}>
             <option value="weighted-median">Weighted median</option><option value="trimmed-mean">Trimmed mean</option><option value="weighted-average">Weighted average</option>
           </select></label>
-          {rules.draftType === "auction" ? <label>Team auction budget<input type="number" min="1" step="1" required value={rules.auctionBudget} onChange={(event) => setRules({ ...rules, auctionBudget: Number(event.target.value) })} /></label> : null}
+          {rules.draftType === "auction" ? <AuctionSettings rules={rules} onChange={(update) => setRules((current) => ({ ...current, ...update }))} /> : null}
         </div>
       </fieldset>
 

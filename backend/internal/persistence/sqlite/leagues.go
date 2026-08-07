@@ -44,12 +44,12 @@ func (store *DraftEventStore) ListLeagues(ctx context.Context) ([]league.Configu
 func (store *DraftEventStore) GetLeague(ctx context.Context, id string) (league.Configuration, bool, error) {
 	var configuration league.Configuration
 	var draftType string
-	var scoringJSON, sourcePreferencesJSON, recommendationJSON string
+	var scoringJSON, sourcePreferencesJSON, recommendationJSON, draftSettingsJSON string
 	err := store.database.QueryRowContext(ctx, `
-SELECT id, name, team_count, draft_position, draft_type, scoring_rules, source_preferences, recommendation_policy
+SELECT id, name, team_count, draft_position, draft_type, scoring_rules, source_preferences, recommendation_policy, draft_settings
 FROM leagues WHERE id = ?`, id).Scan(
 		&configuration.ID, &configuration.Rules.Name, &configuration.Rules.TeamCount,
-		&configuration.Rules.DraftPosition, &draftType, &scoringJSON, &sourcePreferencesJSON, &recommendationJSON,
+		&configuration.Rules.DraftPosition, &draftType, &scoringJSON, &sourcePreferencesJSON, &recommendationJSON, &draftSettingsJSON,
 	)
 	if err == sql.ErrNoRows {
 		return league.Configuration{}, false, nil
@@ -67,6 +67,11 @@ FROM leagues WHERE id = ?`, id).Scan(
 	if err = json.Unmarshal([]byte(recommendationJSON), &configuration.Recommendation); err != nil {
 		return league.Configuration{}, false, fmt.Errorf("decode recommendation policy: %w", err)
 	}
+	var settings leagueDraftSettings
+	if err = json.Unmarshal([]byte(draftSettingsJSON), &settings); err != nil {
+		return league.Configuration{}, false, fmt.Errorf("decode league draft settings: %w", err)
+	}
+	settings.apply(&configuration.Rules)
 
 	rows, err := store.database.QueryContext(ctx, `
 SELECT name, slot_count, positions, is_starting
@@ -108,6 +113,10 @@ func (store *DraftEventStore) SaveLeague(ctx context.Context, configuration leag
 	if err != nil {
 		return fmt.Errorf("encode recommendation policy: %w", err)
 	}
+	draftSettingsJSON, err := json.Marshal(newLeagueDraftSettings(configuration.Rules))
+	if err != nil {
+		return fmt.Errorf("encode league draft settings: %w", err)
+	}
 
 	transaction, err := store.database.BeginTx(ctx, nil)
 	if err != nil {
@@ -116,8 +125,8 @@ func (store *DraftEventStore) SaveLeague(ctx context.Context, configuration leag
 	defer transaction.Rollback()
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	_, err = transaction.ExecContext(ctx, `
-INSERT INTO leagues (id, name, team_count, draft_position, draft_type, scoring_rules, source_preferences, recommendation_policy, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO leagues (id, name, team_count, draft_position, draft_type, scoring_rules, source_preferences, recommendation_policy, draft_settings, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
   name = excluded.name,
   team_count = excluded.team_count,
@@ -126,10 +135,11 @@ ON CONFLICT(id) DO UPDATE SET
   scoring_rules = excluded.scoring_rules,
   source_preferences = excluded.source_preferences,
   recommendation_policy = excluded.recommendation_policy,
+  draft_settings = excluded.draft_settings,
   updated_at = excluded.updated_at`,
 		configuration.ID, configuration.Rules.Name, configuration.Rules.TeamCount,
 		configuration.Rules.DraftPosition, configuration.Rules.DraftType, string(scoringJSON),
-		string(sourcePreferencesJSON), string(recommendationJSON), now, now,
+		string(sourcePreferencesJSON), string(recommendationJSON), string(draftSettingsJSON), now, now,
 	)
 	if err != nil {
 		return fmt.Errorf("save league: %w", err)
@@ -153,6 +163,30 @@ VALUES (?, ?, ?, ?, ?, ?)`, configuration.ID, index, slot.Name, slot.Count, stri
 		return fmt.Errorf("commit league: %w", err)
 	}
 	return nil
+}
+
+type leagueDraftSettings struct {
+	ConsensusMethod    string            `json:"consensusMethod"`
+	PlayerPreferences  map[string]string `json:"playerPreferences"`
+	AuctionBudget      float64           `json:"auctionBudget"`
+	AuctionMinimumBid  float64           `json:"auctionMinimumBid"`
+	KeeperBudgetSpent  float64           `json:"keeperBudgetSpent"`
+	MyKeeperSpend      float64           `json:"myKeeperSpend"`
+	KeeperValueRemoved float64           `json:"keeperValueRemoved"`
+}
+
+func newLeagueDraftSettings(rules league.Rules) leagueDraftSettings {
+	return leagueDraftSettings{
+		ConsensusMethod: rules.ConsensusMethod, PlayerPreferences: rules.PlayerPreferences,
+		AuctionBudget: rules.AuctionBudget, AuctionMinimumBid: rules.AuctionMinimumBid,
+		KeeperBudgetSpent: rules.KeeperBudgetSpent, MyKeeperSpend: rules.MyKeeperSpend, KeeperValueRemoved: rules.KeeperValueRemoved,
+	}
+}
+
+func (settings leagueDraftSettings) apply(rules *league.Rules) {
+	rules.ConsensusMethod, rules.PlayerPreferences = settings.ConsensusMethod, settings.PlayerPreferences
+	rules.AuctionBudget, rules.AuctionMinimumBid = settings.AuctionBudget, settings.AuctionMinimumBid
+	rules.KeeperBudgetSpent, rules.MyKeeperSpend, rules.KeeperValueRemoved = settings.KeeperBudgetSpent, settings.MyKeeperSpend, settings.KeeperValueRemoved
 }
 
 func (store *DraftEventStore) DeleteLeague(ctx context.Context, id string) (bool, error) {

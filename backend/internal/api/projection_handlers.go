@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -32,7 +33,14 @@ func registerProjectionRoutes(mux *http.ServeMux, service *application.Projectio
 			return
 		}
 		defer file.Close()
-		status, err := service.ImportCSV(request.Context(), name, io.LimitReader(file, maxProjectionCSVBytes+1))
+		mapping := make(map[string]string)
+		if rawMapping := strings.TrimSpace(request.FormValue("mapping")); rawMapping != "" {
+			if err = json.Unmarshal([]byte(rawMapping), &mapping); err != nil {
+				writeError(response, http.StatusBadRequest, "The projection column mapping was not valid.")
+				return
+			}
+		}
+		status, err := service.ImportCSV(request.Context(), name, io.LimitReader(file, maxProjectionCSVBytes+1), mapping)
 		if err != nil {
 			writeError(response, http.StatusBadRequest, err.Error())
 			return

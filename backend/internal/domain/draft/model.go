@@ -54,20 +54,22 @@ type Recommendation struct {
 }
 
 type Snapshot struct {
-	LeagueID         string           `json:"leagueId"`
-	LeagueName       string           `json:"leagueName"`
-	PickNumber       int              `json:"pickNumber"`
-	Available        []Player         `json:"available"`
-	MyTeam           []Player         `json:"myTeam"`
-	History          []Pick           `json:"history"`
-	Recommendations  []Recommendation `json:"recommendations"`
-	CanUndo          bool             `json:"canUndo"`
-	DataMode         string           `json:"dataMode"`
-	ProjectionCount  int              `json:"projectionCount"`
-	DraftType        string           `json:"draftType"`
-	NextUserPick     int              `json:"nextUserPick"`
-	AuctionBudget    float64          `json:"auctionBudget"`
-	BudgetRemaining  float64          `json:"budgetRemaining"`
-	AuctionInflation float64          `json:"auctionInflation"`
-	IsUserTurn       bool             `json:"isUserTurn"`
+	LeagueID          string           `json:"leagueId"`
+	LeagueName        string           `json:"leagueName"`
+	PickNumber        int              `json:"pickNumber"`
+	Available         []Player         `json:"available"`
+	MyTeam            []Player         `json:"myTeam"`
+	History           []Pick           `json:"history"`
+	Recommendations   []Recommendation `json:"recommendations"`
+	CanUndo           bool             `json:"canUndo"`
+	DataMode          string           `json:"dataMode"`
+	ProjectionCount   int              `json:"projectionCount"`
+	DraftType         string           `json:"draftType"`
+	NextUserPick      int              `json:"nextUserPick"`
+	AuctionBudget     float64          `json:"auctionBudget"`
+	BudgetRemaining   float64          `json:"budgetRemaining"`
+	AuctionInflation  float64          `json:"auctionInflation"`
+	AuctionMinimumBid float64          `json:"auctionMinimumBid"`
+	MaximumBid        float64          `json:"maximumBid"`
+	IsUserTurn        bool             `json:"isUserTurn"`
 }

@@ -44,3 +44,17 @@ func TestProjectionCSVRequiresCanonicalColumns(t *testing.T) {
 		t.Fatal("expected missing-column error")
 	}
 }
+
+func TestProjectionCSVAcceptsExplicitColumnMapping(t *testing.T) {
+	repository := &projectionRepositoryStub{}
+	service := NewProjectionService(repository)
+	_, err := service.ImportCSV(t.Context(), "Mapped", strings.NewReader("Player Full Name,Pos,Tm,Rec Total\nAlex Rivers,RB,ATL,72\n"), map[string]string{
+		"name": "Player Full Name", "position": "Pos", "team": "Tm", "reception": "Rec Total",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(repository.records) != 1 || repository.records[0].Stats["reception"] != 72 {
+		t.Fatalf("mapped import failed: %#v", repository.records)
+	}
+}

@@ -34,7 +34,7 @@ func TestLeagueConfigurationPersistsAndDeletesItsDraft(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get league: %v", err)
 	}
-	if !found || loaded.Rules.DraftPosition != 7 || len(loaded.Rules.RosterSlots) != 2 || loaded.Rules.ScoringRules["reception"] != 0.5 || loaded.Rules.SourcePreferences["cbs-ppr"].Weight != 2.5 || loaded.Rules.SourcePreferences["cbs-ppr"].Enabled {
+	if !found || loaded.Rules.DraftPosition != 7 || len(loaded.Rules.RosterSlots) != 2 || loaded.Rules.ScoringRules["reception"] != 0.5 || loaded.Rules.SourcePreferences["cbs-ppr"].Weight != 2.5 || loaded.Rules.SourcePreferences["cbs-ppr"].Enabled || loaded.Rules.ConsensusMethod != "trimmed-mean" || loaded.Rules.PlayerPreferences["p001"] != "target" || loaded.Rules.AuctionMinimumBid != 2 || loaded.Rules.KeeperBudgetSpent != 35 || loaded.Rules.MyKeeperSpend != 15 {
 		t.Fatalf("unexpected persisted league: %#v", loaded)
 	}
 
@@ -65,6 +65,8 @@ func testLeagueConfiguration() league.Configuration {
 				"cbs-ppr":     {Weight: 2.5, Enabled: false},
 				"redraft-ecr": {Weight: 1, Enabled: true},
 			},
+			ConsensusMethod: "trimmed-mean", PlayerPreferences: map[string]string{"p001": "target"},
+			AuctionBudget: 200, AuctionMinimumBid: 2, KeeperBudgetSpent: 35, MyKeeperSpend: 15, KeeperValueRemoved: 48,
 		},
 		Recommendation: league.RecommendationPolicy{
 			BaseScore: 200, StartingNeedBonus: 24, ADPValueThreshold: 5,

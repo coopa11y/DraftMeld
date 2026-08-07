@@ -248,7 +248,7 @@ tbody tr:focus-within { background: var(--color-control); }
 .source-weight-form > fieldset > legend { margin: 0; padding: 0 1.4rem 0.35rem; font-size: 1.1rem; font-weight: 850; }
 .source-weight-form > fieldset > .field-help { padding: 0 1.4rem; }
 .consensus-method-control { display: grid; grid-template-columns: minmax(10rem, 15rem) minmax(16rem, 28rem); align-items: center; gap: 0.75rem; padding: 0 1.4rem 1rem; color: var(--color-text-label); font-weight: 800; }
-.consensus-method-control select, .data-import-form input { min-height: 44px; padding: 0.6rem; color: var(--color-text); background: var(--color-background); border: 1px solid var(--color-border-input); border-radius: 0.5rem; }
+.consensus-method-control select, .data-import-form input, .data-import-form select, .identity-actions select { min-height: 44px; padding: 0.6rem; color: var(--color-text); background: var(--color-background); border: 1px solid var(--color-border-input); border-radius: 0.5rem; }
 .source-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 0; padding: 0 1.4rem 1.4rem; list-style: none; }
 .pdf-import-form { display: grid; grid-template-columns: minmax(16rem, 1fr) minmax(15rem, 1fr) auto; align-items: end; gap: 1rem; margin: 0 1.4rem 1.4rem; padding: 1rem; background: var(--color-surface-deep); border: 1px solid var(--color-border-subtle); border-radius: 0.75rem; }
 .pdf-import-form p { margin: 0.35rem 0 0; color: var(--color-text-muted); line-height: 1.45; }
@@ -275,6 +275,13 @@ tbody tr:focus-within { background: var(--color-control); }
 .watchlist-grid ul { margin: 0; padding-left: 1.2rem; color: var(--color-text-muted); line-height: 1.5; }
 .data-import-form { display: grid; grid-template-columns: minmax(12rem, 1fr) minmax(14rem, 1fr) auto; align-items: end; gap: 1rem; padding: 0 1.4rem 1.4rem; }
 .data-import-form label { display: grid; gap: 0.4rem; color: var(--color-text-label); font-size: 0.86rem; font-weight: 750; }
+.column-mapper { grid-column: 1 / -1; padding: 1rem; background: var(--color-surface-deep); border: 1px solid var(--color-border-subtle); border-radius: 0.65rem; }
+.column-mapper > legend { padding: 0 0.35rem; }
+.column-mapper, .column-mapper-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.8rem; }
+.column-mapper details { grid-column: 1 / -1; }
+.column-mapper summary { min-height: 44px; padding: 0.7rem 0; color: var(--color-accent); font-weight: 800; cursor: pointer; }
+.identity-actions { display: grid; grid-template-columns: minmax(12rem, 1fr) auto auto; align-items: end; gap: 0.6rem; }
+.identity-actions label { display: grid; gap: 0.35rem; color: var(--color-text-label); font-size: 0.82rem; font-weight: 750; }
 .compact-data-list, .identity-list { display: grid; gap: 0.65rem; margin: 0; padding: 0 1.4rem 1.4rem; list-style: none; }
 .compact-data-list li, .identity-list li { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.85rem 1rem; background: var(--color-surface-deep); border: 1px solid var(--color-border-subtle); border-radius: 0.6rem; }
 .compact-data-list span, .identity-list p { color: var(--color-text-muted); }
@@ -314,6 +321,7 @@ tbody tr:focus-within { background: var(--color-control); }
   .source-grid { grid-template-columns: minmax(0, 1fr); }
   .pdf-import-form { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
   .data-import-form, .consensus-method-control { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
+  .column-mapper, .column-mapper-grid, .identity-actions { grid-template-columns: minmax(0, 1fr); }
   .identity-list li { align-items: stretch; flex-direction: column; }
   .coverage-list { grid-template-columns: minmax(0, 1fr); }
   .source-card dl div { grid-template-columns: 1fr; gap: 0.15rem; }

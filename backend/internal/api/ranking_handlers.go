@@ -21,14 +21,15 @@ func registerRankingRoutes(mux *http.ServeMux, service *application.RankingServi
 	})
 	mux.HandleFunc("POST /api/v1/ranking-identities/review", func(response http.ResponseWriter, request *http.Request) {
 		var input struct {
-			IssueKey   string `json:"issueKey"`
-			Resolution string `json:"resolution"`
+			IssueKey           string `json:"issueKey"`
+			Resolution         string `json:"resolution"`
+			CanonicalPlayerKey string `json:"canonicalPlayerKey"`
 		}
 		if err := json.NewDecoder(request.Body).Decode(&input); err != nil {
 			writeError(response, http.StatusBadRequest, "The identity review was not valid.")
 			return
 		}
-		if err := service.ReviewIdentity(request.Context(), input.IssueKey, input.Resolution); err != nil {
+		if err := service.ReviewIdentity(request.Context(), input.IssueKey, input.Resolution, input.CanonicalPlayerKey); err != nil {
 			writeError(response, http.StatusBadRequest, err.Error())
 			return
 		}

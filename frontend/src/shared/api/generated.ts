@@ -369,6 +369,10 @@ export interface components {
                 [key: string]: "target" | "avoid";
             };
             auctionBudget: number;
+            auctionMinimumBid: number;
+            keeperBudgetSpent: number;
+            myKeeperSpend: number;
+            keeperValueRemoved: number;
         };
         League: {
             id: string;
@@ -444,7 +448,8 @@ export interface components {
             reason: string;
             candidates: components["schemas"]["IdentityCandidate"][];
             /** @enum {string} */
-            resolution: "confirmed-separate" | "acknowledged" | "";
+            resolution: "confirmed-separate" | "acknowledged" | "merged" | "";
+            canonicalPlayerKey?: string;
         };
         WatchlistSignal: {
             sourceId: string;
@@ -512,7 +517,16 @@ export interface components {
             auctionBudget: number;
             budgetRemaining: number;
             auctionInflation: number;
+            auctionMinimumBid: number;
+            maximumBid: number;
             isUserTurn: boolean;
+        };
+        SleeperSyncResult: {
+            snapshot: components["schemas"]["DraftSnapshot"];
+            added: number;
+            updated: number;
+            removed: number;
+            unmatched: number;
         };
         DraftActionRequest: {
             leagueId: string;
@@ -842,6 +856,8 @@ export interface operations {
                     name: string;
                     /** Format: binary */
                     file: string;
+                    /** @description JSON object mapping DraftMeld field names to source CSV headers. */
+                    mapping?: string;
                 };
             };
         };
@@ -890,7 +906,8 @@ export interface operations {
                 "application/json": {
                     issueKey: string;
                     /** @enum {string} */
-                    resolution: "confirmed-separate" | "acknowledged";
+                    resolution: "confirmed-separate" | "acknowledged" | "merged";
+                    canonicalPlayerKey?: string;
                 };
             };
         };
@@ -1122,13 +1139,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Draft state after Sleeper synchronization. */
+            /** @description Reconciliation summary and draft state after Sleeper synchronization. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DraftSnapshot"];
+                    "application/json": components["schemas"]["SleeperSyncResult"];
                 };
             };
         };

@@ -27,16 +27,20 @@ type RankingSourcePreference struct {
 }
 
 type Rules struct {
-	Name              string                             `json:"name"`
-	TeamCount         int                                `json:"teamCount"`
-	DraftPosition     int                                `json:"draftPosition"`
-	DraftType         DraftType                          `json:"draftType"`
-	RosterSlots       []RosterSlot                       `json:"rosterSlots"`
-	ScoringRules      map[string]float64                 `json:"scoringRules"`
-	SourcePreferences map[string]RankingSourcePreference `json:"sourcePreferences"`
-	ConsensusMethod   string                             `json:"consensusMethod"`
-	PlayerPreferences map[string]string                  `json:"playerPreferences"`
-	AuctionBudget     float64                            `json:"auctionBudget"`
+	Name               string                             `json:"name"`
+	TeamCount          int                                `json:"teamCount"`
+	DraftPosition      int                                `json:"draftPosition"`
+	DraftType          DraftType                          `json:"draftType"`
+	RosterSlots        []RosterSlot                       `json:"rosterSlots"`
+	ScoringRules       map[string]float64                 `json:"scoringRules"`
+	SourcePreferences  map[string]RankingSourcePreference `json:"sourcePreferences"`
+	ConsensusMethod    string                             `json:"consensusMethod"`
+	PlayerPreferences  map[string]string                  `json:"playerPreferences"`
+	AuctionBudget      float64                            `json:"auctionBudget"`
+	AuctionMinimumBid  float64                            `json:"auctionMinimumBid"`
+	KeeperBudgetSpent  float64                            `json:"keeperBudgetSpent"`
+	MyKeeperSpend      float64                            `json:"myKeeperSpend"`
+	KeeperValueRemoved float64                            `json:"keeperValueRemoved"`
 }
 
 type RecommendationPolicy struct {
@@ -86,6 +90,18 @@ func (rules Rules) Validate() error {
 	}
 	if rules.DraftType == DraftTypeAuction && rules.AuctionBudget <= 0 {
 		return errors.New("auction leagues require a positive team budget")
+	}
+	if rules.DraftType == DraftTypeAuction && (rules.AuctionMinimumBid <= 0 || rules.AuctionMinimumBid > rules.AuctionBudget) {
+		return errors.New("auction minimum bid must be positive and no greater than the team budget")
+	}
+	if rules.KeeperBudgetSpent < 0 || rules.KeeperBudgetSpent > rules.AuctionBudget*float64(rules.TeamCount) {
+		return errors.New("league-wide keeper spend exceeds the available auction budget")
+	}
+	if rules.MyKeeperSpend < 0 || rules.MyKeeperSpend > rules.AuctionBudget || rules.MyKeeperSpend > rules.KeeperBudgetSpent {
+		return errors.New("your keeper spend must fit within both the team budget and league-wide keeper spend")
+	}
+	if rules.KeeperValueRemoved < 0 {
+		return errors.New("keeper value removed cannot be negative")
 	}
 	if len(rules.RosterSlots) == 0 {
 		return errors.New("at least one roster slot is required")

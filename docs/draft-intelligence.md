@@ -14,7 +14,7 @@ Source ranks are normalized to the current eligible player-pool depth before com
 
 ## Projection CSV format
 
-Projection files are user-supplied CSVs. Required headers are `name`, `position`, and `team`. Optional metadata headers are `adp` and `byeWeek`. Statistic headers use the same names as league scoring rules:
+Projection files are user-supplied CSVs. The import screen detects the source headers and lets the user map them to DraftMeld's player identity, metadata, and scoring fields. Required mappings are `name`, `position`, and `team`; `adp`, `byeWeek`, and statistic mappings are optional:
 
 ```text
 reception,passingYard,passingTouchdown,interception,rushingYard,rushingTouchdown,receivingYard,receivingTouchdown,fieldGoalMade,extraPointMade,defenseSack,defenseInterception,defenseFumbleRecovery,defenseTouchdown,defenseSafety
@@ -26,7 +26,7 @@ Multiple imported projection sources are averaged per player. DraftMeld then mul
 
 Replacement demand starts with every dedicated starting slot across all teams. FLEX and SUPERFLEX slots are allocated one at a time to the position with the highest next projected player, matching how a legal lineup is actually filled. VOR is the player's league-scored projection minus the first player beyond that position's allocated starter demand.
 
-Position tiers split when the VOR curve has a material absolute or proportional drop. Auction values reserve one dollar per roster spot and distribute the remaining league budget in proportion to positive VOR. Inflation compares remaining league dollars with the baseline value of the remaining player pool.
+Position tiers split when the VOR curve has a material absolute or proportional drop. Auction values reserve the configured minimum bid for every roster spot and distribute the remaining league budget in proportion to positive VOR. Inflation compares remaining league dollars with the baseline value of the remaining player pool, including league-wide keeper spend and removed keeper value. Personal keeper spend reduces the user's remaining budget, and DraftMeld calculates the current maximum legal bid while reserving enough money to complete the roster.
 
 ## Recommendations
 
@@ -40,15 +40,18 @@ Recommendations are recalculated after every draft event. Their visible reasons 
 - a persisted target or avoid preference;
 - baseline auction value before live inflation.
 
-Mock opponents are deterministic and combine ADP with a small rotating position preference. Sleeper synchronization performs GET requests against the public draft-picks endpoint and only imports known canonical players. DraftMeld never submits a pick.
+Mock opponents are deterministic and combine ADP with a small rotating position preference. Sleeper synchronization performs GET requests against the public draft-picks endpoint and only imports known canonical players. Sleeper is authoritative while connected: changed and deleted remote picks are reconciled, unmatched players are reported, and the user can enable 15-second polling while the page remains open. DraftMeld never submits a pick.
 
 ## Identity review
 
-Player names, common suffixes, positions, and NFL defense aliases are normalized into canonical keys. Similar names sharing a team and position are surfaced in the identity-review queue for a human decision. Acknowledgements are persisted so exceptions remain auditable.
+Player names, common suffixes, positions, and NFL defense aliases are normalized into canonical keys. Similar names sharing a team and position are surfaced in the identity-review queue for a human decision. A user can keep candidates separate or merge aliases under one selected canonical player; ranking and projection signals then resolve through the persisted alias map.
+
+## Validation scenarios
+
+Golden backend scenarios lock expected behavior for source normalization, robust consensus, roster-aware VOR, targets and avoids, next-pick timing, keeper-adjusted auction inflation, identity aliases, and projection scoring. API workflow coverage exercises projection import, preferences, a user pick, mock opponents, Sleeper reconciliation, and undo against a real temporary SQLite database. Frontend interaction tests cover the accessible column mapper, identity merging, sync reconciliation messages, draft focus management, source weighting, and axe checks.
 
 ## Current limitations
 
-- Projection imports currently use the documented canonical headers rather than an interactive column mapper.
-- Sleeper synchronization is user-triggered rather than a continuous polling connection.
-- Identity review can confirm that candidates are separate; explicit alias merging remains future work.
 - Mock opponents provide varied deterministic behavior, not historical manager-specific models.
+- Sleeper polling runs only while the draft page is open and depends on the public Sleeper API.
+- Keeper calibration accepts aggregate spend and removed value; selecting the actual kept-player set is future work.

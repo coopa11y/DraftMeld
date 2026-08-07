@@ -126,7 +126,7 @@ export function PlayerBoard({ snapshot, busy, headingRef, onAction, onUndo, onPr
                   <span className="sr-only">{valueLabel(player)}</span>
                 </td>
                 <td><div className="preference-actions"><button type="button" aria-pressed={player.preference === "target"} onClick={() => onPreference(player, player.preference === "target" ? "" : "target")} disabled={busy}>Target</button><button type="button" aria-pressed={player.preference === "avoid"} onClick={() => onPreference(player, player.preference === "avoid" ? "" : "avoid")} disabled={busy}>Avoid</button></div></td>
-                <td><PlayerActions player={player} busy={busy} primary auction={snapshot.draftType === "auction"} inflation={snapshot.auctionInflation} onAction={onAction} /></td>
+                <td><PlayerActions player={player} busy={busy} primary auction={snapshot.draftType === "auction"} inflation={snapshot.auctionInflation} minimumBid={snapshot.auctionMinimumBid} maximumBid={snapshot.maximumBid} onAction={onAction} /></td>
               </tr>
             ))}
           </tbody>

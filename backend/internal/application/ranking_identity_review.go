@@ -11,7 +11,9 @@ import (
 
 type IdentityReviewRepository interface {
 	IdentityReviews(context.Context) (map[string]string, error)
+	IdentityAliases(context.Context) (map[string]string, error)
 	SaveIdentityReview(context.Context, string, string) error
+	SaveIdentityMerge(context.Context, string, string, []string) error
 }
 
 func (service *RankingService) IdentityIssues(ctx context.Context) ([]ranking.IdentityIssue, error) {
@@ -24,6 +26,10 @@ func (service *RankingService) IdentityIssues(ctx context.Context) ([]ranking.Id
 		return nil, err
 	}
 	reviews, err := repository.IdentityReviews(ctx)
+	if err != nil {
+		return nil, err
+	}
+	aliases, err := repository.IdentityAliases(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -51,6 +57,19 @@ func (service *RankingService) IdentityIssues(ctx context.Context) ([]ranking.Id
 			issue.Candidates = append(issue.Candidates, candidate)
 		}
 		sort.Slice(issue.Candidates, func(left, right int) bool { return issue.Candidates[left].Name < issue.Candidates[right].Name })
+		canonical := ""
+		merged := true
+		for _, candidate := range issue.Candidates {
+			resolved := resolveIdentityAlias(candidate.PlayerKey, aliases)
+			if canonical == "" {
+				canonical = resolved
+			} else if resolved != canonical {
+				merged = false
+			}
+		}
+		if merged {
+			issue.Resolution, issue.CanonicalPlayerKey = "merged", canonical
+		}
 		issues = append(issues, issue)
 	}
 	sort.Slice(issues, func(left, right int) bool {
@@ -65,13 +84,58 @@ func (service *RankingService) IdentityIssues(ctx context.Context) ([]ranking.Id
 	return issues, nil
 }
 
-func (service *RankingService) ReviewIdentity(ctx context.Context, issueKey, resolution string) error {
-	if issueKey == "" || (resolution != "confirmed-separate" && resolution != "acknowledged") {
+func (service *RankingService) ReviewIdentity(ctx context.Context, issueKey, resolution, canonicalPlayerKey string) error {
+	if issueKey == "" || (resolution != "confirmed-separate" && resolution != "acknowledged" && resolution != "merged") {
 		return errors.New("identity review requires an issue and valid resolution")
 	}
 	repository, ok := service.repository.(IdentityReviewRepository)
 	if !ok {
 		return errors.New("identity reviews are not supported")
 	}
-	return repository.SaveIdentityReview(ctx, issueKey, resolution)
+	if resolution != "merged" {
+		return repository.SaveIdentityReview(ctx, issueKey, resolution)
+	}
+	issues, err := service.IdentityIssues(ctx)
+	if err != nil {
+		return err
+	}
+	for _, issue := range issues {
+		if issue.IssueKey != issueKey {
+			continue
+		}
+		if issue.Resolution == "merged" {
+			return errors.New("identity issue is already merged")
+		}
+		aliases := make([]string, 0, len(issue.Candidates)-1)
+		validCanonical := false
+		for _, candidate := range issue.Candidates {
+			if candidate.PlayerKey == canonicalPlayerKey {
+				validCanonical = true
+			} else {
+				aliases = append(aliases, candidate.PlayerKey)
+			}
+		}
+		if !validCanonical {
+			return errors.New("choose a canonical player from the identity candidates")
+		}
+		return repository.SaveIdentityMerge(ctx, issueKey, canonicalPlayerKey, aliases)
+	}
+	return errors.New("identity review issue was not found")
+}
+
+func (service *RankingService) identityAliases(ctx context.Context) (map[string]string, error) {
+	repository, ok := service.repository.(IdentityReviewRepository)
+	if !ok {
+		return map[string]string{}, nil
+	}
+	return repository.IdentityAliases(ctx)
+}
+
+func resolveIdentityAlias(playerKey string, aliases map[string]string) string {
+	seen := make(map[string]bool)
+	for aliases[playerKey] != "" && !seen[playerKey] {
+		seen[playerKey] = true
+		playerKey = aliases[playerKey]
+	}
+	return playerKey
 }

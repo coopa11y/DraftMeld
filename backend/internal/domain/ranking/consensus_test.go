@@ -45,3 +45,25 @@ func TestWeightedMedianResistsOneExtremeContextSignal(t *testing.T) {
 		t.Fatalf("context coverage should only count present values: %#v", entries)
 	}
 }
+
+func TestGoldenConsensusMethodsKeepStableTopFour(t *testing.T) {
+	sources := []Source{
+		{ID: "a", Role: "ranking", Weight: 1, Ranks: map[string]int{"p1": 1, "p2": 2, "p3": 3, "p4": 4}},
+		{ID: "b", Role: "ranking", Weight: 1, Ranks: map[string]int{"p1": 1, "p2": 3, "p3": 2, "p4": 4}},
+		{ID: "c", Role: "ranking", Weight: 1, Ranks: map[string]int{"p1": 4, "p2": 1, "p3": 2, "p4": 3}},
+		{ID: "d", Role: "ranking", Weight: 1, Ranks: map[string]int{"p1": 1, "p2": 2, "p3": 4, "p4": 3}},
+	}
+	for _, method := range []string{MethodWeightedAverage, MethodWeightedMedian, MethodTrimmedMean} {
+		entries, err := Combine(sources, []string{"p1", "p2", "p3", "p4"}, method)
+		if err != nil {
+			t.Fatalf("%s: %v", method, err)
+		}
+		got := []string{entries[0].PlayerID, entries[1].PlayerID, entries[2].PlayerID, entries[3].PlayerID}
+		want := []string{"p1", "p2", "p3", "p4"}
+		for index := range want {
+			if got[index] != want[index] {
+				t.Fatalf("%s order changed: got %v want %v", method, got, want)
+			}
+		}
+	}
+}

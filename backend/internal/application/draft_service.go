@@ -38,6 +38,12 @@ func (service *DraftService) UseIntelligence(rankings *RankingService, projectio
 	service.rankings, service.projections = rankings, projections
 }
 
+func (service *DraftService) ConfigureSleeperClient(client *http.Client, baseURL string) {
+	if client != nil && baseURL != "" {
+		service.sleeperClient, service.sleeperBaseURL = client, baseURL
+	}
+}
+
 func NewDraftService(
 	repository DraftEventRepository,
 	players []draft.Player,
@@ -117,7 +123,7 @@ func (service *DraftService) Record(ctx context.Context, leagueID, playerID stri
 	if cost < 0 || (configuration.Rules.DraftType == league.DraftTypeAuction && cost <= 0) {
 		return draft.Snapshot{}, errors.New("auction draft actions require a positive cost")
 	}
-	_, playerByID, _, _, err := service.playersForLeague(ctx, configuration)
+	players, playerByID, _, _, err := service.playersForLeague(ctx, configuration)
 	if err != nil {
 		return draft.Snapshot{}, err
 	}
@@ -132,10 +138,34 @@ func (service *DraftService) Record(ctx context.Context, leagueID, playerID stri
 	if _, unavailable := state.playerActions[playerID]; unavailable {
 		return draft.Snapshot{}, ErrPlayerUnavailable
 	}
+	if configuration.Rules.DraftType == league.DraftTypeAuction && action == draft.ActionDraft {
+		available := make([]draft.Player, 0, len(players))
+		myRosterSize := 0
+		for _, player := range players {
+			existingAction, unavailable := state.playerActions[player.ID]
+			if !unavailable {
+				available = append(available, player)
+			} else if existingAction == draft.ActionDraft {
+				myRosterSize++
+			}
+		}
+		_, _, maximumBid := auctionState(configuration.Rules, service.history(state.activeEvents, playerByID), available, myRosterSize)
+		if cost > maximumBid {
+			return draft.Snapshot{}, fmt.Errorf("bid exceeds your maximum available bid of $%.0f", maximumBid)
+		}
+	}
 	if _, err = service.repository.Append(ctx, draft.Event{LeagueID: leagueID, PlayerID: playerID, Action: action, Cost: cost}); err != nil {
 		return draft.Snapshot{}, err
 	}
 	return service.Snapshot(ctx, leagueID)
+}
+
+func (service *DraftService) history(events []draft.Event, playerByID map[string]draft.Player) []draft.Pick {
+	history := make([]draft.Pick, 0, len(events))
+	for index, event := range events {
+		history = append(history, draft.Pick{EventID: event.ID, Number: index + 1, Action: event.Action, Player: playerByID[event.PlayerID], CreatedAt: event.CreatedAt, Cost: event.Cost})
+	}
+	return history
 }
 
 func (service *DraftService) Undo(ctx context.Context, leagueID string) (draft.Snapshot, error) {
@@ -196,19 +226,21 @@ func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, ev
 	}
 
 	nextPick := nextUserPick(len(state.activeEvents)+1, configuration.Rules)
-	budgetRemaining, inflation := auctionState(configuration.Rules, history, available)
+	budgetRemaining, inflation, maximumBid := auctionState(configuration.Rules, history, available, len(myTeam))
 	return draft.Snapshot{
 		LeagueID: configuration.ID, LeagueName: configuration.Rules.Name, PickNumber: len(state.activeEvents) + 1,
 		Available: available, MyTeam: myTeam, History: history,
-		Recommendations:  recommend(available, myTeam, configuration.Rules, configuration.Recommendation, recommendationContext{NextUserPick: nextPick, RecentPicks: history}),
-		CanUndo:          len(state.activeEvents) > 0,
-		DataMode:         dataMode,
-		ProjectionCount:  projectionCount,
-		DraftType:        string(configuration.Rules.DraftType),
-		NextUserPick:     nextPick,
-		AuctionBudget:    configuration.Rules.AuctionBudget,
-		BudgetRemaining:  budgetRemaining,
-		AuctionInflation: inflation,
-		IsUserTurn:       isUserTurn(len(state.activeEvents)+1, configuration.Rules),
+		Recommendations:   recommend(available, myTeam, configuration.Rules, configuration.Recommendation, recommendationContext{NextUserPick: nextPick, RecentPicks: history}),
+		CanUndo:           len(state.activeEvents) > 0,
+		DataMode:          dataMode,
+		ProjectionCount:   projectionCount,
+		DraftType:         string(configuration.Rules.DraftType),
+		NextUserPick:      nextPick,
+		AuctionBudget:     configuration.Rules.AuctionBudget,
+		BudgetRemaining:   budgetRemaining,
+		AuctionInflation:  inflation,
+		AuctionMinimumBid: configuration.Rules.AuctionMinimumBid,
+		MaximumBid:        maximumBid,
+		IsUserTurn:        isUserTurn(len(state.activeEvents)+1, configuration.Rules),
 	}
 }

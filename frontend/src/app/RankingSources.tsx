@@ -214,7 +214,7 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
 
       <ProjectionImport busy={busy} sources={projectionSources} onBusyChange={setBusy} onImported={(source) => setProjectionSources((current) => [...current.filter((candidate) => candidate.id !== source.id), source])} onMessage={setMessage} onError={setError} />
 
-      <IdentityReviewQueue busy={busy} issues={identityIssues} onBusyChange={setBusy} onReviewed={(issueKey, resolution) => setIdentityIssues((current) => current.map((issue) => issue.issueKey === issueKey ? { ...issue, resolution } : issue))} onError={setError} />
+      <IdentityReviewQueue busy={busy} issues={identityIssues} onBusyChange={setBusy} onReviewed={(issueKey, resolution, canonicalPlayerKey) => setIdentityIssues((current) => current.map((issue) => issue.issueKey === issueKey ? { ...issue, resolution, canonicalPlayerKey } : issue))} onError={setError} />
 
       {watchlist.length > 0 ? (
         <section className="ranking-panel watchlist-panel" aria-labelledby="watchlist-heading">

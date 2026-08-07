@@ -169,12 +169,16 @@ func applyAuctionValues(players []draft.Player, rules league.Rules) {
 			positiveVOR += player.ValueOverReplacement
 		}
 	}
-	discretionary := rules.AuctionBudget*float64(rules.TeamCount) - float64(totalRosterSlots*rules.TeamCount)
+	minimumBid := rules.AuctionMinimumBid
+	if minimumBid <= 0 {
+		minimumBid = 1
+	}
+	discretionary := rules.AuctionBudget*float64(rules.TeamCount) - float64(totalRosterSlots*rules.TeamCount)*minimumBid
 	if positiveVOR <= 0 || discretionary <= 0 {
 		return
 	}
 	for index := range players {
-		players[index].AuctionValue = 1
+		players[index].AuctionValue = minimumBid
 		if players[index].ValueOverReplacement > 0 {
 			players[index].AuctionValue += discretionary * players[index].ValueOverReplacement / positiveVOR
 		}
@@ -212,9 +216,13 @@ func isUserTurn(pick int, rules league.Rules) bool {
 	return owner == rules.DraftPosition
 }
 
-func auctionState(rules league.Rules, history []draft.Pick, available []draft.Player) (float64, float64) {
+func auctionState(rules league.Rules, history []draft.Pick, available []draft.Player, myRosterSize int) (float64, float64, float64) {
 	if rules.DraftType != league.DraftTypeAuction {
-		return 0, 1
+		return 0, 1, 0
+	}
+	minimumBid := rules.AuctionMinimumBid
+	if minimumBid <= 0 {
+		minimumBid = 1
 	}
 	mySpent, leagueSpent := 0.0, 0.0
 	for _, pick := range history {
@@ -223,14 +231,27 @@ func auctionState(rules league.Rules, history []draft.Pick, available []draft.Pl
 			mySpent += pick.Cost
 		}
 	}
-	remainingMarket := 0.0
+	remainingMarket := -rules.KeeperValueRemoved
 	for _, player := range available {
 		remainingMarket += player.AuctionValue
 	}
-	remainingLeagueDollars := rules.AuctionBudget*float64(rules.TeamCount) - leagueSpent
+	remainingLeagueDollars := rules.AuctionBudget*float64(rules.TeamCount) - rules.KeeperBudgetSpent - leagueSpent
 	inflation := 1.0
 	if remainingMarket > 0 {
 		inflation = remainingLeagueDollars / remainingMarket
 	}
-	return rules.AuctionBudget - mySpent, inflation
+	if inflation < 0.1 {
+		inflation = 0.1
+	}
+	totalRosterSlots := 0
+	for _, slot := range rules.RosterSlots {
+		totalRosterSlots += slot.Count
+	}
+	remainingSlots := max(0, totalRosterSlots-myRosterSize)
+	budgetRemaining := max(0, rules.AuctionBudget-rules.MyKeeperSpend-mySpent)
+	maximumBid := 0.0
+	if remainingSlots > 0 {
+		maximumBid = max(minimumBid, budgetRemaining-float64(remainingSlots-1)*minimumBid)
+	}
+	return budgetRemaining, inflation, maximumBid
 }

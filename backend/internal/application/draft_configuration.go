@@ -34,6 +34,7 @@ func DemoLeagueConfiguration() LeagueConfiguration {
 			ConsensusMethod:   "weighted-median",
 			PlayerPreferences: map[string]string{},
 			AuctionBudget:     200,
+			AuctionMinimumBid: 1,
 		},
 		Recommendation: DefaultRecommendationPolicy(),
 	}

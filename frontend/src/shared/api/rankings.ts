@@ -41,10 +41,11 @@ export async function listProjectionSources(): Promise<ProjectionSource[]> {
   return unwrap(data, error, response);
 }
 
-export async function importProjectionCSV(name: string, file: File): Promise<ProjectionSource> {
+export async function importProjectionCSV(name: string, file: File, mapping: Record<string, string>): Promise<ProjectionSource> {
   const form = new FormData();
   form.append("name", name);
   form.append("file", file);
+  form.append("mapping", JSON.stringify(mapping));
   const response = await globalThis.fetch(new URL("/api/v1/projection-sources/import-csv", window.location.origin), { method: "POST", body: form });
   const body = await response.json() as ProjectionSource | ErrorResponse;
   if (!response.ok) throw new Error("error" in body ? body.error : `Request failed with ${response.status}`);
@@ -56,7 +57,7 @@ export async function listIdentityIssues(): Promise<IdentityIssue[]> {
   return unwrap(data, error, response);
 }
 
-export async function reviewIdentity(issueKey: string, resolution: "confirmed-separate" | "acknowledged"): Promise<void> {
-  const { error, response } = await apiClient.POST("/ranking-identities/review", { body: { issueKey, resolution } });
+export async function reviewIdentity(issueKey: string, resolution: "confirmed-separate" | "acknowledged" | "merged", canonicalPlayerKey = ""): Promise<void> {
+  const { error, response } = await apiClient.POST("/ranking-identities/review", { body: { issueKey, resolution, canonicalPlayerKey } });
   if (!response.ok) throw new Error((error as ErrorResponse | undefined)?.error ?? `Request failed with ${response.status}`);
 }

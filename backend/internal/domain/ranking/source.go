@@ -70,8 +70,9 @@ type IdentityCandidate struct {
 }
 
 type IdentityIssue struct {
-	IssueKey   string              `json:"issueKey"`
-	Reason     string              `json:"reason"`
-	Candidates []IdentityCandidate `json:"candidates"`
-	Resolution string              `json:"resolution"`
+	IssueKey           string              `json:"issueKey"`
+	Reason             string              `json:"reason"`
+	Candidates         []IdentityCandidate `json:"candidates"`
+	Resolution         string              `json:"resolution"`
+	CanonicalPlayerKey string              `json:"canonicalPlayerKey,omitempty"`
 }

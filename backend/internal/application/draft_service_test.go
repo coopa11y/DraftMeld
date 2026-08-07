@@ -127,12 +127,42 @@ func TestSleeperSyncImportsKnownPlayersWithoutSubmittingPicks(t *testing.T) {
 	defer store.Close()
 	service := newTestDraftService(t, store)
 	service.sleeperBaseURL, service.sleeperClient = server.URL, server.Client()
-	snapshot, err := service.SyncSleeper(t.Context(), "demo", "draft-1", 7)
+	result, err := service.SyncSleeper(t.Context(), "demo", "draft-1", 7)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(snapshot.MyTeam) != 1 || snapshot.MyTeam[0].ID != "p001" {
-		t.Fatalf("Sleeper pick was not assigned to my team: %#v", snapshot.MyTeam)
+	if len(result.Snapshot.MyTeam) != 1 || result.Snapshot.MyTeam[0].ID != "p001" {
+		t.Fatalf("Sleeper pick was not assigned to my team: %#v", result.Snapshot.MyTeam)
+	}
+}
+
+func TestSleeperSyncReconcilesChangedAndDeletedPicks(t *testing.T) {
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
+		requestCount++
+		if requestCount == 1 {
+			_, _ = response.Write([]byte(`[{"pick_no":1,"roster_id":7,"metadata":{"first_name":"Alex","last_name":"Rivers","position":"RB","team":"ATL"}}]`))
+			return
+		}
+		_, _ = response.Write([]byte(`[{"pick_no":1,"roster_id":2,"metadata":{"first_name":"Jordan","last_name":"Hale","position":"WR","team":"MIN"}},{"pick_no":2,"roster_id":2,"metadata":{"first_name":"Unknown","last_name":"Player","position":"WR","team":"MIN"}}]`))
+	}))
+	defer server.Close()
+	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	service := newTestDraftService(t, store)
+	service.ConfigureSleeperClient(server.Client(), server.URL)
+	if _, err = service.SyncSleeper(t.Context(), "demo", "draft-1", 7); err != nil {
+		t.Fatal(err)
+	}
+	result, err := service.SyncSleeper(t.Context(), "demo", "draft-1", 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Added != 1 || result.Removed != 1 || result.Unmatched != 1 || len(result.Snapshot.History) != 1 || result.Snapshot.History[0].Player.ID != "p002" {
+		t.Fatalf("unexpected reconciliation result: %#v", result)
 	}
 }
 

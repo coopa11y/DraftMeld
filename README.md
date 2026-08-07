@@ -8,7 +8,7 @@ Current development version: **0.3.0**
 
 ## Project status
 
-DraftMeld is in active `0.3.0` development. It includes an accessible live board powered by normalized multi-source consensus, projection-based league scoring, roster-aware VOR and tiers, targets and avoids, mock opponents, auction tracking, and read-only Sleeper pick synchronization. Five downloadable feeds and two user-supplied ESPN PDF formats are currently supported.
+DraftMeld is in active `0.3.0` development. It includes an accessible live board powered by normalized multi-source consensus, mapped projection imports, roster-aware VOR and tiers, targets and avoids, mock opponents, keeper-aware auction tracking, canonical alias review, and read-only reconciled Sleeper synchronization. Five downloadable feeds and two user-supplied ESPN PDF formats are currently supported.
 
 ## Product goals
 

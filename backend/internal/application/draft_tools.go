@@ -86,36 +86,48 @@ type sleeperPick struct {
 	} `json:"metadata"`
 }
 
-func (service *DraftService) SyncSleeper(ctx context.Context, leagueID, sleeperDraftID string, myRosterID int) (draft.Snapshot, error) {
+type SleeperSyncResult struct {
+	Snapshot  draft.Snapshot `json:"snapshot"`
+	Added     int            `json:"added"`
+	Updated   int            `json:"updated"`
+	Removed   int            `json:"removed"`
+	Unmatched int            `json:"unmatched"`
+}
+
+type DraftReconciliationRepository interface {
+	ReplaceDraftEvents(context.Context, string, []draft.Event) error
+}
+
+func (service *DraftService) SyncSleeper(ctx context.Context, leagueID, sleeperDraftID string, myRosterID int) (SleeperSyncResult, error) {
 	if strings.TrimSpace(sleeperDraftID) == "" || myRosterID < 1 {
-		return draft.Snapshot{}, errors.New("Sleeper draft ID and your roster ID are required")
+		return SleeperSyncResult{}, errors.New("Sleeper draft ID and your roster ID are required")
 	}
 	endpoint := strings.TrimRight(service.sleeperBaseURL, "/") + "/draft/" + url.PathEscape(strings.TrimSpace(sleeperDraftID)) + "/picks"
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return draft.Snapshot{}, err
+		return SleeperSyncResult{}, err
 	}
 	response, err := service.sleeperClient.Do(request)
 	if err != nil {
-		return draft.Snapshot{}, fmt.Errorf("load Sleeper picks: %w", err)
+		return SleeperSyncResult{}, fmt.Errorf("load Sleeper picks: %w", err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return draft.Snapshot{}, fmt.Errorf("Sleeper returned HTTP %d", response.StatusCode)
+		return SleeperSyncResult{}, fmt.Errorf("Sleeper returned HTTP %d", response.StatusCode)
 	}
 	var picks []sleeperPick
 	if err = json.NewDecoder(response.Body).Decode(&picks); err != nil {
-		return draft.Snapshot{}, errors.New("Sleeper returned an invalid draft response")
+		return SleeperSyncResult{}, errors.New("Sleeper returned an invalid draft response")
 	}
 	service.mu.Lock()
 	defer service.mu.Unlock()
 	configuration, err := service.configuration(ctx, leagueID)
 	if err != nil {
-		return draft.Snapshot{}, err
+		return SleeperSyncResult{}, err
 	}
 	players, playerByID, _, _, err := service.playersForLeague(ctx, configuration)
 	if err != nil {
-		return draft.Snapshot{}, err
+		return SleeperSyncResult{}, err
 	}
 	playerIDByIdentity := make(map[string]string, len(players))
 	for _, player := range players {
@@ -123,27 +135,61 @@ func (service *DraftService) SyncSleeper(ctx context.Context, leagueID, sleeperD
 	}
 	events, err := service.repository.List(ctx, leagueID)
 	if err != nil {
-		return draft.Snapshot{}, err
+		return SleeperSyncResult{}, err
 	}
 	state := replay(events)
+	previous := make(map[string]draft.Action, len(state.playerActions))
+	for playerID, action := range state.playerActions {
+		previous[playerID] = action
+	}
+	result := SleeperSyncResult{}
+	reconciled := make([]draft.Event, 0, len(picks))
+	current := make(map[string]draft.Action)
 	sort.Slice(picks, func(left, right int) bool { return picks[left].PickNumber < picks[right].PickNumber })
 	for _, pick := range picks {
 		name := strings.TrimSpace(pick.Metadata.FirstName + " " + pick.Metadata.LastName)
 		playerID := playerIDByIdentity[canonicalRankingKey(name, pick.Metadata.Position, pick.Metadata.Team)]
 		if _, known := playerByID[playerID]; !known {
+			result.Unmatched++
 			continue
 		}
-		if _, exists := state.playerActions[playerID]; exists {
+		if _, exists := current[playerID]; exists {
 			continue
 		}
 		action := draft.ActionTaken
 		if pick.RosterID == myRosterID {
 			action = draft.ActionDraft
 		}
-		if _, err = service.repository.Append(ctx, draft.Event{LeagueID: leagueID, PlayerID: playerID, Action: action}); err != nil {
-			return draft.Snapshot{}, err
+		current[playerID] = action
+		reconciled = append(reconciled, draft.Event{LeagueID: leagueID, PlayerID: playerID, Action: action})
+		if prior, exists := previous[playerID]; !exists {
+			result.Added++
+		} else if prior != action {
+			result.Updated++
 		}
-		state.playerActions[playerID] = action
 	}
-	return service.Snapshot(ctx, leagueID)
+	for playerID := range previous {
+		if _, exists := current[playerID]; !exists {
+			result.Removed++
+		}
+	}
+	if len(picks) > 0 && len(reconciled) == 0 {
+		return SleeperSyncResult{}, errors.New("Sleeper picks did not contain any players DraftMeld could match; local history was left unchanged")
+	}
+	if repository, ok := service.repository.(DraftReconciliationRepository); ok {
+		if err = repository.ReplaceDraftEvents(ctx, leagueID, reconciled); err != nil {
+			return SleeperSyncResult{}, err
+		}
+	} else {
+		for _, event := range reconciled {
+			if _, exists := previous[event.PlayerID]; exists {
+				continue
+			}
+			if _, err = service.repository.Append(ctx, event); err != nil {
+				return SleeperSyncResult{}, err
+			}
+		}
+	}
+	result.Snapshot, err = service.Snapshot(ctx, leagueID)
+	return result, err
 }

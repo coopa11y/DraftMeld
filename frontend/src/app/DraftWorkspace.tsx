@@ -90,7 +90,11 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
   async function handleSleeperSync(draftId: string, rosterId: number) {
     if (busy) return;
     setBusy(true); setError("");
-    try { const updated = await syncSleeperDraft(leagueId, draftId, rosterId); setSnapshot(updated); setAnnouncement(`Sleeper synchronization complete. ${updated.history.length} picks are recorded.`); }
+    try {
+      const result = await syncSleeperDraft(leagueId, draftId, rosterId);
+      setSnapshot(result.snapshot);
+      setAnnouncement(`Sleeper sync reconciled ${result.snapshot.history.length} picks: ${result.added} added, ${result.updated} changed, ${result.removed} removed${result.unmatched ? `, ${result.unmatched} unmatched` : ""}.`);
+    }
     catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to synchronize Sleeper picks."); }
     finally { setBusy(false); }
   }

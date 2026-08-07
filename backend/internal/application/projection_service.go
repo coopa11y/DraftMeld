@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +18,16 @@ var projectionStatColumns = []string{
 	"reception", "passingYard", "passingTouchdown", "interception", "rushingYard", "rushingTouchdown",
 	"receivingYard", "receivingTouchdown", "fieldGoalMade", "extraPointMade", "defenseSack",
 	"defenseInterception", "defenseFumbleRecovery", "defenseTouchdown", "defenseSafety",
+}
+
+var nonProjectionHeaderCharacter = regexp.MustCompile(`[^a-z0-9]+`)
+
+var projectionHeaderAliases = map[string][]string{
+	"name":     {"name", "player", "playername", "playerfullname"},
+	"position": {"position", "pos"},
+	"team":     {"team", "nflteam", "tm"},
+	"adp":      {"adp", "averagedraftposition"},
+	"byeWeek":  {"byeweek", "bye"},
 }
 
 type ProjectionRepository interface {
@@ -35,7 +46,7 @@ func (service *ProjectionService) Sources(ctx context.Context) ([]projection.Sou
 	return service.repository.ProjectionStatuses(ctx)
 }
 
-func (service *ProjectionService) ImportCSV(ctx context.Context, name string, input io.Reader) (projection.SourceStatus, error) {
+func (service *ProjectionService) ImportCSV(ctx context.Context, name string, input io.Reader, mappings ...map[string]string) (projection.SourceStatus, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return projection.SourceStatus{}, errors.New("projection source name is required")
@@ -47,10 +58,11 @@ func (service *ProjectionService) ImportCSV(ctx context.Context, name string, in
 	}
 	headers := make(map[string]int, len(rows[0]))
 	for index, header := range rows[0] {
-		headers[strings.TrimSpace(header)] = index
+		headers[normalizeProjectionHeader(header)] = index
 	}
+	columnIndexes := projectionColumnIndexes(headers, firstMapping(mappings))
 	for _, required := range []string{"name", "position", "team"} {
-		if _, exists := headers[required]; !exists {
+		if _, exists := columnIndexes[required]; !exists {
 			return projection.SourceStatus{}, fmt.Errorf("projection CSV is missing %s", required)
 		}
 	}
@@ -58,21 +70,21 @@ func (service *ProjectionService) ImportCSV(ctx context.Context, name string, in
 	records := make([]projection.Record, 0, len(rows)-1)
 	seen := make(map[string]bool)
 	for rowIndex, row := range rows[1:] {
-		nameValue, position, team := value(row, headers["name"]), normalizePosition(value(row, headers["position"])), value(row, headers["team"])
+		nameValue, position, team := value(row, columnIndexes["name"]), normalizePosition(value(row, columnIndexes["position"])), value(row, columnIndexes["team"])
 		key := canonicalRankingKey(nameValue, position, team)
 		if key == "" || seen[key] {
 			continue
 		}
 		seen[key] = true
 		record := projection.Record{SourceID: sourceID, PlayerKey: key, Name: nameValue, Position: position, Team: team, Stats: make(map[string]float64)}
-		if index, exists := headers["byeWeek"]; exists {
+		if index, exists := columnIndexes["byeWeek"]; exists {
 			record.ByeWeek, _ = strconv.Atoi(value(row, index))
 		}
-		if index, exists := headers["adp"]; exists {
+		if index, exists := columnIndexes["adp"]; exists {
 			record.ADP, _ = strconv.ParseFloat(value(row, index), 64)
 		}
 		for _, column := range projectionStatColumns {
-			if index, exists := headers[column]; exists {
+			if index, exists := columnIndexes[column]; exists {
 				parsed, parseErr := strconv.ParseFloat(value(row, index), 64)
 				if parseErr != nil && value(row, index) != "" {
 					return projection.SourceStatus{}, fmt.Errorf("projection row %d has invalid %s", rowIndex+2, column)
@@ -92,15 +104,70 @@ func (service *ProjectionService) ImportCSV(ctx context.Context, name string, in
 	return status, nil
 }
 
+func firstMapping(mappings []map[string]string) map[string]string {
+	if len(mappings) == 0 || mappings[0] == nil {
+		return map[string]string{}
+	}
+	return mappings[0]
+}
+
+func projectionColumnIndexes(headers map[string]int, mapping map[string]string) map[string]int {
+	columns := append([]string{"name", "position", "team", "adp", "byeWeek"}, projectionStatColumns...)
+	indexes := make(map[string]int)
+	for _, canonical := range columns {
+		if sourceHeader, explicitlyMapped := mapping[canonical]; explicitlyMapped {
+			if index, exists := headers[normalizeProjectionHeader(sourceHeader)]; exists && sourceHeader != "" {
+				indexes[canonical] = index
+			}
+			continue
+		}
+		aliases := projectionHeaderAliases[canonical]
+		if len(aliases) == 0 {
+			aliases = []string{canonical}
+		}
+		for _, alias := range aliases {
+			if index, exists := headers[normalizeProjectionHeader(alias)]; exists {
+				indexes[canonical] = index
+				break
+			}
+		}
+	}
+	return indexes
+}
+
+func normalizeProjectionHeader(value string) string {
+	return nonProjectionHeaderCharacter.ReplaceAllString(strings.ToLower(strings.TrimSpace(value)), "")
+}
+
 func (service *ProjectionService) LeagueValues(ctx context.Context, scoring map[string]float64) (map[string]projection.LeagueValue, error) {
 	records, err := service.repository.ProjectionRecords(ctx)
 	if err != nil {
 		return nil, err
 	}
+	aliases := map[string]string{}
+	if repository, ok := service.repository.(interface {
+		IdentityAliases(context.Context) (map[string]string, error)
+	}); ok {
+		aliases, err = repository.IdentityAliases(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
 	totals := make(map[string]projection.LeagueValue)
 	counts := make(map[string]int)
 	adpCounts := make(map[string]int)
+	canonicalRecords := make(map[string]projection.Record, len(records))
+	canonicalPriority := make(map[string]bool, len(records))
 	for _, record := range records {
+		originalPlayerKey := record.PlayerKey
+		record.PlayerKey = resolveIdentityAlias(record.PlayerKey, aliases)
+		key := record.SourceID + "|" + record.PlayerKey
+		isCanonical := originalPlayerKey == record.PlayerKey
+		if _, exists := canonicalRecords[key]; !exists || (isCanonical && !canonicalPriority[key]) {
+			canonicalRecords[key], canonicalPriority[key] = record, isCanonical
+		}
+	}
+	for _, record := range canonicalRecords {
 		points := 0.0
 		for stat, amount := range record.Stats {
 			points += amount * scoring[stat]

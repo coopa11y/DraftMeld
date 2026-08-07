@@ -7,7 +7,7 @@ interface DraftSidebarProps {
   busy: boolean;
   onAction: (player: Player, action: DraftAction, cost?: number) => void;
   onMock: () => void;
-  onSleeperSync: (draftId: string, rosterId: number) => void;
+  onSleeperSync: (draftId: string, rosterId: number) => Promise<void>;
 }
 
 export function DraftSidebar({ snapshot, busy, onAction, onMock, onSleeperSync }: DraftSidebarProps) {
@@ -24,7 +24,7 @@ export function DraftSidebar({ snapshot, busy, onAction, onMock, onSleeperSync }
                 <ul className="reason-list">
                   {recommendation.reasons.map((reason) => <li key={reason}>{reason}</li>)}
                 </ul>
-                <PlayerActions player={recommendation.player} busy={busy} auction={snapshot.draftType === "auction"} inflation={snapshot.auctionInflation} onAction={onAction} />
+                <PlayerActions player={recommendation.player} busy={busy} auction={snapshot.draftType === "auction"} inflation={snapshot.auctionInflation} minimumBid={snapshot.auctionMinimumBid} maximumBid={snapshot.maximumBid} onAction={onAction} />
               </article>
             </li>
           ))}

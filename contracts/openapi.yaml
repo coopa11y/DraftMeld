@@ -195,6 +195,9 @@ paths:
               properties:
                 name: { type: string }
                 file: { type: string, format: binary }
+                mapping:
+                  type: string
+                  description: JSON object mapping DraftMeld field names to source CSV headers.
       responses:
         "201":
           description: Imported projection source.
@@ -227,7 +230,8 @@ paths:
               required: [issueKey, resolution]
               properties:
                 issueKey: { type: string }
-                resolution: { type: string, enum: [confirmed-separate, acknowledged] }
+                resolution: { type: string, enum: [confirmed-separate, acknowledged, merged] }
+                canonicalPlayerKey: { type: string }
       responses:
         "204": { description: Identity review saved. }
   /rankings:
@@ -399,10 +403,10 @@ paths:
                 rosterId: { type: integer, minimum: 1 }
       responses:
         "200":
-          description: Draft state after Sleeper synchronization.
+          description: Reconciliation summary and draft state after Sleeper synchronization.
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/DraftSnapshot" }
+              schema: { $ref: "#/components/schemas/SleeperSyncResult" }
 components:
   parameters:
     LeagueId:
@@ -460,7 +464,7 @@ components:
           example: 0.3.0
     LeagueRules:
       type: object
-      required: [name, teamCount, draftPosition, draftType, rosterSlots, scoringRules, sourcePreferences, consensusMethod, playerPreferences, auctionBudget]
+      required: [name, teamCount, draftPosition, draftType, rosterSlots, scoringRules, sourcePreferences, consensusMethod, playerPreferences, auctionBudget, auctionMinimumBid, keeperBudgetSpent, myKeeperSpend, keeperValueRemoved]
       properties:
         name:
           type: string
@@ -501,6 +505,18 @@ components:
         auctionBudget:
           type: number
           exclusiveMinimum: 0
+        auctionMinimumBid:
+          type: number
+          exclusiveMinimum: 0
+        keeperBudgetSpent:
+          type: number
+          minimum: 0
+        myKeeperSpend:
+          type: number
+          minimum: 0
+        keeperValueRemoved:
+          type: number
+          minimum: 0
     League:
       allOf:
         - type: object
@@ -606,7 +622,8 @@ components:
           type: array
           minItems: 2
           items: { $ref: "#/components/schemas/IdentityCandidate" }
-        resolution: { type: string, enum: [confirmed-separate, acknowledged, ""] }
+        resolution: { type: string, enum: [confirmed-separate, acknowledged, merged, ""] }
+        canonicalPlayerKey: { type: string }
     WatchlistSignal:
       type: object
       additionalProperties: false
@@ -670,7 +687,7 @@ components:
         cost: { type: number, minimum: 0 }
     DraftSnapshot:
       type: object
-      required: [leagueId, leagueName, pickNumber, available, myTeam, history, recommendations, canUndo, dataMode, projectionCount, draftType, nextUserPick, auctionBudget, budgetRemaining, auctionInflation, isUserTurn]
+      required: [leagueId, leagueName, pickNumber, available, myTeam, history, recommendations, canUndo, dataMode, projectionCount, draftType, nextUserPick, auctionBudget, budgetRemaining, auctionInflation, auctionMinimumBid, maximumBid, isUserTurn]
       properties:
         leagueId: { type: string }
         leagueName: { type: string }
@@ -695,7 +712,19 @@ components:
         auctionBudget: { type: number, minimum: 0 }
         budgetRemaining: { type: number }
         auctionInflation: { type: number, minimum: 0 }
+        auctionMinimumBid: { type: number, minimum: 0 }
+        maximumBid: { type: number, minimum: 0 }
         isUserTurn: { type: boolean }
+    SleeperSyncResult:
+      type: object
+      additionalProperties: false
+      required: [snapshot, added, updated, removed, unmatched]
+      properties:
+        snapshot: { $ref: "#/components/schemas/DraftSnapshot" }
+        added: { type: integer, minimum: 0 }
+        updated: { type: integer, minimum: 0 }
+        removed: { type: integer, minimum: 0 }
+        unmatched: { type: integer, minimum: 0 }
     DraftActionRequest:
       type: object
       required: [leagueId, playerId, action]

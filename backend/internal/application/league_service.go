@@ -129,6 +129,9 @@ func (service *LeagueService) Duplicate(ctx context.Context, id string) (LeagueC
 	if rules.AuctionBudget <= 0 {
 		rules.AuctionBudget = 200
 	}
+	if rules.AuctionMinimumBid <= 0 {
+		rules.AuctionMinimumBid = 1
+	}
 	return service.Create(ctx, rules)
 }
 
@@ -232,6 +235,18 @@ func withDefaultSourcePreferences(rules league.Rules) league.Rules {
 		if _, exists := rules.SourcePreferences[sourceID]; !exists {
 			rules.SourcePreferences[sourceID] = preference
 		}
+	}
+	if rules.ConsensusMethod == "" {
+		rules.ConsensusMethod = "weighted-median"
+	}
+	if rules.PlayerPreferences == nil {
+		rules.PlayerPreferences = make(map[string]string)
+	}
+	if rules.AuctionBudget <= 0 {
+		rules.AuctionBudget = 200
+	}
+	if rules.AuctionMinimumBid <= 0 {
+		rules.AuctionMinimumBid = 1
 	}
 	return rules
 }

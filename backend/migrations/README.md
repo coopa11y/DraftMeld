@@ -15,3 +15,7 @@ Use a zero-padded numeric prefix such as `0002_leagues.sql`. Migrations must be 
 `0006_auction_costs.sql` records an optional winning bid on each append-only draft event.
 
 `0007_identity_reviews.sql` persists human decisions from the canonical-player review queue.
+
+`0008_identity_aliases.sql` stores explicit alias-to-canonical player mappings used by rankings and projections.
+
+`0009_league_draft_settings.sql` persists consensus selection, player preferences, and calibrated auction/keeper settings that were previously defaulted at load time.

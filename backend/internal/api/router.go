@@ -143,12 +143,12 @@ func NewRouter(
 			writeError(response, http.StatusBadRequest, "The Sleeper sync settings were not valid.")
 			return
 		}
-		snapshot, err := draftService.SyncSleeper(request.Context(), input.LeagueID, input.SleeperDraftID, input.RosterID)
+		result, err := draftService.SyncSleeper(request.Context(), input.LeagueID, input.SleeperDraftID, input.RosterID)
 		if err != nil {
 			writeError(response, http.StatusBadGateway, err.Error())
 			return
 		}
-		writeJSON(response, http.StatusOK, snapshot)
+		writeJSON(response, http.StatusOK, result)
 	})
 	mux.HandleFunc("PUT /api/v1/draft/preferences", func(response http.ResponseWriter, request *http.Request) {
 		var input playerPreferenceRequest

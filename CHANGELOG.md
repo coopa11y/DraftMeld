@@ -16,12 +16,18 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 - Deterministic mock opponents and simulate-to-next-turn workflow
 - Read-only Sleeper pick synchronization using the public draft endpoint
 - Persistent player-identity review queue for uncertain matches
+- Interactive projection CSV column mapping with common-header detection
+- Explicit canonical-player alias merging across rankings and projections
+- Sleeper reconciliation counts, remote deletion/change handling, and optional 15-second polling
+- Configurable minimum bids, keeper spend/value calibration, and maximum legal bid protection
+- Golden intelligence scenarios and an API-level draft workflow test backed by temporary SQLite
 
 ### Changed
 
 - DraftMeld now separates ordinal rankings, contextual market and usage signals, and granular projections
 - Common player suffixes and defense aliases normalize into more stable canonical identities
 - The ranking workspace now exposes consensus methodology, source roles, projection inputs, identity exceptions, and uncertainty
+- Advanced league settings now persist consensus method, player preferences, and auction calibration together with the existing league configuration
 
 ## [0.2.0] - Unreleased
 

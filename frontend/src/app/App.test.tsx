@@ -2,7 +2,7 @@ import { axe } from "jest-axe";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ConsensusRanking, DraftSnapshot, League, Player, RankingSource } from "../shared/api/types";
+import type { ConsensusRanking, DraftSnapshot, IdentityIssue, League, Player, RankingSource } from "../shared/api/types";
 import { App } from "./App";
 
 const playerIntelligence = { projectedPoints: 0, valueOverReplacement: 0, confidence: "demo", rankRange: 0, preference: "" as const, auctionValue: 0 };
@@ -32,7 +32,7 @@ function snapshot(overrides: Partial<DraftSnapshot> = {}): DraftSnapshot {
     ],
     canUndo: false,
     dataMode: "demo", projectionCount: 0, draftType: "snake", nextUserPick: 13,
-    auctionBudget: 200, budgetRemaining: 0, auctionInflation: 1,
+    auctionBudget: 200, budgetRemaining: 0, auctionInflation: 1, auctionMinimumBid: 1, maximumBid: 0,
     isUserTurn: false,
     ...overrides,
   };
@@ -48,7 +48,7 @@ const demoLeague: League = {
     "cbs-ppr": { weight: 0.9, enabled: true }, "espn-ppr-pdf": { weight: 0.9, enabled: true },
     "espn-dynasty-pdf": { weight: 0.6, enabled: true },
   },
-  consensusMethod: "weighted-median", playerPreferences: {}, auctionBudget: 200,
+  consensusMethod: "weighted-median", playerPreferences: {}, auctionBudget: 200, auctionMinimumBid: 1, keeperBudgetSpent: 0, myKeeperSpend: 0, keeperValueRemoved: 0,
 };
 const casey: Player = {
   id: "p003", name: "Casey Brooks", nflTeam: "DET", position: "RB",
@@ -79,6 +79,14 @@ const rankingSources: RankingSource[] = [
 const consensusRankings: ConsensusRanking[] = [
   { playerKey: "alexrivers", name: "Alex Rivers", position: "RB", team: "ATL", rank: 1, score: 1.5, sourceCount: 4, sourceRanks: { "redraft-ecr": 1 }, coverage: 0.8, rankRange: 4, confidence: "high", method: "weighted-median" },
 ];
+
+const identityIssue: IdentityIssue = {
+  issueKey: "dell|WR|HOU", reason: "Similar names share a team and position", resolution: "", canonicalPlayerKey: "",
+  candidates: [
+    { playerKey: "nathanieldell", name: "Nathaniel Dell", position: "WR", team: "HOU" },
+    { playerKey: "tankdell", name: "Tank Dell", position: "WR", team: "HOU" },
+  ],
+};
 
 function jsonResponse(body: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), {
@@ -257,6 +265,72 @@ describe("accessible draft board", () => {
     expect(await screen.findByRole("table", { name: "Top 25 blended player rankings" })).toBeInTheDocument();
     expect(screen.getByText("Rankings refreshed. 1900 source records were normalized.")).toBeInTheDocument();
     expect((await axe(container)).violations).toHaveLength(0);
+  });
+
+  it("maps projection columns and merges player aliases", async () => {
+    let importedMapping: Record<string, string> | undefined;
+    let identityReview: Record<string, string> | undefined;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = input instanceof Request ? input : new Request(input, init);
+      const path = new URL(request.url).pathname;
+      if (path.endsWith("/leagues")) return jsonResponse([demoLeague]);
+      if (path.endsWith("/ranking-sources")) return jsonResponse(rankingSources);
+      if (path.endsWith("/projection-sources/import-csv")) {
+        const form = await request.formData();
+        importedMapping = JSON.parse(String(form.get("mapping"))) as Record<string, string>;
+        return jsonResponse({ id: "mapped", name: "Mapped model", recordCount: 1, importedAt: new Date().toISOString() }, 201);
+      }
+      if (path.endsWith("/projection-sources")) return jsonResponse([]);
+      if (path.endsWith("/ranking-identities/review")) {
+        identityReview = await request.json() as Record<string, string>;
+        return new Response(null, { status: 204 });
+      }
+      if (path.endsWith("/ranking-identities")) return jsonResponse([identityIssue]);
+      if (path.endsWith("/ranking-watchlist")) return jsonResponse([]);
+      if (path.endsWith("/rankings")) return jsonResponse(consensusRankings);
+      return jsonResponse(snapshot());
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Ranking sources" }));
+
+    await user.type(screen.getByRole("textbox", { name: "Projection source name" }), "Mapped model");
+    await user.upload(screen.getByLabelText("Projection CSV"), new File(["Player Full Name,Pos,Tm,Rec Total\nAlex Rivers,RB,ATL,72\n"], "mapped.csv", { type: "text/csv" }));
+    expect(await screen.findByRole("combobox", { name: "Player name" })).toHaveValue("Player Full Name");
+    await user.click(screen.getByText("Map optional scoring columns"));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Receptions" }), "Rec Total");
+    const importButton = screen.getByRole("button", { name: "Import projections" });
+    expect(importButton).toBeEnabled();
+    await user.click(importButton);
+    await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => new URL(input instanceof Request ? input.url : input.toString()).pathname.endsWith("/projection-sources/import-csv"))).toBe(true));
+    await waitFor(() => expect(importedMapping).toMatchObject({ name: "Player Full Name", position: "Pos", team: "Tm", reception: "Rec Total" }));
+    expect(await screen.findByText("Mapped model imported with 1 granular player projections.")).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Canonical player" }), "tankdell");
+    await user.click(screen.getByRole("button", { name: "Merge aliases" }));
+    await waitFor(() => expect(identityReview).toMatchObject({ issueKey: "dell|WR|HOU", resolution: "merged", canonicalPlayerKey: "tankdell" }));
+    expect(screen.getByText("Merged")).toBeInTheDocument();
+  });
+
+  it("shows Sleeper reconciliation counts after a read-only sync", async () => {
+    const reconciled = snapshot({ pickNumber: 3, history: [
+      { eventId: 1, number: 1, action: "draft", player: alex, createdAt: new Date().toISOString(), cost: 0 },
+      { eventId: 2, number: 2, action: "taken", player: jordan, createdAt: new Date().toISOString(), cost: 0 },
+    ], myTeam: [alex], available: [] });
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = input instanceof Request ? input : new Request(input, init);
+      const path = new URL(request.url).pathname;
+      if (path.endsWith("/leagues")) return jsonResponse([demoLeague]);
+      if (path.endsWith("/draft/sync/sleeper")) return jsonResponse({ snapshot: reconciled, added: 1, updated: 1, removed: 2, unmatched: 1 });
+      return jsonResponse(snapshot());
+    }));
+    const user = userEvent.setup();
+    render(<App />);
+    await user.type(await screen.findByRole("textbox", { name: "Draft ID" }), "draft-123");
+    await user.click(screen.getByRole("button", { name: "Sync picks" }));
+    expect(await screen.findByText("Sleeper sync reconciled 2 picks: 1 added, 1 changed, 2 removed, 1 unmatched.")).toBeInTheDocument();
+    expect(screen.getByText("Alex Rivers, ATL")).toBeInTheDocument();
   });
 
   it("announces a draft, updates the team, and moves focus to the next available player", async () => {
