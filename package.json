@@ -6,15 +6,17 @@
   "license": "AGPL-3.0-only",
   "scripts": {
     "build": "npm --prefix frontend run build",
+    "audit": "npm --prefix frontend audit --audit-level=high",
     "check": "npm --prefix frontend run check && cd backend && go vet ./...",
     "dev": "npm --prefix frontend run dev",
     "test": "npm run test:frontend && npm run test:backend",
     "test:frontend": "npm --prefix frontend test",
     "test:backend": "cd backend && go test ./...",
-    "verify": "npm run version:check && npm run check && npm test && npm run build",
+    "verify": "npm run version:check && npm run audit && npm run check && npm test && npm run build",
     "version:check": "node scripts/check-version.mjs"
   },
   "engines": {
-    "node": ">=22"
-  }
+    "node": ">=24 <25"
+  },
+  "packageManager": "npm@11.19.0"
 }

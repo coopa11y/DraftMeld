@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { createLeague, deleteLeague, duplicateLeague, listLeagues, updateLeague } from "../shared/api/leagues";
 import type { League, LeagueRules } from "../shared/api/types";
+import { useViewHeadingFocus } from "../shared/hooks/useViewHeadingFocus";
 import { LeagueForm } from "./LeagueForm";
 
 interface LeagueManagerProps {
@@ -16,7 +17,7 @@ export function LeagueManager({ leagues, activeLeagueId, onLeaguesChange, onOpen
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const heading = useRef<HTMLHeadingElement>(null);
+  const heading = useViewHeadingFocus<HTMLHeadingElement>(editingId === null);
   const editingLeague = leagues.find((league) => league.id === editingId);
 
   async function refresh(preferredId?: string) {
@@ -67,7 +68,7 @@ export function LeagueManager({ leagues, activeLeagueId, onLeaguesChange, onOpen
           <button type="button" className="primary-button" onClick={() => setEditingId("new")}>Create league</button>
         </div>
 
-        <div className="sr-only" role="status" aria-live="polite">{message}</div>
+        <div className="sr-only" role="status">{message}</div>
         {error ? <div className="error-banner" role="alert">{error}</div> : null}
         {leagues.length === 0 ? <div className="empty-leagues"><h2>No leagues yet</h2><p>Create your first league to open the draft board.</p></div> : null}
 

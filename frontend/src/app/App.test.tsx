@@ -153,7 +153,8 @@ describe("accessible draft board", () => {
     }));
     const { container } = render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "Available players" })).toBeInTheDocument();
+    const draftHeading = await screen.findByRole("heading", { name: "Available players" });
+    await waitFor(() => expect(draftHeading).toHaveFocus());
     expect(screen.getByRole("table", { name: "Available players sorted by overall rank" })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Draft Alex Rivers, RB, to my team" })).toHaveLength(2);
     expect(screen.getAllByRole("button", { name: "Mark Alex Rivers, RB, as taken by another team" })).toHaveLength(2);
@@ -161,6 +162,43 @@ describe("accessible draft board", () => {
 
     const results = await axe(container);
     expect(results.violations).toHaveLength(0);
+  });
+
+  it("moves focus to each client-side view and keeps load errors inside main content", async () => {
+    let failDraft = false;
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : input.toString();
+      const path = new URL(url).pathname;
+      if (path.endsWith("/leagues")) return jsonResponse([demoLeague]);
+      if (path.endsWith("/ranking-sources")) return jsonResponse(rankingSources);
+      if (path.endsWith("/projection-sources") || path.endsWith("/ranking-identities") || path.endsWith("/ranking-watchlist") || path.endsWith("/rankings")) return jsonResponse([]);
+      if (failDraft) return jsonResponse({ error: "Unable to load the draft." }, 500);
+      return jsonResponse(snapshot());
+    }));
+    const user = userEvent.setup();
+    const firstRender = render(<App />);
+
+    const rbFilter = await screen.findByRole("button", { name: "RB" });
+    rbFilter.focus();
+    await user.keyboard(" ");
+    expect(rbFilter).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("table", { name: "Available RB players sorted by RB rank" })).toBeInTheDocument();
+
+    const rankingNavigation = screen.getByRole("button", { name: "Ranking sources" });
+    rankingNavigation.focus();
+    await user.keyboard("{Enter}");
+    const rankingHeading = await screen.findByRole("heading", { name: "Ranking sources" });
+    await waitFor(() => expect(rankingHeading).toHaveFocus());
+    await user.click(screen.getByRole("button", { name: "Manage leagues" }));
+    const leaguesHeading = await screen.findByRole("heading", { name: "Your leagues" });
+    await waitFor(() => expect(leaguesHeading).toHaveFocus());
+
+    firstRender.unmount();
+    failDraft = true;
+    render(<App />);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Unable to load the draft.");
+    expect(alert.closest("main")).not.toBeNull();
   });
 
   it("shows a position-only board sorted and labeled by position rank", async () => {

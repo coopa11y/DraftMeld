@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { getDraft, recordDraftAction, setPlayerPreference, simulateToNextTurn, syncSleeperDraft, undoDraftAction } from "../shared/api/draft";
 import type { DraftAction, DraftSnapshot, Player } from "../shared/api/types";
+import { useViewHeadingFocus } from "../shared/hooks/useViewHeadingFocus";
 import { DraftSidebar } from "./DraftSidebar";
 import { PlayerBoard } from "./PlayerBoard";
 
@@ -14,14 +15,11 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
   const [announcement, setAnnouncement] = useState("Draft board loading.");
   const [error, setError] = useState("");
   const pendingFocus = useRef<string | null>(null);
-  const boardHeading = useRef<HTMLHeadingElement>(null);
+  const boardHeading = useViewHeadingFocus<HTMLHeadingElement>(snapshot !== null);
   const errorAlert = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let active = true;
-    setSnapshot(null);
-    setError("");
-    setAnnouncement("Draft board loading.");
     getDraft(leagueId)
       .then((data) => {
         if (!active) return;
@@ -40,7 +38,7 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
     const fallback = document.querySelector<HTMLButtonElement>("[data-player-action='primary']");
     (requested ?? fallback ?? boardHeading.current)?.focus();
     pendingFocus.current = null;
-  }, [snapshot]);
+  }, [boardHeading, snapshot]);
 
   useEffect(() => {
     if (error) errorAlert.current?.focus();
@@ -116,8 +114,14 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
     }
   }
 
-  if (!snapshot && !error) {
-    return <main className="centered-status" aria-busy="true"><p role="status">Loading draft board…</p></main>;
+  if (!snapshot) {
+    return (
+      <main className="centered-status" aria-busy={!error}>
+        {error
+          ? <div className="error-banner" role="alert" tabIndex={-1} ref={errorAlert}>{error}</div>
+          : <p role="status">Loading draft board…</p>}
+      </main>
+    );
   }
 
   return (
@@ -126,18 +130,16 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
       <a className="skip-link" href="#recommendations">Skip to recommendations</a>
       <a className="skip-link" href="#my-team">Skip to my team</a>
 
-      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</div>
-      {error ? <div className="error-banner" role="alert" tabIndex={-1} ref={errorAlert}>{error}</div> : null}
-
-      {snapshot ? (
-        <>
-          <section className="workspace-status" aria-label={`Draft status. Pick ${snapshot.pickNumber}. ${snapshot.available.length} players available.`}>
-            <span>{snapshot.leagueName}</span>
-            <strong>Pick {snapshot.pickNumber}</strong>
-            <span>{snapshot.available.length} available</span>
-            <span>{snapshot.dataMode}{snapshot.projectionCount ? ` · ${snapshot.projectionCount} projections` : ""}</span>
-          </section>
-          <main className="draft-layout" aria-busy={busy}>
+      <div className="sr-only" role="status" aria-atomic="true">{announcement}</div>
+      <main id="main-content">
+        {error ? <div className="error-banner" role="alert" tabIndex={-1} ref={errorAlert}>{error}</div> : null}
+        <section className="workspace-status" aria-label={`Draft status. Pick ${snapshot.pickNumber}. ${snapshot.available.length} players available.`}>
+          <span>{snapshot.leagueName}</span>
+          <strong>Pick {snapshot.pickNumber}</strong>
+          <span>{snapshot.available.length} available</span>
+          <span>{snapshot.dataMode}{snapshot.projectionCount ? ` · ${snapshot.projectionCount} projections` : ""}</span>
+        </section>
+        <div className="draft-layout" aria-busy={busy}>
             <PlayerBoard
               snapshot={snapshot}
               busy={busy}
@@ -147,9 +149,8 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
               onPreference={handlePreference}
             />
             <DraftSidebar snapshot={snapshot} busy={busy} onAction={handleAction} onMock={handleMock} onSleeperSync={handleSleeperSync} />
-          </main>
-        </>
-      ) : null}
+        </div>
+      </main>
     </>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { listLeagues } from "../shared/api/leagues";
 import type { League } from "../shared/api/types";
 import { DraftWorkspace } from "./DraftWorkspace";
@@ -10,6 +10,7 @@ const ACTIVE_LEAGUE_KEY = "draftmeld.active-league.v1";
 export function App() {
   const [leagues, setLeagues] = useState<League[]>([]);
   const [activeLeagueId, setActiveLeagueId] = useState(() => localStorage.getItem(ACTIVE_LEAGUE_KEY) ?? "demo");
+  const initialActiveLeagueId = useRef(activeLeagueId);
   const [view, setView] = useState<"draft" | "leagues" | "rankings">("draft");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -20,7 +21,7 @@ export function App() {
       .then((loaded) => {
         if (!active) return;
         setLeagues(loaded);
-        const selected = loaded.some((league) => league.id === activeLeagueId) ? activeLeagueId : loaded[0]?.id;
+        const selected = loaded.some((league) => league.id === initialActiveLeagueId.current) ? initialActiveLeagueId.current : loaded[0]?.id;
         if (selected) selectLeague(selected);
         else setView("leagues");
       })
@@ -78,7 +79,7 @@ export function App() {
       </header>
 
       {error ? <div className="error-banner" role="alert">Unable to load leagues. {error}</div> : null}
-      {view === "rankings" && activeLeague ? <RankingSources league={activeLeague} onLeagueUpdated={handleLeagueUpdated} /> : view === "leagues" ? (
+      {view === "rankings" && activeLeague ? <RankingSources key={activeLeague.id} league={activeLeague} onLeagueUpdated={handleLeagueUpdated} /> : view === "leagues" ? (
         <LeagueManager
           leagues={leagues}
           activeLeagueId={activeLeagueId}
@@ -86,7 +87,7 @@ export function App() {
           onOpenDraft={(id) => { selectLeague(id); setView("draft"); }}
         />
       ) : (
-        <DraftWorkspace leagueId={activeLeagueId} />
+        <DraftWorkspace key={activeLeagueId} leagueId={activeLeagueId} />
       )}
     </>
   );

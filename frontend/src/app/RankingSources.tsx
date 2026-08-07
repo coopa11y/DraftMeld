@@ -1,21 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { leagueToRules, updateLeague } from "../shared/api/leagues";
 import { getConsensusRankings, getRankingWatchlist, importRankingPDF, listIdentityIssues, listProjectionSources, listRankingSources, refreshRankingSources } from "../shared/api/rankings";
 import type { ConsensusRanking, IdentityIssue, League, LeagueRules, ProjectionSource, RankingSource, RankingSourcePreference, WatchlistPlayer } from "../shared/api/types";
+import { useViewHeadingFocus } from "../shared/hooks/useViewHeadingFocus";
 import { IdentityReviewQueue } from "./IdentityReviewQueue";
 import { ProjectionImport } from "./ProjectionImport";
-
-const refreshTimeFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
-const providerCoverage = [
-  { provider: "CBS Sports", status: "Connected", detail: "Current public PPR Top 200 consensus." },
-  { provider: "Yahoo Fantasy", status: "OAuth required", detail: "Public rankings are league-specific; full league data requires approved API access." },
-  { provider: "NFL.com", status: "Held out", detail: "The public overall draft table still contains the prior-season board." },
-  { provider: "ESPN", status: "PDF import", detail: "Upload a PPR Top 300 or Dynasty Cheat Sheet that you are permitted to use." },
-] as const;
-
-function formatRefreshTime(value?: string | null) {
-  return value ? refreshTimeFormatter.format(new Date(value)) : "Refresh required";
-}
+import { RankingEvidencePanels } from "./RankingEvidencePanels";
+import { RankingSourcePreferences } from "./RankingSourcePreferences";
 
 interface RankingSourcesProps {
   league: League;
@@ -23,6 +14,8 @@ interface RankingSourcesProps {
 }
 
 export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps) {
+  const heading = useViewHeadingFocus<HTMLHeadingElement>();
+  const initialLeague = useRef(league);
   const [sources, setSources] = useState<RankingSource[]>([]);
   const [rankings, setRankings] = useState<ConsensusRanking[]>([]);
   const [preferences, setPreferences] = useState<Record<string, RankingSourcePreference>>({});
@@ -39,8 +32,9 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
     let active = true;
     async function load() {
       try {
+        const selectedLeague = initialLeague.current;
         const [loaded, consensus, disabledSourcePlayers, projections, identities] = await Promise.all([
-          listRankingSources(), getConsensusRankings(league.id), getRankingWatchlist(league.id), listProjectionSources(), listIdentityIssues(),
+          listRankingSources(), getConsensusRankings(selectedLeague.id), getRankingWatchlist(selectedLeague.id), listProjectionSources(), listIdentityIssues(),
         ]);
         if (!active) return;
         setSources(loaded);
@@ -48,8 +42,8 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
         setWatchlist(disabledSourcePlayers);
         setProjectionSources(projections);
         setIdentityIssues(identities);
-        setConsensusMethod(league.consensusMethod);
-        setPreferences(Object.fromEntries(loaded.map((source) => [source.id, league.sourcePreferences[source.id] ?? { weight: source.defaultWeight, enabled: true }])));
+        setConsensusMethod(selectedLeague.consensusMethod);
+        setPreferences(Object.fromEntries(loaded.map((source) => [source.id, selectedLeague.sourcePreferences[source.id] ?? { weight: source.defaultWeight, enabled: true }])));
       } catch (reason) {
         if (active) setError(reason instanceof Error ? reason.message : "Unable to load ranking sources.");
       } finally {
@@ -58,7 +52,7 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
     }
     void load();
     return () => { active = false; };
-  }, [league.id]);
+  }, []);
 
   async function refresh() {
     setBusy(true);
@@ -144,17 +138,17 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
   const enabledImportedSourceCount = sources.filter((source) => source.recordCount > 0 && (preferences[source.id]?.enabled ?? true)).length;
 
   return (
-    <main className="ranking-page" id="main-content">
+    <main className="ranking-page" id="main-content" aria-busy={busy}>
       <section className="ranking-panel" aria-labelledby="ranking-sources-heading">
         <div className="section-heading">
           <div>
             <p className="eyebrow">Ranking data</p>
-            <h1 id="ranking-sources-heading">Ranking sources</h1>
+            <h1 id="ranking-sources-heading" ref={heading} tabIndex={-1}>Ranking sources</h1>
             <p className="section-description">Choose which sources shape {league.name}, then tune their relative influence. Equal weights have equal pull.</p>
           </div>
           <button className="primary-button" type="button" onClick={refresh} disabled={busy}>{busy ? "Working..." : "Refresh all sources"}</button>
         </div>
-        <p className="status-message" role="status" aria-live="polite">{message}</p>
+        <p className="status-message" role="status">{message}</p>
         {error ? <div className="error-banner" role="alert">{error}</div> : null}
         <form className="pdf-import-form" onSubmit={uploadPDF}>
           <div>
@@ -164,99 +158,31 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
           <input id="ranking-pdf" name="file" type="file" accept="application/pdf,.pdf" aria-describedby="ranking-pdf-help" onChange={(event) => setPDFFile(event.target.files?.[0] ?? null)} disabled={busy} />
           <button className="secondary-button" type="submit" disabled={busy || !pdfFile}>Import PDF</button>
         </form>
-        <form className="source-weight-form" onSubmit={saveWeights}>
-          <fieldset disabled={busy}>
-            <legend>Source preferences for {league.name}</legend>
-            <p className="field-help">Included sources shape the consensus. Excluded sources stay available for the compact "Worth another look" list. Weight 2 has twice the pull of weight 1, and matching weights have equal influence. At least one source must remain included.</p>
-            <label className="consensus-method-control">Consensus method<select value={consensusMethod} onChange={(event) => setConsensusMethod(event.target.value as LeagueRules["consensusMethod"])}><option value="weighted-median">Weighted median — resistant to outliers</option><option value="trimmed-mean">Trimmed mean — ignores extremes</option><option value="weighted-average">Weighted average — maximum source sensitivity</option></select></label>
-            <ul className="source-grid">
-              {sources.map((source) => {
-                const preference = preferences[source.id] ?? { weight: source.defaultWeight, enabled: true };
-                return (
-                  <li key={source.id}>
-                    <article className={`source-card${preference.enabled ? "" : " source-card-disabled"}`}>
-                    <div className="source-card-heading"><h2>{source.name}</h2><span>{source.recordCount > 0 ? `${source.recordCount} players` : "Not imported"}</span></div>
-                    <p>{source.description}</p>
-                    <dl>
-                      <div><dt>Method</dt><dd>{source.methodology}</dd></div>
-                      <div><dt>Signal role</dt><dd>{source.role}</dd></div>
-                      <div><dt>License</dt><dd>{source.license}</dd></div>
-                      <div><dt>Default weight</dt><dd>{source.defaultWeight}</dd></div>
-                      <div><dt>Published</dt><dd>{source.publishedAt || "Refresh required"}</dd></div>
-                      <div><dt>Last refreshed</dt><dd>{formatRefreshTime(source.refreshedAt)}</dd></div>
-                    </dl>
-                    <label className="source-enabled-control">
-                      <input type="checkbox" checked={preference.enabled} disabled={preference.enabled && enabledSourceCount === 1} onChange={(event) => {
-                        setPreferences((current) => ({ ...current, [source.id]: { ...preference, enabled: event.target.checked } }));
-                      }} />
-                      Include {source.name} in consensus
-                    </label>
-                    <label className="source-weight-control" htmlFor={`source-weight-${source.id}`}>
-                      <span>{source.name} influence</span>
-                      <input id={`source-weight-${source.id}`} type="number" min="0.1" max="10" step="0.1" required disabled={!preference.enabled} value={preference.weight} onChange={(event) => {
-                        const weight = Number(event.target.value);
-                        setPreferences((current) => ({ ...current, [source.id]: { ...preference, weight } }));
-                      }} />
-                    </label>
-                    <a href={source.projectUrl} target="_blank" rel="noreferrer">View source website<span className="sr-only"> for {source.name}</span></a>
-                    </article>
-                  </li>
-                );
-              })}
-            </ul>
-            <div className="source-weight-actions">
-              <button className="primary-button" type="submit" disabled={!preferencesChanged || busy}>Save preferences</button>
-              <button className="secondary-button" type="button" onClick={resetPreferences} disabled={busy}>Include all and restore defaults</button>
-            </div>
-          </fieldset>
-        </form>
+        <RankingSourcePreferences
+          busy={busy}
+          consensusMethod={consensusMethod}
+          enabledSourceCount={enabledSourceCount}
+          leagueName={league.name}
+          preferences={preferences}
+          preferencesChanged={preferencesChanged}
+          sources={sources}
+          onConsensusMethodChange={setConsensusMethod}
+          onPreferencesChange={setPreferences}
+          onReset={resetPreferences}
+          onSubmit={saveWeights}
+        />
       </section>
 
       <ProjectionImport busy={busy} sources={projectionSources} onBusyChange={setBusy} onImported={(source) => setProjectionSources((current) => [...current.filter((candidate) => candidate.id !== source.id), source])} onMessage={setMessage} onError={setError} />
 
       <IdentityReviewQueue busy={busy} issues={identityIssues} onBusyChange={setBusy} onReviewed={(issueKey, resolution, canonicalPlayerKey) => setIdentityIssues((current) => current.map((issue) => issue.issueKey === issueKey ? { ...issue, resolution, canonicalPlayerKey } : issue))} onError={setError} />
 
-      {watchlist.length > 0 ? (
-        <section className="ranking-panel watchlist-panel" aria-labelledby="watchlist-heading">
-          <div className="section-heading"><div><p className="eyebrow">Excluded-source signals</p><h2 id="watchlist-heading">Worth another look</h2><p className="section-description">A short list of players ranked meaningfully higher by sources you excluded from the main consensus.</p></div></div>
-          <ul className="watchlist-grid">
-            {watchlist.map((player) => (
-              <li key={player.playerKey}>
-                <article>
-                  <h3>{player.name} <span>{player.position} - {player.team}</span></h3>
-                  <ul>
-                    {player.signals.map((signal) => (
-                      <li key={signal.sourceId}>{player.consensusRank === null
-                        ? `${signal.sourceName} ranks this player #${signal.sourceRank}; enabled sources do not currently rank the player.`
-                        : `${signal.sourceName} ranks this player #${signal.sourceRank}, ${signal.spotsHigher} spots above consensus #${player.consensusRank}.`}</li>
-                    ))}
-                  </ul>
-                </article>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      <section className="ranking-panel" aria-labelledby="provider-coverage-heading">
-        <div className="section-heading"><div><p className="eyebrow">Freshness safeguards</p><h2 id="provider-coverage-heading">Platform connector status</h2><p className="section-description">DraftMeld holds a provider out when its available data is stale, incomplete, or requires approval.</p></div></div>
-        <ul className="coverage-list">
-          {providerCoverage.map((provider) => <li key={provider.provider}><div><strong>{provider.provider}</strong><span>{provider.status}</span></div><p>{provider.detail}</p></li>)}
-        </ul>
-      </section>
-
-      {rankings.length > 0 ? (
-        <section className="ranking-panel" aria-labelledby="consensus-heading">
-          <div className="section-heading"><div><p className="eyebrow">League-weighted preview</p><h2 id="consensus-heading">DraftMeld consensus for {league.name}</h2><p className="section-description">Lists are normalized for source depth, primary ranking omissions are handled conservatively, and contextual market or usage signals only apply when present. Lower is better.</p></div></div>
-          <div className="table-scroll">
-            <table aria-label="Top 25 blended player rankings">
-              <caption>Top 25 blended player rankings</caption>
-              <thead><tr><th>Rank</th><th>Player</th><th>Pos.</th><th>Sources</th><th>Score</th><th>Confidence</th></tr></thead>
-              <tbody>{rankings.slice(0, 25).map((player) => <tr key={player.playerKey}><td>{player.rank}</td><th scope="row"><span className="player-name">{player.name}</span><span className="player-meta">{player.team || "Team unavailable"}</span></th><td>{player.position}</td><td>{player.sourceCount} of {enabledImportedSourceCount}</td><td>{player.score.toFixed(1)}</td><td><span className={`confidence-badge confidence-${player.confidence}`}>{player.confidence}</span><span className="player-meta">{Math.round(player.coverage * 100)}% coverage, {player.rankRange}-rank range</span></td></tr>)}</tbody>
-            </table>
-          </div>
-        </section>
-      ) : null}
+      <RankingEvidencePanels
+        enabledImportedSourceCount={enabledImportedSourceCount}
+        leagueName={league.name}
+        rankings={rankings}
+        watchlist={watchlist}
+      />
     </main>
   );
 }
