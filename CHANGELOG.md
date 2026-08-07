@@ -2,6 +2,33 @@
 
 All notable DraftMeld changes will be documented here. DraftMeld follows Semantic Versioning.
 
+## [0.3.0] - Unreleased
+
+### Added
+
+- Role-aware Consensus v2 with list-depth normalization, conservative missing-rank handling, weighted median, trimmed mean, and weighted average
+- Per-player coverage, disagreement range, and confidence evidence
+- Granular projection CSV imports scored with each league's custom rules
+- Real consensus players on the live draft board with dedicated, FLEX, and SUPERFLEX replacement allocation
+- Projection-based VOR, positional tiers, auction values, budget tracking, and live inflation
+- Persistent target and avoid lists with recommendation influence
+- Explainable next-pick availability, positional-run, tier-cliff, roster-need, VOR, ADP, and auction reasons
+- Deterministic mock opponents and simulate-to-next-turn workflow
+- Read-only Sleeper pick synchronization using the public draft endpoint
+- Persistent player-identity review queue for uncertain matches
+- Interactive projection CSV column mapping with common-header detection
+- Explicit canonical-player alias merging across rankings and projections
+- Sleeper reconciliation counts, remote deletion/change handling, and optional 15-second polling
+- Configurable minimum bids, keeper spend/value calibration, and maximum legal bid protection
+- Golden intelligence scenarios and an API-level draft workflow test backed by temporary SQLite
+
+### Changed
+
+- DraftMeld now separates ordinal rankings, contextual market and usage signals, and granular projections
+- Common player suffixes and defense aliases normalize into more stable canonical identities
+- The ranking workspace now exposes consensus methodology, source roles, projection inputs, identity exceptions, and uncertainty
+- Advanced league settings now persist consensus method, player preferences, and auction calibration together with the existing league configuration
+
 ## [0.2.0] - Unreleased
 
 ### Added

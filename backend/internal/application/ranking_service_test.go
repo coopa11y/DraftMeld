@@ -20,7 +20,7 @@ func TestRankingDownloadRetriesTransientServerFailure(t *testing.T) {
 	attempts := 0
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		attempts++
-		if request.Header.Get("User-Agent") != "DraftMeld/0.2 (+https://github.com/coopa11y/DraftMeld)" {
+		if request.Header.Get("User-Agent") != "DraftMeld/0.3 (+https://github.com/coopa11y/DraftMeld)" {
 			t.Errorf("unexpected user agent: %s", request.Header.Get("User-Agent"))
 		}
 		if attempts == 1 {

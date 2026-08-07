@@ -17,7 +17,7 @@ import (
 	draftsqlite "github.com/coopa11y/DraftMeld/backend/internal/persistence/sqlite"
 )
 
-var version = "0.2.0-dev"
+var version = "0.3.0-dev"
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
@@ -35,6 +35,7 @@ func main() {
 	defer store.Close()
 	leagueService := application.NewLeagueService(store)
 	rankingService := application.NewRankingService(store)
+	projectionService := application.NewProjectionService(store)
 	if err = leagueService.EnsureDefault(context.Background()); err != nil {
 		logger.Error("initialize leagues", "error", err)
 		os.Exit(1)
@@ -44,10 +45,11 @@ func main() {
 		logger.Error("configure draft service", "error", err)
 		os.Exit(1)
 	}
+	draftService.UseIntelligence(rankingService, projectionService)
 
 	server := &http.Server{
 		Addr:              address,
-		Handler:           draftapi.NewRouter(logger, version, draftService, leagueService, rankingService),
+		Handler:           draftapi.NewRouter(logger, version, draftService, leagueService, rankingService, projectionService),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}

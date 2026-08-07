@@ -1,5 +1,5 @@
 import { apiClient, unwrap } from "./client";
-import type { ConsensusRanking, ErrorResponse, RankingPDFImport, RankingSource, WatchlistPlayer } from "./types";
+import type { ConsensusRanking, ErrorResponse, IdentityIssue, ProjectionSource, RankingPDFImport, RankingSource, WatchlistPlayer } from "./types";
 
 export async function listRankingSources(): Promise<RankingSource[]> {
   const { data, error, response } = await apiClient.GET("/ranking-sources");
@@ -34,4 +34,30 @@ export async function importRankingPDF(file: File): Promise<RankingPDFImport> {
     throw new Error("error" in body ? body.error : `Request failed with ${response.status}`);
   }
   return body as RankingPDFImport;
+}
+
+export async function listProjectionSources(): Promise<ProjectionSource[]> {
+  const { data, error, response } = await apiClient.GET("/projection-sources");
+  return unwrap(data, error, response);
+}
+
+export async function importProjectionCSV(name: string, file: File, mapping: Record<string, string>): Promise<ProjectionSource> {
+  const form = new FormData();
+  form.append("name", name);
+  form.append("file", file);
+  form.append("mapping", JSON.stringify(mapping));
+  const response = await globalThis.fetch(new URL("/api/v1/projection-sources/import-csv", window.location.origin), { method: "POST", body: form });
+  const body = await response.json() as ProjectionSource | ErrorResponse;
+  if (!response.ok) throw new Error("error" in body ? body.error : `Request failed with ${response.status}`);
+  return body as ProjectionSource;
+}
+
+export async function listIdentityIssues(): Promise<IdentityIssue[]> {
+  const { data, error, response } = await apiClient.GET("/ranking-identities");
+  return unwrap(data, error, response);
+}
+
+export async function reviewIdentity(issueKey: string, resolution: "confirmed-separate" | "acknowledged" | "merged", canonicalPlayerKey = ""): Promise<void> {
+  const { error, response } = await apiClient.POST("/ranking-identities/review", { body: { issueKey, resolution, canonicalPlayerKey } });
+  if (!response.ok) throw new Error((error as ErrorResponse | undefined)?.error ?? `Request failed with ${response.status}`);
 }

@@ -211,6 +211,15 @@ func rankCandidates(sourceID string, candidates []rankingCandidate, descending b
 }
 
 func normalizePlayerKey(name string) string {
+	parts := strings.Fields(strings.TrimSpace(name))
+	if len(parts) > 1 {
+		suffix := strings.Trim(strings.ToLower(parts[len(parts)-1]), ".,")
+		switch suffix {
+		case "jr", "sr", "ii", "iii", "iv", "v":
+			parts = parts[:len(parts)-1]
+			name = strings.Join(parts, " ")
+		}
+	}
 	return strings.Map(func(value rune) rune {
 		if unicode.IsLetter(value) || unicode.IsDigit(value) {
 			return unicode.ToLower(value)

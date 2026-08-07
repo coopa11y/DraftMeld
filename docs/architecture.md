@@ -35,7 +35,9 @@ Owns provider adapters, CSV column mapping, canonical-player matching inputs, ra
 
 The first model should support mean rank, median rank, trimmed mean, and weighted rank. Missing players, source coverage, ties, and outliers must be explicit. Projection aggregation and ordinal ranking aggregation remain separate operations.
 
-The initial implementation uses a weighted average of ordinal ranks. The current redraft consensus defines the eligible player pool; dynasty value and prior-season expected-opportunity signals may change a player's score but cannot introduce a historical-only player. Every result reports its contributing source count and per-source ranks. League-specific preferences control inclusion and relative influence, while excluded sources feed a bounded outlier watchlist. Stronger individual-player identity matching remains planned work.
+Consensus v2 normalizes source-list depths and supports weighted median, trimmed mean, and weighted average. The current redraft consensus defines the eligible player pool; dynasty market and prior-season opportunity signals contribute only when present and cannot introduce a historical-only player. Every result reports source count, coverage, disagreement range, confidence, and per-source ranks. League-specific preferences control inclusion and relative influence, while excluded sources feed a bounded outlier watchlist.
+
+Granular projection aggregation is separate from ordinal consensus. League scoring produces projected fantasy points; roster-wide dedicated, FLEX, and SUPERFLEX demand defines replacement levels, VOR, tiers, and auction values. See `docs/draft-intelligence.md` for the reproducible formulas and limitations.
 
 ## API contract
 
@@ -45,7 +47,7 @@ REST endpoints are defined in `contracts/openapi.yaml`. The contract is the sour
 
 Local development uses a relational database with migrations. League rules and roster slots are persisted configuration. Draft picks are append-only events with compensating undo events, allowing each league's current board to be reconstructed and audited.
 
-SQLite is the initial persistence target. Only the backend process accesses the database file. PostgreSQL is deferred until hosted multi-user write concurrency justifies it.
+SQLite is the initial persistence target. It stores projections, human identity reviews, auction costs, league player preferences, and append-only draft events in addition to league and ranking data. Only the backend process accesses the database file. PostgreSQL is deferred until hosted multi-user write concurrency justifies it.
 
 ## Distribution
 

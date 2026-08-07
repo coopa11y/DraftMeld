@@ -12,6 +12,7 @@ type SourceDefinition struct {
 	DataURL       string  `json:"dataUrl"`
 	DefaultWeight float64 `json:"defaultWeight"`
 	ImportMode    string  `json:"importMode"`
+	Role          string  `json:"role"`
 }
 
 type Record struct {
@@ -39,6 +40,10 @@ type PlayerRanking struct {
 	Score       float64        `json:"score"`
 	SourceCount int            `json:"sourceCount"`
 	SourceRanks map[string]int `json:"sourceRanks"`
+	Coverage    float64        `json:"coverage"`
+	RankRange   int            `json:"rankRange"`
+	Confidence  string         `json:"confidence"`
+	Method      string         `json:"method"`
 }
 
 type WatchlistSignal struct {
@@ -55,4 +60,19 @@ type WatchlistPlayer struct {
 	Team          string            `json:"team"`
 	ConsensusRank *int              `json:"consensusRank"`
 	Signals       []WatchlistSignal `json:"signals"`
+}
+
+type IdentityCandidate struct {
+	PlayerKey string `json:"playerKey"`
+	Name      string `json:"name"`
+	Position  string `json:"position"`
+	Team      string `json:"team"`
+}
+
+type IdentityIssue struct {
+	IssueKey           string              `json:"issueKey"`
+	Reason             string              `json:"reason"`
+	Candidates         []IdentityCandidate `json:"candidates"`
+	Resolution         string              `json:"resolution"`
+	CanonicalPlayerKey string              `json:"canonicalPlayerKey,omitempty"`
 }

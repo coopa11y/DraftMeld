@@ -1,0 +1,1 @@
+ALTER TABLE draft_events ADD COLUMN cost REAL NOT NULL DEFAULT 0 CHECK (cost >= 0);

@@ -47,7 +47,14 @@ func (service *LeagueService) EnsureDefault(ctx context.Context) error {
 }
 
 func (service *LeagueService) List(ctx context.Context) ([]LeagueConfiguration, error) {
-	return service.repository.ListLeagues(ctx)
+	configurations, err := service.repository.ListLeagues(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for index := range configurations {
+		configurations[index].Rules = withDefaultSourcePreferences(configurations[index].Rules)
+	}
+	return configurations, nil
 }
 
 func (service *LeagueService) Get(ctx context.Context, id string) (LeagueConfiguration, error) {
@@ -58,6 +65,7 @@ func (service *LeagueService) Get(ctx context.Context, id string) (LeagueConfigu
 	if !found {
 		return LeagueConfiguration{}, fmt.Errorf("%w: %s", ErrLeagueNotFound, id)
 	}
+	configuration.Rules = withDefaultSourcePreferences(configuration.Rules)
 	return configuration, nil
 }
 
@@ -111,6 +119,19 @@ func (service *LeagueService) Duplicate(ctx context.Context, id string) (LeagueC
 	rules.RosterSlots = cloneRosterSlots(rules.RosterSlots)
 	rules.ScoringRules = cloneScoringRules(rules.ScoringRules)
 	rules.SourcePreferences = cloneSourcePreferences(rules.SourcePreferences)
+	rules.PlayerPreferences = clonePlayerPreferences(rules.PlayerPreferences)
+	if rules.ConsensusMethod == "" {
+		rules.ConsensusMethod = "weighted-median"
+	}
+	if rules.PlayerPreferences == nil {
+		rules.PlayerPreferences = make(map[string]string)
+	}
+	if rules.AuctionBudget <= 0 {
+		rules.AuctionBudget = 200
+	}
+	if rules.AuctionMinimumBid <= 0 {
+		rules.AuctionMinimumBid = 1
+	}
 	return service.Create(ctx, rules)
 }
 
@@ -123,6 +144,28 @@ func (service *LeagueService) Delete(ctx context.Context, id string) error {
 		return fmt.Errorf("%w: %s", ErrLeagueNotFound, id)
 	}
 	return nil
+}
+
+func (service *LeagueService) SetPlayerPreference(ctx context.Context, id, playerID, preference string) (LeagueConfiguration, error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	configuration, err := service.Get(ctx, id)
+	if err != nil {
+		return LeagueConfiguration{}, err
+	}
+	if playerID == "" || (preference != "" && preference != "target" && preference != "avoid") {
+		return LeagueConfiguration{}, fmt.Errorf("%w: player preference must be target, avoid, or empty", ErrInvalidLeague)
+	}
+	configuration.Rules.PlayerPreferences = clonePlayerPreferences(configuration.Rules.PlayerPreferences)
+	if preference == "" {
+		delete(configuration.Rules.PlayerPreferences, playerID)
+	} else {
+		configuration.Rules.PlayerPreferences[playerID] = preference
+	}
+	if err = service.repository.SaveLeague(ctx, configuration); err != nil {
+		return LeagueConfiguration{}, err
+	}
+	return configuration, nil
 }
 
 func (service *LeagueService) availableID(ctx context.Context, base string) (string, error) {
@@ -177,6 +220,14 @@ func cloneSourcePreferences(preferences map[string]league.RankingSourcePreferenc
 	return cloned
 }
 
+func clonePlayerPreferences(preferences map[string]string) map[string]string {
+	cloned := make(map[string]string, len(preferences))
+	for playerID, preference := range preferences {
+		cloned[playerID] = preference
+	}
+	return cloned
+}
+
 func withDefaultSourcePreferences(rules league.Rules) league.Rules {
 	defaults := DefaultRankingSourcePreferences()
 	rules.SourcePreferences = cloneSourcePreferences(rules.SourcePreferences)
@@ -184,6 +235,18 @@ func withDefaultSourcePreferences(rules league.Rules) league.Rules {
 		if _, exists := rules.SourcePreferences[sourceID]; !exists {
 			rules.SourcePreferences[sourceID] = preference
 		}
+	}
+	if rules.ConsensusMethod == "" {
+		rules.ConsensusMethod = "weighted-median"
+	}
+	if rules.PlayerPreferences == nil {
+		rules.PlayerPreferences = make(map[string]string)
+	}
+	if rules.AuctionBudget <= 0 {
+		rules.AuctionBudget = 200
+	}
+	if rules.AuctionMinimumBid <= 0 {
+		rules.AuctionMinimumBid = 1
 	}
 	return rules
 }

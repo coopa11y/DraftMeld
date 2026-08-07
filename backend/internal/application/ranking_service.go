@@ -90,7 +90,7 @@ func (service *RankingService) download(ctx context.Context, source ranking.Sour
 		if err != nil {
 			return nil, fmt.Errorf("build %s request: %w", source.Name, err)
 		}
-		request.Header.Set("User-Agent", "DraftMeld/0.2 (+https://github.com/coopa11y/DraftMeld)")
+		request.Header.Set("User-Agent", "DraftMeld/0.3 (+https://github.com/coopa11y/DraftMeld)")
 		response, err := service.client.Do(request)
 		if err != nil {
 			lastErr = err
@@ -118,8 +118,12 @@ func (service *RankingService) download(ctx context.Context, source ranking.Sour
 	return nil, fmt.Errorf("download %s after retry: %w", source.Name, lastErr)
 }
 
-func (service *RankingService) Consensus(ctx context.Context, preferences map[string]league.RankingSourcePreference) ([]ranking.PlayerRanking, error) {
+func (service *RankingService) Consensus(ctx context.Context, preferences map[string]league.RankingSourcePreference, methods ...string) ([]ranking.PlayerRanking, error) {
 	records, err := service.repository.RankingRecords(ctx)
+	if err != nil {
+		return nil, err
+	}
+	aliases, err := service.identityAliases(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -146,15 +150,19 @@ func (service *RankingService) Consensus(ctx context.Context, preferences map[st
 	eligible := make(map[string]struct{})
 	for _, record := range records {
 		record = canonicalizeRankingRecord(record)
+		record.PlayerKey = resolveIdentityAlias(record.PlayerKey, aliases)
 		if record.SourceID == "redraft-ecr" || record.SourceID == "espn-ppr-pdf" {
 			eligible[record.PlayerKey] = struct{}{}
 		}
 	}
 	sources := make(map[string]ranking.Source)
 	metadata := make(map[string]ranking.Record)
+	metadataPriority := make(map[string]int)
 	sourceRanks := make(map[string]map[string]int)
 	for _, record := range records {
 		record = canonicalizeRankingRecord(record)
+		originalPlayerKey := record.PlayerKey
+		record.PlayerKey = resolveIdentityAlias(record.PlayerKey, aliases)
 		if _, exists := eligible[record.PlayerKey]; !exists {
 			continue
 		}
@@ -167,32 +175,52 @@ func (service *RankingService) Consensus(ctx context.Context, preferences map[st
 			continue
 		}
 		source := sources[record.SourceID]
-		source.ID, source.Weight = record.SourceID, preference.Weight
+		source.ID, source.Role, source.Weight = record.SourceID, definition.Role, preference.Weight
 		if source.Ranks == nil {
 			source.Ranks = make(map[string]int)
 		}
-		source.Ranks[record.PlayerKey] = record.Rank
+		if currentRank, ranked := source.Ranks[record.PlayerKey]; !ranked || record.Rank < currentRank {
+			source.Ranks[record.PlayerKey] = record.Rank
+		}
 		sources[record.SourceID] = source
-		if _, exists = metadata[record.PlayerKey]; !exists || record.SourceID == "espn-ppr-pdf" || record.SourceID == "redraft-ecr" {
+		priority := 0
+		if record.SourceID == "espn-ppr-pdf" || record.SourceID == "redraft-ecr" {
+			priority += 2
+		}
+		if originalPlayerKey == record.PlayerKey {
+			priority += 4
+		}
+		if _, exists = metadata[record.PlayerKey]; !exists || priority > metadataPriority[record.PlayerKey] {
 			metadata[record.PlayerKey] = record
+			metadataPriority[record.PlayerKey] = priority
 		}
 		if sourceRanks[record.PlayerKey] == nil {
 			sourceRanks[record.PlayerKey] = make(map[string]int)
 		}
-		sourceRanks[record.PlayerKey][record.SourceID] = record.Rank
+		if currentRank, ranked := sourceRanks[record.PlayerKey][record.SourceID]; !ranked || record.Rank < currentRank {
+			sourceRanks[record.PlayerKey][record.SourceID] = record.Rank
+		}
 	}
 	weighted := make([]ranking.Source, 0, len(sources))
 	for _, source := range sources {
 		weighted = append(weighted, source)
 	}
-	entries, err := ranking.WeightedAverage(weighted)
+	eligiblePlayers := make([]string, 0, len(eligible))
+	for playerID := range eligible {
+		eligiblePlayers = append(eligiblePlayers, playerID)
+	}
+	method := ranking.MethodWeightedAverage
+	if len(methods) > 0 && methods[0] != "" {
+		method = methods[0]
+	}
+	entries, err := ranking.Combine(weighted, eligiblePlayers, method)
 	if err != nil {
 		return nil, err
 	}
 	result := make([]ranking.PlayerRanking, 0, len(entries))
 	for index, entry := range entries {
 		player := metadata[entry.PlayerID]
-		result = append(result, ranking.PlayerRanking{PlayerKey: entry.PlayerID, Name: player.Name, Position: player.Position, Team: player.Team, Rank: index + 1, Score: entry.Score, SourceCount: entry.SourceCount, SourceRanks: sourceRanks[entry.PlayerID]})
+		result = append(result, ranking.PlayerRanking{PlayerKey: entry.PlayerID, Name: player.Name, Position: player.Position, Team: player.Team, Rank: index + 1, Score: entry.Score, SourceCount: entry.SourceCount, SourceRanks: sourceRanks[entry.PlayerID], Coverage: entry.Coverage, RankRange: entry.RankRange, Confidence: entry.Confidence, Method: method})
 	}
 	return result, nil
 }
