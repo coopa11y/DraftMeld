@@ -2,6 +2,7 @@ package application
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/league"
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/ranking"
@@ -17,6 +18,10 @@ type consensusInputs struct {
 	players     []string
 	metadata    map[string]ranking.Record
 	sourceRanks map[string]map[string]int
+	adpTotals   map[string]float64
+	adpWeights  map[string]float64
+	tierTotals  map[string]float64
+	tierWeights map[string]float64
 }
 
 func validateRankingSourcePreferences(definitions []ranking.SourceDefinition, preferences map[string]league.RankingSourcePreference) error {
@@ -48,16 +53,18 @@ func resolveRankingRecords(records []ranking.Record, aliases map[string]string) 
 }
 
 func buildConsensusInputs(definitions []ranking.SourceDefinition, records []resolvedRankingRecord, preferences map[string]league.RankingSourcePreference) consensusInputs {
-	eligible := eligiblePlayerKeys(records)
 	definitionsByID := make(map[string]ranking.SourceDefinition, len(definitions))
 	for _, definition := range definitions {
 		definitionsByID[definition.ID] = definition
 	}
+	eligible := eligiblePlayerKeys(records, definitionsByID)
 
 	sources := make(map[string]ranking.Source)
 	metadata := make(map[string]ranking.Record)
 	metadataPriority := make(map[string]int)
 	sourceRanks := make(map[string]map[string]int)
+	adpTotals, adpWeights := make(map[string]float64), make(map[string]float64)
+	tierTotals, tierWeights := make(map[string]float64), make(map[string]float64)
 	for _, resolved := range records {
 		record := resolved.record
 		if _, exists := eligible[record.PlayerKey]; !exists {
@@ -72,8 +79,16 @@ func buildConsensusInputs(definitions []ranking.SourceDefinition, records []reso
 			continue
 		}
 		addSourceRank(sources, record, definition, preference)
-		addPlayerMetadata(metadata, metadataPriority, record, resolved.isCanonical)
+		addPlayerMetadata(metadata, metadataPriority, record, definition, resolved.isCanonical)
 		addPlayerSourceRank(sourceRanks, record)
+		if record.ADP > 0 {
+			adpTotals[record.PlayerKey] += record.ADP * preference.Weight
+			adpWeights[record.PlayerKey] += preference.Weight
+		}
+		if record.Tier > 0 {
+			tierTotals[record.PlayerKey] += float64(record.Tier) * preference.Weight
+			tierWeights[record.PlayerKey] += preference.Weight
+		}
 	}
 
 	weighted := make([]ranking.Source, 0, len(sources))
@@ -84,16 +99,17 @@ func buildConsensusInputs(definitions []ranking.SourceDefinition, records []reso
 	for playerID := range eligible {
 		players = append(players, playerID)
 	}
-	return consensusInputs{sources: weighted, players: players, metadata: metadata, sourceRanks: sourceRanks}
+	return consensusInputs{sources: weighted, players: players, metadata: metadata, sourceRanks: sourceRanks,
+		adpTotals: adpTotals, adpWeights: adpWeights, tierTotals: tierTotals, tierWeights: tierWeights}
 }
 
-func eligiblePlayerKeys(records []resolvedRankingRecord) map[string]struct{} {
-	// Current redraft lists define the eligible pool. Contextual and dynasty
+func eligiblePlayerKeys(records []resolvedRankingRecord, definitions map[string]ranking.SourceDefinition) map[string]struct{} {
+	// Ordinal ranking lists define the eligible pool. Contextual market and usage
 	// feeds enrich those players without introducing retired players on their own.
 	eligible := make(map[string]struct{})
 	for _, resolved := range records {
 		record := resolved.record
-		if record.SourceID == "redraft-ecr" || record.SourceID == "espn-ppr-pdf" {
+		if definitions[record.SourceID].Role == "ranking" {
 			eligible[record.PlayerKey] = struct{}{}
 		}
 	}
@@ -112,9 +128,9 @@ func addSourceRank(sources map[string]ranking.Source, record ranking.Record, def
 	sources[record.SourceID] = source
 }
 
-func addPlayerMetadata(metadata map[string]ranking.Record, priorities map[string]int, record ranking.Record, isCanonical bool) {
+func addPlayerMetadata(metadata map[string]ranking.Record, priorities map[string]int, record ranking.Record, definition ranking.SourceDefinition, isCanonical bool) {
 	priority := 0
-	if record.SourceID == "espn-ppr-pdf" || record.SourceID == "redraft-ecr" {
+	if definition.Role == "ranking" {
 		priority += 2
 	}
 	if isCanonical {
@@ -146,11 +162,18 @@ func playerRankings(entries []ranking.Entry, inputs consensusInputs, method stri
 	result := make([]ranking.PlayerRanking, 0, len(entries))
 	for index, entry := range entries {
 		player := inputs.metadata[entry.PlayerID]
+		adp, tier := 0.0, 0
+		if inputs.adpWeights[entry.PlayerID] > 0 {
+			adp = inputs.adpTotals[entry.PlayerID] / inputs.adpWeights[entry.PlayerID]
+		}
+		if inputs.tierWeights[entry.PlayerID] > 0 {
+			tier = int(math.Round(inputs.tierTotals[entry.PlayerID] / inputs.tierWeights[entry.PlayerID]))
+		}
 		result = append(result, ranking.PlayerRanking{
 			PlayerKey: entry.PlayerID, Name: player.Name, Position: player.Position, Team: player.Team,
 			Rank: index + 1, Score: entry.Score, SourceCount: entry.SourceCount,
 			SourceRanks: inputs.sourceRanks[entry.PlayerID], Coverage: entry.Coverage,
-			RankRange: entry.RankRange, Confidence: entry.Confidence, Method: method,
+			RankRange: entry.RankRange, Confidence: entry.Confidence, Method: method, ADP: adp, Tier: tier,
 		})
 	}
 	return result

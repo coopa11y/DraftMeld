@@ -223,6 +223,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ranking-sources/import-csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import a private ordinal ranking source from CSV */
+        post: operations["importRankingCSV"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projection-sources": {
         parameters: {
             query?: never;
@@ -499,15 +516,14 @@ export interface components {
             description: string;
             methodology: string;
             license: string;
-            /** Format: uri */
             projectUrl: string;
-            /** Format: uri */
             dataUrl: string;
             defaultWeight: number;
             /** @enum {string} */
-            importMode: "download" | "pdf-upload";
+            importMode: "download" | "pdf-upload" | "csv-upload";
             /** @enum {string} */
             role: "ranking" | "market" | "usage";
+            isCustom: boolean;
             recordCount: number;
             /** Format: date-time */
             refreshedAt?: string | null;
@@ -539,6 +555,8 @@ export interface components {
             confidence: "high" | "medium" | "low";
             /** @enum {string} */
             method: "weighted-average" | "weighted-median" | "trimmed-mean";
+            adp: number;
+            tier: number;
         };
         ProjectionSource: {
             id: string;
@@ -1070,6 +1088,37 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+        };
+    };
+    importRankingCSV: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    name: string;
+                    /** Format: binary */
+                    file: string;
+                    /** @description JSON object mapping DraftMeld field names to source CSV headers. */
+                    mapping?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The private ranking source was normalized and imported. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RankingSource"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
         };
     };
     listProjectionSources: {

@@ -14,6 +14,7 @@ import (
 
 type rankingRepositoryStub struct {
 	records []ranking.Record
+	custom  []ranking.SourceDefinition
 }
 
 func TestRankingDownloadRetriesTransientServerFailure(t *testing.T) {
@@ -41,7 +42,11 @@ func TestRankingDownloadRetriesTransientServerFailure(t *testing.T) {
 	}
 }
 
-func (repository *rankingRepositoryStub) ReplaceRankings(context.Context, ranking.SourceDefinition, []ranking.Record, string, time.Time) error {
+func (repository *rankingRepositoryStub) ReplaceRankings(_ context.Context, source ranking.SourceDefinition, records []ranking.Record, _ string, _ time.Time) error {
+	repository.records = append([]ranking.Record(nil), records...)
+	if source.IsCustom {
+		repository.custom = []ranking.SourceDefinition{source}
+	}
 	return nil
 }
 
@@ -51,6 +56,10 @@ func (repository *rankingRepositoryStub) RankingRecords(context.Context) ([]rank
 
 func (repository *rankingRepositoryStub) RankingStatuses(context.Context) (map[string]ranking.SourceStatus, error) {
 	return map[string]ranking.SourceStatus{}, nil
+}
+
+func (repository *rankingRepositoryStub) CustomRankingSources(context.Context) ([]ranking.SourceDefinition, error) {
+	return repository.custom, nil
 }
 
 func TestConsensusUsesCurrentRedraftPoolAsEligibilityAnchor(t *testing.T) {

@@ -2,51 +2,53 @@ import { useState, type FormEvent } from "react";
 import { importProjectionCSV } from "../shared/api/rankings";
 import type { ProjectionSource } from "../shared/api/types";
 import { Button } from "../shared/ui/Button";
+import {
+  autoMapCsvHeaders,
+  CsvColumnMapper,
+  inspectCsvHeaders,
+  type CsvColumnDefinition,
+} from "../shared/ui/CsvColumnMapper";
 import { FormField } from "../shared/ui/FormField";
 import { Panel } from "../shared/ui/Panel";
 
 const projectionTemplate =
   "data:text/csv;charset=utf-8,name%2Cposition%2Cteam%2Cadp%2CbyeWeek%2Creception%2CpassingYard%2CpassingTouchdown%2Cinterception%2CrushingYard%2CrushingTouchdown%2CreceivingYard%2CreceivingTouchdown%2CfieldGoalMade%2CextraPointMade%2CdefenseSack%2CdefenseInterception%2CdefenseFumbleRecovery%2CdefenseTouchdown%2CdefenseSafety%0A";
 
-const requiredColumns = [
-  ["name", "Player name"],
-  ["position", "Position"],
-  ["team", "NFL team"],
-] as const;
-const optionalColumns = [
-  ["adp", "Average draft position"],
-  ["byeWeek", "Bye week"],
-  ["reception", "Receptions"],
-  ["passingYard", "Passing yards"],
-  ["passingTouchdown", "Passing touchdowns"],
-  ["interception", "Interceptions"],
-  ["rushingYard", "Rushing yards"],
-  ["rushingTouchdown", "Rushing touchdowns"],
-  ["receivingYard", "Receiving yards"],
-  ["receivingTouchdown", "Receiving touchdowns"],
-  ["fieldGoalMade", "Field goals made"],
-  ["extraPointMade", "Extra points made"],
-  ["defenseSack", "Defensive sacks"],
-  ["defenseInterception", "Defensive interceptions"],
-  ["defenseFumbleRecovery", "Fumble recoveries"],
-  ["defenseTouchdown", "Defensive touchdowns"],
-  ["defenseSafety", "Safeties"],
-] as const;
-
-const headerAliases: Record<string, string[]> = {
-  name: ["name", "player", "playername", "playerfullname"],
-  position: ["position", "pos"],
-  team: ["team", "nflteam", "tm"],
-  adp: ["adp", "averagedraftposition"],
-  byeWeek: ["bye", "byeweek"],
-  passingYard: ["passingyard", "passingyards", "passyds"],
-  passingTouchdown: ["passingtouchdown", "passingtouchdowns", "passtd"],
-  rushingYard: ["rushingyard", "rushingyards", "rushyds"],
-  rushingTouchdown: ["rushingtouchdown", "rushingtouchdowns", "rushtd"],
-  receivingYard: ["receivingyard", "receivingyards", "recyds"],
-  receivingTouchdown: ["receivingtouchdown", "receivingtouchdowns", "rectd"],
-  reception: ["reception", "receptions", "rec"],
-};
+const projectionColumns: CsvColumnDefinition[] = [
+  { key: "name", label: "Player name", required: true, aliases: ["name", "player", "playername", "playerfullname"] },
+  { key: "position", label: "Position", required: true, aliases: ["position", "pos"] },
+  { key: "team", label: "NFL team", required: true, aliases: ["team", "nflteam", "tm"] },
+  { key: "adp", label: "Average draft position", aliases: ["adp", "averagedraftposition"] },
+  { key: "byeWeek", label: "Bye week", aliases: ["bye", "byeweek"] },
+  { key: "reception", label: "Receptions", aliases: ["reception", "receptions", "rec"] },
+  { key: "passingYard", label: "Passing yards", aliases: ["passingyard", "passingyards", "passyds"] },
+  {
+    key: "passingTouchdown",
+    label: "Passing touchdowns",
+    aliases: ["passingtouchdown", "passingtouchdowns", "passtd"],
+  },
+  { key: "interception", label: "Interceptions" },
+  { key: "rushingYard", label: "Rushing yards", aliases: ["rushingyard", "rushingyards", "rushyds"] },
+  {
+    key: "rushingTouchdown",
+    label: "Rushing touchdowns",
+    aliases: ["rushingtouchdown", "rushingtouchdowns", "rushtd"],
+  },
+  { key: "receivingYard", label: "Receiving yards", aliases: ["receivingyard", "receivingyards", "recyds"] },
+  {
+    key: "receivingTouchdown",
+    label: "Receiving touchdowns",
+    aliases: ["receivingtouchdown", "receivingtouchdowns", "rectd"],
+  },
+  { key: "fieldGoalMade", label: "Field goals made" },
+  { key: "extraPointMade", label: "Extra points made" },
+  { key: "defenseSack", label: "Defensive sacks" },
+  { key: "defenseInterception", label: "Defensive interceptions" },
+  { key: "defenseFumbleRecovery", label: "Fumble recoveries" },
+  { key: "defenseTouchdown", label: "Defensive touchdowns" },
+  { key: "defenseSafety", label: "Safeties" },
+];
+const requiredProjectionColumns = projectionColumns.filter((column) => column.required);
 
 interface ProjectionImportProps {
   busy: boolean;
@@ -77,15 +79,15 @@ export function ProjectionImport({
       setMapping({});
       return;
     }
-    const parsedHeaders = parseCsvHeader((await selected.slice(0, 16_384).text()).split(/\r?\n/, 1)[0] ?? "");
+    const parsedHeaders = await inspectCsvHeaders(selected);
     setHeaders(parsedHeaders);
-    setMapping(autoMapHeaders(parsedHeaders));
+    setMapping(autoMapCsvHeaders(parsedHeaders, projectionColumns));
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
-    if (!name.trim() || !file || requiredColumns.some(([column]) => !mapping[column])) return;
+    if (!name.trim() || !file || requiredProjectionColumns.some((column) => !mapping[column.key])) return;
     onBusyChange(true);
     onError("");
     try {
@@ -103,24 +105,6 @@ export function ProjectionImport({
       onBusyChange(false);
     }
   }
-
-  const mappingControl = ([column, label]: readonly [string, string], required = false) => (
-    <FormField key={column} label={label}>
-      <select
-        required={required}
-        value={mapping[column] ?? ""}
-        onChange={(event) => setMapping((current) => ({ ...current, [column]: event.target.value }))}
-        disabled={busy}
-      >
-        <option value="">{required ? "Choose a CSV column" : "Not included"}</option>
-        {headers.map((header) => (
-          <option key={header} value={header}>
-            {header}
-          </option>
-        ))}
-      </select>
-    </FormField>
-  );
 
   return (
     <Panel variant="ranking" aria-labelledby="projection-import-heading">
@@ -157,18 +141,18 @@ export function ProjectionImport({
           />
         </FormField>
         {headers.length > 0 ? (
-          <fieldset className="column-mapper">
-            <legend>Match required columns</legend>
-            {requiredColumns.map((field) => mappingControl(field, true))}
-            <details>
-              <summary>Map optional scoring columns</summary>
-              <div className="column-mapper-grid">{optionalColumns.map((field) => mappingControl(field))}</div>
-            </details>
-          </fieldset>
+          <CsvColumnMapper
+            busy={busy}
+            columns={projectionColumns}
+            headers={headers}
+            mapping={mapping}
+            optionalLabel="Map optional scoring columns"
+            onChange={setMapping}
+          />
         ) : null}
         <Button
           type="submit"
-          disabled={busy || !name.trim() || !file || requiredColumns.some(([column]) => !mapping[column])}
+          disabled={busy || !name.trim() || !file || requiredProjectionColumns.some((column) => !mapping[column.key])}
         >
           Import projections
         </Button>
@@ -189,41 +173,4 @@ export function ProjectionImport({
       )}
     </Panel>
   );
-}
-
-function autoMapHeaders(headers: string[]): Record<string, string> {
-  const normalized = new Map(headers.map((header) => [normalizeHeader(header), header]));
-  const mapping: Record<string, string> = {};
-  for (const [column] of [...requiredColumns, ...optionalColumns]) {
-    const aliases = headerAliases[column] ?? [normalizeHeader(column)];
-    const match = aliases.map((alias) => normalized.get(alias)).find(Boolean);
-    if (match) mapping[column] = match;
-  }
-  return mapping;
-}
-
-function normalizeHeader(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "");
-}
-
-function parseCsvHeader(line: string): string[] {
-  const fields: string[] = [];
-  let current = "",
-    quoted = false;
-  for (let index = 0; index < line.length; index++) {
-    const character = line[index];
-    if (character === '"' && quoted && line[index + 1] === '"') {
-      current += '"';
-      index++;
-    } else if (character === '"') quoted = !quoted;
-    else if (character === "," && !quoted) {
-      fields.push(current.trim());
-      current = "";
-    } else current += character;
-  }
-  fields.push(current.trim());
-  return fields.filter(Boolean);
 }

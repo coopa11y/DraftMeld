@@ -20,7 +20,7 @@ var projectionStatColumns = []string{
 	"defenseInterception", "defenseFumbleRecovery", "defenseTouchdown", "defenseSafety",
 }
 
-var nonProjectionHeaderCharacter = regexp.MustCompile(`[^a-z0-9]+`)
+var nonCSVHeaderCharacter = regexp.MustCompile(`[^a-z0-9]+`)
 
 var projectionHeaderAliases = map[string][]string{
 	"name":     {"name", "player", "playername", "playerfullname"},
@@ -58,7 +58,7 @@ func (service *ProjectionService) ImportCSV(ctx context.Context, name string, in
 	}
 	headers := make(map[string]int, len(rows[0]))
 	for index, header := range rows[0] {
-		headers[normalizeProjectionHeader(header)] = index
+		headers[normalizeCSVHeader(header)] = index
 	}
 	columnIndexes := projectionColumnIndexes(headers, firstMapping(mappings))
 	for _, required := range []string{"name", "position", "team"} {
@@ -116,7 +116,7 @@ func projectionColumnIndexes(headers map[string]int, mapping map[string]string) 
 	indexes := make(map[string]int)
 	for _, canonical := range columns {
 		if sourceHeader, explicitlyMapped := mapping[canonical]; explicitlyMapped {
-			if index, exists := headers[normalizeProjectionHeader(sourceHeader)]; exists && sourceHeader != "" {
+			if index, exists := headers[normalizeCSVHeader(sourceHeader)]; exists && sourceHeader != "" {
 				indexes[canonical] = index
 			}
 			continue
@@ -126,7 +126,7 @@ func projectionColumnIndexes(headers map[string]int, mapping map[string]string) 
 			aliases = []string{canonical}
 		}
 		for _, alias := range aliases {
-			if index, exists := headers[normalizeProjectionHeader(alias)]; exists {
+			if index, exists := headers[normalizeCSVHeader(alias)]; exists {
 				indexes[canonical] = index
 				break
 			}
@@ -135,8 +135,8 @@ func projectionColumnIndexes(headers map[string]int, mapping map[string]string) 
 	return indexes
 }
 
-func normalizeProjectionHeader(value string) string {
-	return nonProjectionHeaderCharacter.ReplaceAllString(strings.ToLower(strings.TrimSpace(value)), "")
+func normalizeCSVHeader(value string) string {
+	return nonCSVHeaderCharacter.ReplaceAllString(strings.ToLower(strings.TrimSpace(value)), "")
 }
 
 func (service *ProjectionService) LeagueValues(ctx context.Context, scoring map[string]float64) (map[string]projection.LeagueValue, error) {

@@ -39,6 +39,18 @@ export async function importRankingPDF(file: File): Promise<RankingPDFImport> {
   return postMultipart<RankingPDFImport>("ranking-sources/import-pdf", form);
 }
 
+export async function importRankingCSV(
+  name: string,
+  file: File,
+  mapping: Record<string, string>,
+): Promise<RankingSource> {
+  const form = new FormData();
+  form.append("name", name);
+  form.append("file", file);
+  form.append("mapping", JSON.stringify(mapping));
+  return postMultipart<RankingSource>("ranking-sources/import-csv", form);
+}
+
 export async function listProjectionSources(): Promise<ProjectionSource[]> {
   const { data, error, response } = await apiClient.GET("/projection-sources");
   return unwrap(data, error, response);

@@ -964,6 +964,13 @@ tbody tr:focus-within {
   color: var(--color-accent);
   font-weight: 800;
 }
+.source-private-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-text-muted);
+  font-weight: 800;
+}
 .source-weight-actions {
   display: flex;
   flex-wrap: wrap;

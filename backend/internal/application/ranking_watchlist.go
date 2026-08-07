@@ -25,6 +25,10 @@ func (service *RankingService) Watchlist(ctx context.Context, preferences map[st
 	if err != nil {
 		return nil, err
 	}
+	allDefinitions, err := service.definitions(ctx)
+	if err != nil {
+		return nil, err
+	}
 	consensus, err := service.Consensus(ctx, preferences, methods...)
 	if err != nil {
 		return nil, err
@@ -33,15 +37,15 @@ func (service *RankingService) Watchlist(ctx context.Context, preferences map[st
 	for _, player := range consensus {
 		consensusRanks[player.PlayerKey] = player.Rank
 	}
-	definitions := make(map[string]ranking.SourceDefinition, len(service.sources))
-	for _, definition := range service.sources {
+	definitions := make(map[string]ranking.SourceDefinition, len(allDefinitions))
+	for _, definition := range allDefinitions {
 		definitions[definition.ID] = definition
 	}
 	eligible := make(map[string]bool)
 	metadata := make(map[string]ranking.Record)
 	for _, record := range records {
 		record = canonicalizeRankingRecord(record)
-		if record.SourceID == "redraft-ecr" || record.SourceID == "espn-ppr-pdf" {
+		if definitions[record.SourceID].Role == "ranking" {
 			eligible[record.PlayerKey] = true
 			metadata[record.PlayerKey] = record
 		}
