@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/player"
@@ -51,13 +52,15 @@ func (store *DraftEventStore) ResolvePlayer(ctx context.Context, candidate playe
 			return player.Player{}, fmt.Errorf("resolve player identity: %w", err)
 		}
 	}
-	now := time.Now().UTC().Format(time.RFC3339Nano)
+	nowTime := time.Now().UTC()
+	now := nowTime.Format(time.RFC3339Nano)
+	team := normalizedObservedTeam(candidate.Team)
 	if playerID == "" {
 		playerID = proposedID
-		if _, err = tx.ExecContext(ctx, `INSERT INTO canonical_players (id, name, position, nfl_team, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`, playerID, candidate.Name, candidate.Position, candidate.Team, now, now); err != nil {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO canonical_players (id, name, position, nfl_team, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`, playerID, candidate.Name, candidate.Position, team, now, now); err != nil {
 			return player.Player{}, fmt.Errorf("create canonical player: %w", err)
 		}
-	} else if _, err = tx.ExecContext(ctx, `INSERT INTO canonical_players (id, name, position, nfl_team, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`, playerID, candidate.Name, candidate.Position, candidate.Team, now, now); err != nil {
+	} else if _, err = tx.ExecContext(ctx, `INSERT INTO canonical_players (id, name, position, nfl_team, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`, playerID, candidate.Name, candidate.Position, team, now, now); err != nil {
 		return player.Player{}, fmt.Errorf("preserve legacy canonical player: %w", err)
 	}
 	if _, err = tx.ExecContext(ctx, `INSERT INTO player_identity_keys (identity_key, player_id, created_at) VALUES (?, ?, ?) ON CONFLICT(identity_key) DO UPDATE SET player_id=excluded.player_id`, candidate.IdentityKey, playerID, now); err != nil {
@@ -73,7 +76,11 @@ func (store *DraftEventStore) ResolvePlayer(ctx context.Context, candidate playe
 			return player.Player{}, fmt.Errorf("save provider player ID: %w", err)
 		}
 	}
-	if _, err = tx.ExecContext(ctx, `UPDATE canonical_players SET name = ?, position = ?, nfl_team = CASE WHEN ? <> '' THEN ? ELSE nfl_team END, updated_at = ? WHERE id = ?`, candidate.Name, candidate.Position, candidate.Team, candidate.Team, now, playerID); err != nil {
+	team, err = recordTeamObservation(ctx, tx, playerID, candidate, nowTime)
+	if err != nil {
+		return player.Player{}, err
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE canonical_players SET name = ?, position = ?, nfl_team = CASE WHEN ? <> '' THEN ? ELSE nfl_team END, updated_at = ? WHERE id = ?`, candidate.Name, candidate.Position, team, team, now, playerID); err != nil {
 		return player.Player{}, fmt.Errorf("update canonical player: %w", err)
 	}
 	var resolved player.Player
@@ -84,6 +91,79 @@ func (store *DraftEventStore) ResolvePlayer(ctx context.Context, candidate playe
 		return player.Player{}, fmt.Errorf("commit player resolution: %w", err)
 	}
 	return resolved, nil
+}
+
+func recordTeamObservation(ctx context.Context, tx *sql.Tx, playerID string, candidate player.Candidate, fallbackTime time.Time) (string, error) {
+	team := normalizedObservedTeam(candidate.Team)
+	if team == "" {
+		return "", nil
+	}
+	observedAt := candidate.ObservedAt.UTC()
+	if observedAt.IsZero() {
+		observedAt = fallbackTime
+	}
+	source := strings.TrimSpace(candidate.Provider)
+	if source == "" {
+		source = candidate.IdentityKey
+	}
+	confidence := 1
+	if candidate.ProviderID != "" {
+		confidence = 2
+	}
+	if strings.EqualFold(source, "sleeper") && candidate.ProviderID != "" {
+		confidence = 3
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO player_team_observations (player_id, source, nfl_team, confidence, observed_at)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(player_id, source) DO UPDATE SET nfl_team=excluded.nfl_team, confidence=excluded.confidence, observed_at=excluded.observed_at
+		WHERE excluded.observed_at > player_team_observations.observed_at
+		   OR (excluded.observed_at = player_team_observations.observed_at AND excluded.confidence >= player_team_observations.confidence)`,
+		playerID, source, team, confidence, observedAt.UnixNano()); err != nil {
+		return "", fmt.Errorf("save player team observation: %w", err)
+	}
+	if err := tx.QueryRowContext(ctx, `SELECT nfl_team FROM player_team_observations WHERE player_id = ? ORDER BY observed_at DESC, confidence DESC, source LIMIT 1`, playerID).Scan(&team); err != nil {
+		return "", fmt.Errorf("resolve current player team: %w", err)
+	}
+	return team, nil
+}
+
+func normalizedObservedTeam(team string) string {
+	team = strings.ToUpper(strings.TrimSpace(team))
+	switch team {
+	case "", "-", "N/A", "NA", "FA", "FREE AGENT":
+		return ""
+	default:
+		return team
+	}
+}
+
+func (store *DraftEventStore) CanonicalPlayers(ctx context.Context, ids []string) (map[string]player.Player, error) {
+	players := make(map[string]player.Player, len(ids))
+	if len(ids) == 0 {
+		return players, nil
+	}
+	wanted := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		wanted[id] = struct{}{}
+	}
+	rows, err := store.database.QueryContext(ctx, `SELECT id, name, position, nfl_team FROM canonical_players WHERE merged_into IS NULL`)
+	if err != nil {
+		return nil, fmt.Errorf("load canonical players: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var item player.Player
+		if err = rows.Scan(&item.ID, &item.Name, &item.Position, &item.Team); err != nil {
+			return nil, fmt.Errorf("scan canonical player: %w", err)
+		}
+		if _, exists := wanted[item.ID]; exists {
+			players[item.ID] = item
+		}
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate canonical players: %w", err)
+	}
+	return players, nil
 }
 
 func (store *DraftEventStore) PlayerDirectoryStatus(ctx context.Context) (player.DirectoryStatus, error) {

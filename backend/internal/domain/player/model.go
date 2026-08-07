@@ -1,5 +1,7 @@
 package player
 
+import "time"
+
 type Candidate struct {
 	IdentityKey string
 	LegacyKey   string
@@ -8,6 +10,7 @@ type Candidate struct {
 	Team        string
 	Provider    string
 	ProviderID  string
+	ObservedAt  time.Time
 }
 
 type Player struct {

@@ -101,11 +101,12 @@ func (service *ProjectionService) ImportCSV(ctx context.Context, name string, in
 	if len(records) == 0 {
 		return projection.SourceStatus{}, errors.New("projection CSV contained no usable players")
 	}
-	records, err = resolveProjectionPlayers(ctx, service.repository, records)
+	importedAt := time.Now().UTC()
+	records, err = resolveProjectionPlayers(ctx, service.repository, records, importedAt)
 	if err != nil {
 		return projection.SourceStatus{}, err
 	}
-	status := projection.SourceStatus{ID: sourceID, Name: name, RecordCount: len(records), ImportedAt: time.Now().UTC()}
+	status := projection.SourceStatus{ID: sourceID, Name: name, RecordCount: len(records), ImportedAt: importedAt}
 	if err = service.repository.ReplaceProjections(ctx, status, records); err != nil {
 		return projection.SourceStatus{}, err
 	}

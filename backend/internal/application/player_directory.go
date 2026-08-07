@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/draft"
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/player"
@@ -25,7 +26,7 @@ func newCanonicalPlayerID() (string, error) {
 	return "player-" + hex.EncodeToString(bytes), nil
 }
 
-func resolveRankingPlayers(ctx context.Context, repository any, records []ranking.Record) ([]ranking.Record, error) {
+func resolveRankingPlayers(ctx context.Context, repository any, records []ranking.Record, observedAt time.Time) ([]ranking.Record, error) {
 	directory, ok := repository.(PlayerDirectoryRepository)
 	if !ok {
 		return records, nil
@@ -41,7 +42,7 @@ func resolveRankingPlayers(ctx context.Context, repository any, records []rankin
 		resolved, err := directory.ResolvePlayer(ctx, player.Candidate{
 			IdentityKey: canonicalRankingKey(record.Name, record.Position, record.Team), LegacyKey: record.PlayerKey,
 			Name: record.Name, Position: record.Position, Team: record.Team,
-			Provider: record.SourceID, ProviderID: record.ProviderID,
+			Provider: record.SourceID, ProviderID: record.ProviderID, ObservedAt: observedAt,
 		}, id)
 		if err != nil {
 			return nil, err
@@ -60,7 +61,7 @@ func resolveRankingPlayers(ctx context.Context, repository any, records []rankin
 	return resolvedRecords, nil
 }
 
-func resolveProjectionPlayers(ctx context.Context, repository any, records []projection.Record) ([]projection.Record, error) {
+func resolveProjectionPlayers(ctx context.Context, repository any, records []projection.Record, observedAt time.Time) ([]projection.Record, error) {
 	directory, ok := repository.(PlayerDirectoryRepository)
 	if !ok {
 		return records, nil
@@ -76,7 +77,7 @@ func resolveProjectionPlayers(ctx context.Context, repository any, records []pro
 		resolved, err := directory.ResolvePlayer(ctx, player.Candidate{
 			IdentityKey: canonicalRankingKey(record.Name, record.Position, record.Team), LegacyKey: record.PlayerKey,
 			Name: record.Name, Position: record.Position, Team: record.Team,
-			Provider: record.SourceID, ProviderID: record.ProviderID,
+			Provider: record.SourceID, ProviderID: record.ProviderID, ObservedAt: observedAt,
 		}, id)
 		if err != nil {
 			return nil, err
@@ -90,6 +91,33 @@ func resolveProjectionPlayers(ctx context.Context, repository any, records []pro
 		resolvedRecords = append(resolvedRecords, record)
 	}
 	return resolvedRecords, nil
+}
+
+type canonicalPlayerReader interface {
+	CanonicalPlayers(context.Context, []string) (map[string]player.Player, error)
+}
+
+func overlayCanonicalPlayerMetadata(ctx context.Context, repository any, rankings []ranking.PlayerRanking) ([]ranking.PlayerRanking, error) {
+	reader, ok := repository.(canonicalPlayerReader)
+	if !ok || len(rankings) == 0 {
+		return rankings, nil
+	}
+	ids := make([]string, 0, len(rankings))
+	for _, item := range rankings {
+		ids = append(ids, item.PlayerKey)
+	}
+	players, err := reader.CanonicalPlayers(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for index := range rankings {
+		if current, exists := players[rankings[index].PlayerKey]; exists {
+			rankings[index].Name = current.Name
+			rankings[index].Position = current.Position
+			rankings[index].Team = current.Team
+		}
+	}
+	return rankings, nil
 }
 
 func (service *RankingService) PlayerDirectoryStatus(ctx context.Context) (player.DirectoryStatus, error) {

@@ -70,6 +70,7 @@ func (service *RankingService) sourceByID(id string) (ranking.SourceDefinition, 
 
 func (service *RankingService) Refresh(ctx context.Context) ([]ranking.SourceStatus, error) {
 	downloads := make(map[string][]byte)
+	observedAt := time.Now().UTC()
 	for _, source := range service.sources {
 		if source.ImportMode != "download" {
 			continue
@@ -90,7 +91,7 @@ func (service *RankingService) Refresh(ctx context.Context) ([]ranking.SourceSta
 		if len(records) == 0 {
 			return nil, fmt.Errorf("parse %s: no usable players", source.Name)
 		}
-		records, err = resolveRankingPlayers(ctx, service.repository, records)
+		records, err = resolveRankingPlayers(ctx, service.repository, records, observedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -158,7 +159,7 @@ func (service *RankingService) Consensus(ctx context.Context, preferences map[st
 	if err != nil {
 		return nil, err
 	}
-	return playerRankings(entries, inputs, method), nil
+	return overlayCanonicalPlayerMetadata(ctx, service.repository, playerRankings(entries, inputs, method))
 }
 
 func effectiveSourcePreference(definition ranking.SourceDefinition, preferences map[string]league.RankingSourcePreference) league.RankingSourcePreference {

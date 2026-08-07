@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/draft"
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/player"
@@ -168,7 +169,7 @@ func (service *DraftService) SyncSleeper(ctx context.Context, leagueID, sleeperD
 			resolved, resolveErr := directory.ResolvePlayer(ctx, player.Candidate{
 				IdentityKey: identityKey, LegacyKey: identityKey, Name: name,
 				Position: normalizePosition(pick.Metadata.Position), Team: pick.Metadata.Team,
-				Provider: "sleeper", ProviderID: pick.PlayerID,
+				Provider: "sleeper", ProviderID: pick.PlayerID, ObservedAt: time.Now().UTC(),
 			}, proposedID)
 			if resolveErr != nil {
 				return SleeperSyncResult{}, resolveErr

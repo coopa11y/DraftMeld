@@ -110,7 +110,8 @@ func (service *RankingService) ImportCSV(ctx context.Context, name string, input
 		}
 		return records[left].Rank < records[right].Rank
 	})
-	records, err = resolveRankingPlayers(ctx, service.repository, records)
+	refreshed := time.Now().UTC()
+	records, err = resolveRankingPlayers(ctx, service.repository, records, refreshed)
 	if err != nil {
 		return ranking.SourceStatus{}, err
 	}
@@ -119,7 +120,6 @@ func (service *RankingService) ImportCSV(ctx context.Context, name string, input
 		Methodology: "User-supplied ordinal player ranking", License: "Private user data",
 		DefaultWeight: 1, ImportMode: "csv-upload", Role: "ranking", IsCustom: true,
 	}
-	refreshed := time.Now().UTC()
 	if err = service.repository.ReplaceRankings(ctx, definition, records, "Private CSV import", refreshed); err != nil {
 		return ranking.SourceStatus{}, err
 	}
