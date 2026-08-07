@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { listLeagues } from "../shared/api/leagues";
 import type { League } from "../shared/api/types";
+import { Button } from "../shared/ui/Button";
+import { StatusMessage } from "../shared/ui/StatusMessage";
 import { DraftWorkspace } from "./DraftWorkspace";
 import { LeagueManager } from "./LeagueManager";
 import { RankingSources } from "./RankingSources";
@@ -53,7 +55,7 @@ export function App() {
   const activeLeague = leagues.find((league) => league.id === activeLeagueId);
 
   if (loading) {
-    return <main className="centered-status" aria-busy="true"><p role="status">Loading leagues...</p></main>;
+    return <main className="centered-status" aria-busy="true"><StatusMessage>Loading leagues...</StatusMessage></main>;
   }
 
   return (
@@ -72,13 +74,13 @@ export function App() {
               </select>
             </label>
           ) : null}
-          {view !== "leagues" ? <button type="button" className="secondary-button" onClick={() => setView("leagues")}>Manage leagues</button> : null}
-          {view !== "rankings" ? <button type="button" className="secondary-button" onClick={() => setView("rankings")} disabled={!activeLeague}>Ranking sources</button> : null}
-          {view !== "draft" ? <button type="button" className="secondary-button" onClick={() => setView("draft")} disabled={leagues.length === 0}>Return to draft</button> : null}
+          {view !== "leagues" ? <Button onClick={() => setView("leagues")}>Manage leagues</Button> : null}
+          {view !== "rankings" ? <Button onClick={() => setView("rankings")} disabled={!activeLeague}>Ranking sources</Button> : null}
+          {view !== "draft" ? <Button onClick={() => setView("draft")} disabled={leagues.length === 0}>Return to draft</Button> : null}
         </nav>
       </header>
 
-      {error ? <div className="error-banner" role="alert">Unable to load leagues. {error}</div> : null}
+      {error ? <StatusMessage tone="error">Unable to load leagues. {error}</StatusMessage> : null}
       {view === "rankings" && activeLeague ? <RankingSources key={activeLeague.id} league={activeLeague} onLeagueUpdated={handleLeagueUpdated} /> : view === "leagues" ? (
         <LeagueManager
           leagues={leagues}

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { DraftAction, Player } from "../shared/api/types";
+import { Button } from "../shared/ui/Button";
 
 interface PlayerActionsProps {
   player: Player;
@@ -19,8 +20,8 @@ export function PlayerActions({ player, busy, primary = false, auction = false, 
   return (
     <div className={`player-actions${auction ? " auction-actions" : ""}`}>
       {auction ? <label><span>Winning bid for {player.name}</span><span className="currency-input">$<input type="number" min={minimumBid} max={maximumBid} step="1" value={cost} onChange={(event) => setBid({ suggestedCost, value: Number(event.target.value) })} disabled={busy} /></span></label> : null}
-      <button className="draft-button" data-player-action={primary ? "primary" : undefined} id={primary ? `draft-${player.id}` : undefined} type="button" disabled={busy || (auction && (cost < minimumBid || cost > maximumBid))} aria-label={`Draft ${player.name}, ${player.position}, to my team${auction ? ` for ${cost} dollars` : ""}`} onClick={() => onAction(player, "draft", auction ? cost : 0)}>Draft</button>
-      <button className="taken-button" type="button" disabled={busy || (auction && cost < minimumBid)} aria-label={`Mark ${player.name}, ${player.position}, as taken by another team${auction ? ` for ${cost} dollars` : ""}`} onClick={() => onAction(player, "taken", auction ? cost : 0)}>Taken</button>
+      <Button variant="primary" data-player-action={primary ? "primary" : undefined} id={primary ? `draft-${player.id}` : undefined} disabled={busy || (auction && (cost < minimumBid || cost > maximumBid))} aria-label={`Draft ${player.name}, ${player.position}, to my team${auction ? ` for ${cost} dollars` : ""}`} onClick={() => onAction(player, "draft", auction ? cost : 0)}>Draft</Button>
+      <Button variant="neutral" disabled={busy || (auction && cost < minimumBid)} aria-label={`Mark ${player.name}, ${player.position}, as taken by another team${auction ? ` for ${cost} dollars` : ""}`} onClick={() => onAction(player, "taken", auction ? cost : 0)}>Taken</Button>
     </div>
   );
 }

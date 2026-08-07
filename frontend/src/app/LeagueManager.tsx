@@ -2,6 +2,10 @@ import { useState } from "react";
 import { createLeague, deleteLeague, duplicateLeague, listLeagues, updateLeague } from "../shared/api/leagues";
 import type { League, LeagueRules } from "../shared/api/types";
 import { useViewHeadingFocus } from "../shared/hooks/useViewHeadingFocus";
+import { Button } from "../shared/ui/Button";
+import { Dialog } from "../shared/ui/Dialog";
+import { Panel } from "../shared/ui/Panel";
+import { StatusMessage } from "../shared/ui/StatusMessage";
 import { LeagueForm } from "./LeagueForm";
 
 interface LeagueManagerProps {
@@ -51,25 +55,25 @@ export function LeagueManager({ leagues, activeLeagueId, onLeaguesChange, onOpen
     return (
       <main className="league-setup-layout">
         <LeagueForm league={editingLeague} busy={busy} onCancel={() => setEditingId(null)} onSave={handleSave} />
-        {error ? <div className="error-banner" role="alert">{error}</div> : null}
+        {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
       </main>
     );
   }
 
   return (
     <main className="league-setup-layout">
-      <section className="league-manager" aria-labelledby="league-manager-title">
+      <Panel variant="form" className="league-manager" aria-labelledby="league-manager-title">
         <div className="form-heading">
           <div>
             <p className="eyebrow">DraftMeld settings</p>
             <h1 id="league-manager-title" ref={heading} tabIndex={-1}>Your leagues</h1>
             <p>Create a league from familiar defaults, then customize every rule that matters.</p>
           </div>
-          <button type="button" className="primary-button" onClick={() => setEditingId("new")}>Create league</button>
+          <Button variant="primary" onClick={() => setEditingId("new")}>Create league</Button>
         </div>
 
-        <div className="sr-only" role="status">{message}</div>
-        {error ? <div className="error-banner" role="alert">{error}</div> : null}
+        <StatusMessage visuallyHidden>{message}</StatusMessage>
+        {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
         {leagues.length === 0 ? <div className="empty-leagues"><h2>No leagues yet</h2><p>Create your first league to open the draft board.</p></div> : null}
 
         <ul className="league-list">
@@ -83,33 +87,34 @@ export function LeagueManager({ leagues, activeLeagueId, onLeaguesChange, onOpen
                   {league.id === activeLeagueId ? <span className="active-badge">Active league</span> : null}
                 </div>
                 <div className="league-actions">
-                  <button type="button" className="primary-button" onClick={() => onOpenDraft(league.id)}>Open draft</button>
-                  <button type="button" className="secondary-button" onClick={() => setEditingId(league.id)}>Edit</button>
-                  <button type="button" className="secondary-button" disabled={busy} onClick={() => run(async () => {
+                  <Button variant="primary" onClick={() => onOpenDraft(league.id)}>Open draft</Button>
+                  <Button onClick={() => setEditingId(league.id)}>Edit</Button>
+                  <Button disabled={busy} onClick={() => run(async () => {
                     const copy = await duplicateLeague(league.id);
                     await refresh(copy.id);
                     setMessage(`${copy.name} was created.`);
-                  })}>Duplicate</button>
-                  <button type="button" className="danger-text-button" onClick={() => setDeleteId(league.id)}>Delete</button>
+                  })}>Duplicate</Button>
+                  <Button variant="dangerText" onClick={() => setDeleteId(league.id)}>Delete</Button>
                 </div>
-                {deleteId === league.id ? (
-                  <div className="delete-confirmation" role="group" aria-label={`Confirm deletion of ${league.name}`}>
-                    <p><strong>Delete {league.name}?</strong> Its draft history will also be permanently deleted.</p>
-                    <button type="button" className="danger-button" disabled={busy} onClick={() => run(async () => {
+                <Dialog open={deleteId === league.id} labelledBy={`delete-league-${league.id}`} onClose={() => setDeleteId(null)}>
+                    <h2 id={`delete-league-${league.id}`}>Delete {league.name}?</h2>
+                    <p>Its draft history will also be permanently deleted.</p>
+                    <div className="dialog-actions">
+                    <Button variant="danger" disabled={busy} onClick={() => run(async () => {
                       await deleteLeague(league.id);
                       await refresh();
                       setDeleteId(null);
                       setMessage(`${league.name} was deleted.`);
                       heading.current?.focus();
-                    })}>Yes, delete league</button>
-                    <button type="button" className="secondary-button" onClick={() => setDeleteId(null)}>Cancel</button>
-                  </div>
-                ) : null}
+                    })}>Yes, delete league</Button>
+                    <Button onClick={() => setDeleteId(null)}>Cancel</Button>
+                    </div>
+                </Dialog>
               </article>
             </li>
           ))}
         </ul>
-      </section>
+      </Panel>
     </main>
   );
 }

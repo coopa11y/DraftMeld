@@ -1,4 +1,6 @@
 import type { DraftSnapshot } from "../shared/api/types";
+import { Button } from "../shared/ui/Button";
+import { Panel } from "../shared/ui/Panel";
 import { SleeperSyncForm } from "./SleeperSyncForm";
 
 interface DraftToolsProps {
@@ -10,23 +12,23 @@ interface DraftToolsProps {
 
 export function DraftTools({ snapshot, busy, onMock, onSleeperSync }: DraftToolsProps) {
   return (
-    <section className="side-panel" aria-labelledby="draft-tools-title">
+    <Panel variant="side" aria-labelledby="draft-tools-title">
       <p className="eyebrow">Optional automation</p>
       <h2 id="draft-tools-title">Draft tools</h2>
       {snapshot.draftType === "auction"
         ? <AuctionSummary snapshot={snapshot} />
         : <MockDraftControl snapshot={snapshot} busy={busy} onMock={onMock} />}
       <SleeperSyncForm busy={busy} onSync={onSleeperSync} />
-    </section>
+    </Panel>
   );
 }
 
 function MockDraftControl({ snapshot, busy, onMock }: Pick<DraftToolsProps, "snapshot" | "busy" | "onMock">) {
   return (
     <>
-      <button className="secondary-button full-width-button" type="button" disabled={busy || snapshot.nextUserPick === 0 || snapshot.isUserTurn} onClick={onMock}>
+      <Button fullWidth disabled={busy || snapshot.nextUserPick === 0 || snapshot.isUserTurn} onClick={onMock}>
         Simulate to my next turn{snapshot.nextUserPick ? ` (pick ${snapshot.nextUserPick})` : ""}
-      </button>
+      </Button>
       {snapshot.isUserTurn ? <p className="tool-help">Make your pick before simulating opponent selections.</p> : null}
     </>
   );

@@ -1,6 +1,9 @@
 import { useState, type FormEvent } from "react";
 import { importProjectionCSV } from "../shared/api/rankings";
 import type { ProjectionSource } from "../shared/api/types";
+import { Button } from "../shared/ui/Button";
+import { FormField } from "../shared/ui/FormField";
+import { Panel } from "../shared/ui/Panel";
 
 const projectionTemplate = "data:text/csv;charset=utf-8,name%2Cposition%2Cteam%2Cadp%2CbyeWeek%2Creception%2CpassingYard%2CpassingTouchdown%2Cinterception%2CrushingYard%2CrushingTouchdown%2CreceivingYard%2CreceivingTouchdown%2CfieldGoalMade%2CextraPointMade%2CdefenseSack%2CdefenseInterception%2CdefenseFumbleRecovery%2CdefenseTouchdown%2CdefenseSafety%0A";
 
@@ -69,23 +72,23 @@ export function ProjectionImport({ busy, sources, onBusyChange, onImported, onMe
   }
 
   const mappingControl = ([column, label]: readonly [string, string], required = false) => (
-    <label key={column}>{label}<select required={required} value={mapping[column] ?? ""} onChange={(event) => setMapping((current) => ({ ...current, [column]: event.target.value }))} disabled={busy}>
+    <FormField key={column} label={label}><select required={required} value={mapping[column] ?? ""} onChange={(event) => setMapping((current) => ({ ...current, [column]: event.target.value }))} disabled={busy}>
       <option value="">{required ? "Choose a CSV column" : "Not included"}</option>
       {headers.map((header) => <option key={header} value={header}>{header}</option>)}
-    </select></label>
+    </select></FormField>
   );
 
   return (
-    <section className="ranking-panel" aria-labelledby="projection-import-heading">
+    <Panel variant="ranking" aria-labelledby="projection-import-heading">
       <div className="section-heading"><div><p className="eyebrow">League scoring</p><h2 id="projection-import-heading">Projection sources</h2><p className="section-description">Choose any projection CSV, then confirm which columns contain the player identity and statistics. DraftMeld uses the league scoring rules to calculate points, replacement value, tiers, and auction values.</p><a className="inline-action-link" href={projectionTemplate} download="draftmeld-projection-template.csv">Download projection CSV template</a></div></div>
       <form className="data-import-form" noValidate onSubmit={submit}>
-        <label>Projection source name<input required value={name} onChange={(event) => setName(event.target.value)} placeholder="My projection model" disabled={busy} /></label>
-        <label>Projection CSV<input type="file" accept="text/csv,.csv" required onChange={(event) => void chooseFile(event.target.files?.[0] ?? null)} disabled={busy} /></label>
+        <FormField label="Projection source name"><input required value={name} onChange={(event) => setName(event.target.value)} placeholder="My projection model" disabled={busy} /></FormField>
+        <FormField label="Projection CSV"><input type="file" accept="text/csv,.csv" required onChange={(event) => void chooseFile(event.target.files?.[0] ?? null)} disabled={busy} /></FormField>
         {headers.length > 0 ? <fieldset className="column-mapper"><legend>Match required columns</legend>{requiredColumns.map((field) => mappingControl(field, true))}<details><summary>Map optional scoring columns</summary><div className="column-mapper-grid">{optionalColumns.map((field) => mappingControl(field))}</div></details></fieldset> : null}
-        <button className="secondary-button" type="submit" disabled={busy || !name.trim() || !file || requiredColumns.some(([column]) => !mapping[column])}>Import projections</button>
+        <Button type="submit" disabled={busy || !name.trim() || !file || requiredColumns.some(([column]) => !mapping[column])}>Import projections</Button>
       </form>
       {sources.length > 0 ? <ul className="compact-data-list">{sources.map((source) => <li key={source.id}><strong>{source.name}</strong><span>{source.recordCount} players</span></li>)}</ul> : <p className="empty-state panel-empty-state">No projections imported. Consensus rankings still work, but projected points and VOR remain unavailable.</p>}
-    </section>
+    </Panel>
   );
 }
 

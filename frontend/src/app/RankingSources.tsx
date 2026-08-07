@@ -3,6 +3,9 @@ import { leagueToRules, updateLeague } from "../shared/api/leagues";
 import { getConsensusRankings, getRankingWatchlist, importRankingPDF, listIdentityIssues, listProjectionSources, listRankingSources, refreshRankingSources } from "../shared/api/rankings";
 import type { ConsensusRanking, IdentityIssue, League, LeagueRules, ProjectionSource, RankingSource, RankingSourcePreference, WatchlistPlayer } from "../shared/api/types";
 import { useViewHeadingFocus } from "../shared/hooks/useViewHeadingFocus";
+import { Button } from "../shared/ui/Button";
+import { Panel } from "../shared/ui/Panel";
+import { StatusMessage } from "../shared/ui/StatusMessage";
 import { IdentityReviewQueue } from "./IdentityReviewQueue";
 import { ProjectionImport } from "./ProjectionImport";
 import { RankingEvidencePanels } from "./RankingEvidencePanels";
@@ -139,24 +142,24 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
 
   return (
     <main className="ranking-page" id="main-content" aria-busy={busy}>
-      <section className="ranking-panel" aria-labelledby="ranking-sources-heading">
+      <Panel variant="ranking" aria-labelledby="ranking-sources-heading">
         <div className="section-heading">
           <div>
             <p className="eyebrow">Ranking data</p>
             <h1 id="ranking-sources-heading" ref={heading} tabIndex={-1}>Ranking sources</h1>
             <p className="section-description">Choose which sources shape {league.name}, then tune their relative influence. Equal weights have equal pull.</p>
           </div>
-          <button className="primary-button" type="button" onClick={refresh} disabled={busy}>{busy ? "Working..." : "Refresh all sources"}</button>
+          <Button variant="primary" onClick={refresh} disabled={busy}>{busy ? "Working..." : "Refresh all sources"}</Button>
         </div>
-        <p className="status-message" role="status">{message}</p>
-        {error ? <div className="error-banner" role="alert">{error}</div> : null}
+        <StatusMessage>{message}</StatusMessage>
+        {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
         <form className="pdf-import-form" onSubmit={uploadPDF}>
           <div>
             <label htmlFor="ranking-pdf"><strong>Import a ranking PDF</strong></label>
             <p id="ranking-pdf-help">DraftMeld detects supported ESPN PPR Top 300 and Dynasty cheat sheets. Files are processed in memory and are not retained.</p>
           </div>
           <input id="ranking-pdf" name="file" type="file" accept="application/pdf,.pdf" aria-describedby="ranking-pdf-help" onChange={(event) => setPDFFile(event.target.files?.[0] ?? null)} disabled={busy} />
-          <button className="secondary-button" type="submit" disabled={busy || !pdfFile}>Import PDF</button>
+          <Button type="submit" disabled={busy || !pdfFile}>Import PDF</Button>
         </form>
         <RankingSourcePreferences
           busy={busy}
@@ -171,7 +174,7 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
           onReset={resetPreferences}
           onSubmit={saveWeights}
         />
-      </section>
+      </Panel>
 
       <ProjectionImport busy={busy} sources={projectionSources} onBusyChange={setBusy} onImported={(source) => setProjectionSources((current) => [...current.filter((candidate) => candidate.id !== source.id), source])} onMessage={setMessage} onError={setError} />
 

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { getDraft, recordDraftAction, setPlayerPreference, simulateToNextTurn, syncSleeperDraft, undoDraftAction } from "../shared/api/draft";
 import type { DraftAction, DraftSnapshot, Player } from "../shared/api/types";
 import { useViewHeadingFocus } from "../shared/hooks/useViewHeadingFocus";
+import { StatusMessage } from "../shared/ui/StatusMessage";
 import { DraftSidebar } from "./DraftSidebar";
 import { PlayerBoard } from "./PlayerBoard";
 
@@ -118,8 +119,8 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
     return (
       <main className="centered-status" aria-busy={!error}>
         {error
-          ? <div className="error-banner" role="alert" tabIndex={-1} ref={errorAlert}>{error}</div>
-          : <p role="status">Loading draft board…</p>}
+          ? <StatusMessage tone="error" tabIndex={-1} ref={errorAlert}>{error}</StatusMessage>
+          : <StatusMessage>Loading draft board…</StatusMessage>}
       </main>
     );
   }
@@ -130,9 +131,9 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
       <a className="skip-link" href="#recommendations">Skip to recommendations</a>
       <a className="skip-link" href="#my-team">Skip to my team</a>
 
-      <div className="sr-only" role="status" aria-atomic="true">{announcement}</div>
+      <StatusMessage visuallyHidden aria-atomic="true">{announcement}</StatusMessage>
       <main id="main-content">
-        {error ? <div className="error-banner" role="alert" tabIndex={-1} ref={errorAlert}>{error}</div> : null}
+        {error ? <StatusMessage tone="error" tabIndex={-1} ref={errorAlert}>{error}</StatusMessage> : null}
         <section className="workspace-status" aria-label={`Draft status. Pick ${snapshot.pickNumber}. ${snapshot.available.length} players available.`}>
           <span>{snapshot.leagueName}</span>
           <strong>Pick {snapshot.pickNumber}</strong>

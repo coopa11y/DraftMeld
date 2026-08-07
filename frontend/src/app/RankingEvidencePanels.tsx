@@ -1,4 +1,5 @@
 import type { ConsensusRanking, WatchlistPlayer } from "../shared/api/types";
+import { Panel } from "../shared/ui/Panel";
 
 const providerCoverage = [
   { provider: "CBS Sports", status: "Connected", detail: "Current public PPR Top 200 consensus." },
@@ -26,7 +27,7 @@ export function RankingEvidencePanels({ enabledImportedSourceCount, leagueName, 
 
 function WatchlistPanel({ players }: { players: WatchlistPlayer[] }) {
   return (
-    <section className="ranking-panel watchlist-panel" aria-labelledby="watchlist-heading">
+    <Panel variant="ranking" className="watchlist-panel" aria-labelledby="watchlist-heading">
       <div className="section-heading"><div><p className="eyebrow">Excluded-source signals</p><h2 id="watchlist-heading">Worth another look</h2><p className="section-description">A short list of players ranked meaningfully higher by sources you excluded from the main consensus.</p></div></div>
       <ul className="watchlist-grid">
         {players.map((player) => (
@@ -44,24 +45,24 @@ function WatchlistPanel({ players }: { players: WatchlistPlayer[] }) {
           </li>
         ))}
       </ul>
-    </section>
+    </Panel>
   );
 }
 
 function ProviderCoveragePanel() {
   return (
-    <section className="ranking-panel" aria-labelledby="provider-coverage-heading">
+    <Panel variant="ranking" aria-labelledby="provider-coverage-heading">
       <div className="section-heading"><div><p className="eyebrow">Freshness safeguards</p><h2 id="provider-coverage-heading">Platform connector status</h2><p className="section-description">DraftMeld holds a provider out when its available data is stale, incomplete, or requires approval.</p></div></div>
       <ul className="coverage-list">
         {providerCoverage.map((provider) => <li key={provider.provider}><div><strong>{provider.provider}</strong><span>{provider.status}</span></div><p>{provider.detail}</p></li>)}
       </ul>
-    </section>
+    </Panel>
   );
 }
 
 function ConsensusPreview({ enabledImportedSourceCount, leagueName, rankings }: Omit<RankingEvidencePanelsProps, "watchlist">) {
   return (
-    <section className="ranking-panel" aria-labelledby="consensus-heading">
+    <Panel variant="ranking" aria-labelledby="consensus-heading">
       <div className="section-heading"><div><p className="eyebrow">League-weighted preview</p><h2 id="consensus-heading">DraftMeld consensus for {leagueName}</h2><p className="section-description">Lists are normalized for source depth, primary ranking omissions are handled conservatively, and contextual market or usage signals only apply when present. Lower is better.</p></div></div>
       <div className="table-scroll" role="region" aria-label="Consensus ranking preview" tabIndex={0}>
         <table>
@@ -70,6 +71,6 @@ function ConsensusPreview({ enabledImportedSourceCount, leagueName, rankings }: 
           <tbody>{rankings.slice(0, 25).map((player) => <tr key={player.playerKey}><td>{player.rank}</td><th scope="row"><span className="player-name">{player.name}</span><span className="player-meta">{player.team || "Team unavailable"}</span></th><td>{player.position}</td><td>{player.sourceCount} of {enabledImportedSourceCount}</td><td>{player.score.toFixed(1)}</td><td><span className={`confidence-badge confidence-${player.confidence}`}>{player.confidence}</span><span className="player-meta">{Math.round(player.coverage * 100)}% coverage, {player.rankRange}-rank range</span></td></tr>)}</tbody>
         </table>
       </div>
-    </section>
+    </Panel>
   );
 }

@@ -1,4 +1,5 @@
 import type { DraftAction, DraftSnapshot, Player } from "../shared/api/types";
+import { Panel } from "../shared/ui/Panel";
 import { PlayerActions } from "./PlayerActions";
 import { DraftTools } from "./DraftTools";
 
@@ -13,7 +14,7 @@ interface DraftSidebarProps {
 export function DraftSidebar({ snapshot, busy, onAction, onMock, onSleeperSync }: DraftSidebarProps) {
   return (
     <aside className="sidebar" aria-label="Draft assistant">
-      <section className="side-panel" id="recommendations" aria-labelledby="recommendations-title">
+      <Panel variant="side" id="recommendations" aria-labelledby="recommendations-title">
         <p className="eyebrow">Updated after every pick</p>
         <h2 id="recommendations-title">Recommended</h2>
         <ol className="recommendation-list">
@@ -29,11 +30,11 @@ export function DraftSidebar({ snapshot, busy, onAction, onMock, onSleeperSync }
             </li>
           ))}
         </ol>
-      </section>
+      </Panel>
 
       <DraftTools snapshot={snapshot} busy={busy} onMock={onMock} onSleeperSync={onSleeperSync} />
 
-      <section className="side-panel" id="my-team" aria-labelledby="my-team-title">
+      <Panel variant="side" id="my-team" aria-labelledby="my-team-title">
         <p className="eyebrow">{snapshot.myTeam.length} players</p>
         <h2 id="my-team-title">My team</h2>
         {snapshot.myTeam.length ? (
@@ -43,9 +44,9 @@ export function DraftSidebar({ snapshot, busy, onAction, onMock, onSleeperSync }
             ))}
           </ul>
         ) : <p className="empty-state">No players drafted yet.</p>}
-      </section>
+      </Panel>
 
-      <section className="side-panel" aria-labelledby="history-title">
+      <Panel variant="side" aria-labelledby="history-title">
         <h2 id="history-title">Draft history</h2>
         {snapshot.history.length ? (
           <ol className="history-list">
@@ -56,7 +57,7 @@ export function DraftSidebar({ snapshot, busy, onAction, onMock, onSleeperSync }
             ))}
           </ol>
         ) : <p className="empty-state">No picks recorded yet.</p>}
-      </section>
+      </Panel>
     </aside>
   );
 }

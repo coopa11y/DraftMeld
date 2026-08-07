@@ -1,5 +1,7 @@
 import type { FormEvent } from "react";
 import type { LeagueRules, RankingSource, RankingSourcePreference } from "../shared/api/types";
+import { Button } from "../shared/ui/Button";
+import { FormField } from "../shared/ui/FormField";
 
 const refreshTimeFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
@@ -42,14 +44,13 @@ export function RankingSourcePreferences({
       <fieldset disabled={busy}>
         <legend>Source preferences for {leagueName}</legend>
         <p className="field-help">Included sources shape the consensus. Excluded sources stay available for the compact &quot;Worth another look&quot; list. Weight 2 has twice the pull of weight 1, and matching weights have equal influence. At least one source must remain included.</p>
-        <label className="consensus-method-control">
-          Consensus method
+        <FormField className="consensus-method-control" label="Consensus method">
           <select value={consensusMethod} onChange={(event) => onConsensusMethodChange(event.target.value as LeagueRules["consensusMethod"])}>
             <option value="weighted-median">Weighted median — resistant to outliers</option>
             <option value="trimmed-mean">Trimmed mean — ignores extremes</option>
             <option value="weighted-average">Weighted average — maximum source sensitivity</option>
           </select>
-        </label>
+        </FormField>
         <ul className="source-grid">
           {sources.map((source) => {
             const preference = preferences[source.id] ?? { weight: source.defaultWeight, enabled: true };
@@ -96,8 +97,8 @@ export function RankingSourcePreferences({
           })}
         </ul>
         <div className="source-weight-actions">
-          <button className="primary-button" type="submit" disabled={!preferencesChanged || busy}>Save preferences</button>
-          <button className="secondary-button" type="button" onClick={onReset} disabled={busy}>Include all and restore defaults</button>
+          <Button variant="primary" type="submit" disabled={!preferencesChanged || busy}>Save preferences</Button>
+          <Button onClick={onReset} disabled={busy}>Include all and restore defaults</Button>
         </div>
       </fieldset>
     </form>
