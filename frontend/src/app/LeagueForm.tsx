@@ -57,6 +57,9 @@ function defaultRules(): LeagueRules {
       defenseSafety: 2,
     },
     sourcePreferences: {},
+    consensusMethod: "weighted-median",
+    playerPreferences: {},
+    auctionBudget: 200,
   };
 }
 
@@ -118,6 +121,10 @@ export function LeagueForm({ league, busy, onCancel, onSave }: LeagueFormProps) 
           }}>
             <option value="0">Standard</option><option value="0.5">Half PPR</option><option value="1">PPR</option><option value="custom">Custom</option>
           </select></label>
+          <label>Consensus method<select value={rules.consensusMethod} onChange={(event) => setRules({ ...rules, consensusMethod: event.target.value as LeagueRules["consensusMethod"] })}>
+            <option value="weighted-median">Weighted median</option><option value="trimmed-mean">Trimmed mean</option><option value="weighted-average">Weighted average</option>
+          </select></label>
+          {rules.draftType === "auction" ? <label>Team auction budget<input type="number" min="1" step="1" required value={rules.auctionBudget} onChange={(event) => setRules({ ...rules, auctionBudget: Number(event.target.value) })} /></label> : null}
         </div>
       </fieldset>
 

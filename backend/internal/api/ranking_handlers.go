@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -10,6 +11,29 @@ import (
 )
 
 func registerRankingRoutes(mux *http.ServeMux, service *application.RankingService, leagues *application.LeagueService) {
+	mux.HandleFunc("GET /api/v1/ranking-identities", func(response http.ResponseWriter, request *http.Request) {
+		issues, err := service.IdentityIssues(request.Context())
+		if err != nil {
+			writeError(response, http.StatusInternalServerError, "Unable to load the identity review queue.")
+			return
+		}
+		writeJSON(response, http.StatusOK, issues)
+	})
+	mux.HandleFunc("POST /api/v1/ranking-identities/review", func(response http.ResponseWriter, request *http.Request) {
+		var input struct {
+			IssueKey   string `json:"issueKey"`
+			Resolution string `json:"resolution"`
+		}
+		if err := json.NewDecoder(request.Body).Decode(&input); err != nil {
+			writeError(response, http.StatusBadRequest, "The identity review was not valid.")
+			return
+		}
+		if err := service.ReviewIdentity(request.Context(), input.IssueKey, input.Resolution); err != nil {
+			writeError(response, http.StatusBadRequest, err.Error())
+			return
+		}
+		response.WriteHeader(http.StatusNoContent)
+	})
 	mux.HandleFunc("GET /api/v1/ranking-sources", func(response http.ResponseWriter, request *http.Request) {
 		sources, err := service.Sources(request.Context())
 		if err != nil {
@@ -92,7 +116,7 @@ func registerRankingRoutes(mux *http.ServeMux, service *application.RankingServi
 			writeError(response, http.StatusInternalServerError, "Unable to load ranking weights.")
 			return
 		}
-		rankings, err := service.Consensus(request.Context(), configuration.Rules.SourcePreferences)
+		rankings, err := service.Consensus(request.Context(), configuration.Rules.SourcePreferences, configuration.Rules.ConsensusMethod)
 		if err != nil {
 			writeError(response, http.StatusInternalServerError, "Unable to build consensus rankings.")
 			return
@@ -114,7 +138,7 @@ func registerRankingRoutes(mux *http.ServeMux, service *application.RankingServi
 			writeError(response, http.StatusInternalServerError, "Unable to load ranking preferences.")
 			return
 		}
-		players, err := service.Watchlist(request.Context(), configuration.Rules.SourcePreferences)
+		players, err := service.Watchlist(request.Context(), configuration.Rules.SourcePreferences, configuration.Rules.ConsensusMethod)
 		if err != nil {
 			writeError(response, http.StatusInternalServerError, "Unable to build the disabled-source watchlist.")
 			return

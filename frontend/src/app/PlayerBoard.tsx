@@ -9,8 +9,9 @@ interface PlayerBoardProps {
   snapshot: DraftSnapshot;
   busy: boolean;
   headingRef: RefObject<HTMLHeadingElement | null>;
-  onAction: (player: Player, action: DraftAction) => void;
+  onAction: (player: Player, action: DraftAction, cost?: number) => void;
   onUndo: () => void;
+  onPreference: (player: Player, preference: "target" | "avoid" | "") => void;
 }
 
 function valueLabel(player: Player) {
@@ -20,7 +21,7 @@ function valueLabel(player: Player) {
   return "Even";
 }
 
-export function PlayerBoard({ snapshot, busy, headingRef, onAction, onUndo }: PlayerBoardProps) {
+export function PlayerBoard({ snapshot, busy, headingRef, onAction, onUndo, onPreference }: PlayerBoardProps) {
   const [position, setPosition] = useState<PositionFilter>("Overall");
   const [search, setSearch] = useState("");
   const visiblePlayers = useMemo(() => {
@@ -101,8 +102,10 @@ export function PlayerBoard({ snapshot, busy, headingRef, onAction, onUndo }: Pl
               <th scope="col">Player</th>
               <th scope="col">Position</th>
               <th scope="col">Tier</th>
+              {snapshot.projectionCount > 0 ? <><th scope="col">Proj.</th><th scope="col"><abbr title="Value over replacement">VOR</abbr></th></> : null}
               <th scope="col"><abbr title="Average draft position">ADP</abbr></th>
               <th scope="col">Value</th>
+              <th scope="col">My list</th>
               <th scope="col">Actions</th>
             </tr>
           </thead>
@@ -116,12 +119,14 @@ export function PlayerBoard({ snapshot, busy, headingRef, onAction, onUndo }: Pl
                 </th>
                 <td>{player.position}{player.positionRank}</td>
                 <td>{player.tier}</td>
+                {snapshot.projectionCount > 0 ? <><td>{player.projectedPoints.toFixed(1)}</td><td>{player.valueOverReplacement.toFixed(1)}</td></> : null}
                 <td>{player.adp.toFixed(1)}</td>
                 <td>
                   <span aria-hidden="true">{(player.adp - player.overallRank).toFixed(1)}</span>
                   <span className="sr-only">{valueLabel(player)}</span>
                 </td>
-                <td><PlayerActions player={player} busy={busy} primary onAction={onAction} /></td>
+                <td><div className="preference-actions"><button type="button" aria-pressed={player.preference === "target"} onClick={() => onPreference(player, player.preference === "target" ? "" : "target")} disabled={busy}>Target</button><button type="button" aria-pressed={player.preference === "avoid"} onClick={() => onPreference(player, player.preference === "avoid" ? "" : "avoid")} disabled={busy}>Avoid</button></div></td>
+                <td><PlayerActions player={player} busy={busy} primary auction={snapshot.draftType === "auction"} inflation={snapshot.auctionInflation} onAction={onAction} /></td>
               </tr>
             ))}
           </tbody>

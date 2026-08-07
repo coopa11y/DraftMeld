@@ -11,15 +11,21 @@ const (
 )
 
 type Player struct {
-	ID           string  `json:"id"`
-	Name         string  `json:"name"`
-	NFLTeam      string  `json:"nflTeam"`
-	Position     string  `json:"position"`
-	ByeWeek      int     `json:"byeWeek"`
-	OverallRank  int     `json:"overallRank"`
-	PositionRank int     `json:"positionRank"`
-	ADP          float64 `json:"adp"`
-	Tier         int     `json:"tier"`
+	ID                   string  `json:"id"`
+	Name                 string  `json:"name"`
+	NFLTeam              string  `json:"nflTeam"`
+	Position             string  `json:"position"`
+	ByeWeek              int     `json:"byeWeek"`
+	OverallRank          int     `json:"overallRank"`
+	PositionRank         int     `json:"positionRank"`
+	ADP                  float64 `json:"adp"`
+	Tier                 int     `json:"tier"`
+	ProjectedPoints      float64 `json:"projectedPoints"`
+	ValueOverReplacement float64 `json:"valueOverReplacement"`
+	Confidence           string  `json:"confidence"`
+	RankRange            int     `json:"rankRange"`
+	Preference           string  `json:"preference"`
+	AuctionValue         float64 `json:"auctionValue"`
 }
 
 type Event struct {
@@ -29,6 +35,7 @@ type Event struct {
 	Action        Action    `json:"action"`
 	TargetEventID *int64    `json:"targetEventId,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`
+	Cost          float64   `json:"cost"`
 }
 
 type Pick struct {
@@ -37,6 +44,7 @@ type Pick struct {
 	Action    Action    `json:"action"`
 	Player    Player    `json:"player"`
 	CreatedAt time.Time `json:"createdAt"`
+	Cost      float64   `json:"cost"`
 }
 
 type Recommendation struct {
@@ -46,12 +54,20 @@ type Recommendation struct {
 }
 
 type Snapshot struct {
-	LeagueID        string           `json:"leagueId"`
-	LeagueName      string           `json:"leagueName"`
-	PickNumber      int              `json:"pickNumber"`
-	Available       []Player         `json:"available"`
-	MyTeam          []Player         `json:"myTeam"`
-	History         []Pick           `json:"history"`
-	Recommendations []Recommendation `json:"recommendations"`
-	CanUndo         bool             `json:"canUndo"`
+	LeagueID         string           `json:"leagueId"`
+	LeagueName       string           `json:"leagueName"`
+	PickNumber       int              `json:"pickNumber"`
+	Available        []Player         `json:"available"`
+	MyTeam           []Player         `json:"myTeam"`
+	History          []Pick           `json:"history"`
+	Recommendations  []Recommendation `json:"recommendations"`
+	CanUndo          bool             `json:"canUndo"`
+	DataMode         string           `json:"dataMode"`
+	ProjectionCount  int              `json:"projectionCount"`
+	DraftType        string           `json:"draftType"`
+	NextUserPick     int              `json:"nextUserPick"`
+	AuctionBudget    float64          `json:"auctionBudget"`
+	BudgetRemaining  float64          `json:"budgetRemaining"`
+	AuctionInflation float64          `json:"auctionInflation"`
+	IsUserTurn       bool             `json:"isUserTurn"`
 }

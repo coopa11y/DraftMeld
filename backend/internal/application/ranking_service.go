@@ -118,7 +118,7 @@ func (service *RankingService) download(ctx context.Context, source ranking.Sour
 	return nil, fmt.Errorf("download %s after retry: %w", source.Name, lastErr)
 }
 
-func (service *RankingService) Consensus(ctx context.Context, preferences map[string]league.RankingSourcePreference) ([]ranking.PlayerRanking, error) {
+func (service *RankingService) Consensus(ctx context.Context, preferences map[string]league.RankingSourcePreference, methods ...string) ([]ranking.PlayerRanking, error) {
 	records, err := service.repository.RankingRecords(ctx)
 	if err != nil {
 		return nil, err
@@ -167,7 +167,7 @@ func (service *RankingService) Consensus(ctx context.Context, preferences map[st
 			continue
 		}
 		source := sources[record.SourceID]
-		source.ID, source.Weight = record.SourceID, preference.Weight
+		source.ID, source.Role, source.Weight = record.SourceID, definition.Role, preference.Weight
 		if source.Ranks == nil {
 			source.Ranks = make(map[string]int)
 		}
@@ -185,14 +185,22 @@ func (service *RankingService) Consensus(ctx context.Context, preferences map[st
 	for _, source := range sources {
 		weighted = append(weighted, source)
 	}
-	entries, err := ranking.WeightedAverage(weighted)
+	eligiblePlayers := make([]string, 0, len(eligible))
+	for playerID := range eligible {
+		eligiblePlayers = append(eligiblePlayers, playerID)
+	}
+	method := ranking.MethodWeightedAverage
+	if len(methods) > 0 && methods[0] != "" {
+		method = methods[0]
+	}
+	entries, err := ranking.Combine(weighted, eligiblePlayers, method)
 	if err != nil {
 		return nil, err
 	}
 	result := make([]ranking.PlayerRanking, 0, len(entries))
 	for index, entry := range entries {
 		player := metadata[entry.PlayerID]
-		result = append(result, ranking.PlayerRanking{PlayerKey: entry.PlayerID, Name: player.Name, Position: player.Position, Team: player.Team, Rank: index + 1, Score: entry.Score, SourceCount: entry.SourceCount, SourceRanks: sourceRanks[entry.PlayerID]})
+		result = append(result, ranking.PlayerRanking{PlayerKey: entry.PlayerID, Name: player.Name, Position: player.Position, Team: player.Team, Rank: index + 1, Score: entry.Score, SourceCount: entry.SourceCount, SourceRanks: sourceRanks[entry.PlayerID], Coverage: entry.Coverage, RankRange: entry.RankRange, Confidence: entry.Confidence, Method: method})
 	}
 	return result, nil
 }

@@ -130,6 +130,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projection-sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List user-imported granular projection sources */
+        get: operations["listProjectionSources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projection-sources/import-csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import granular player projections from CSV */
+        post: operations["importProjectionCSV"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ranking-identities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List potentially ambiguous canonical player matches */
+        get: operations["listRankingIdentityIssues"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ranking-identities/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record a human review of an identity issue */
+        post: operations["reviewRankingIdentity"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rankings": {
         parameters: {
             query?: never;
@@ -215,6 +283,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/draft/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Mark a player as a target, avoid, or neutral */
+        put: operations["setDraftPlayerPreference"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/draft/mock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Simulate opponent picks until the user's next turn */
+        post: operations["simulateDraftToNextTurn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/draft/sync/sleeper": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import current picks from a public Sleeper draft */
+        post: operations["syncSleeperDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -227,7 +346,7 @@ export interface components {
             status: "ok";
             /** @example draftmeld */
             service: string;
-            /** @example 0.2.0 */
+            /** @example 0.3.0 */
             version: string;
         };
         LeagueRules: {
@@ -244,6 +363,12 @@ export interface components {
             sourcePreferences: {
                 [key: string]: components["schemas"]["RankingSourcePreference"];
             };
+            /** @enum {string} */
+            consensusMethod: "weighted-average" | "weighted-median" | "trimmed-mean";
+            playerPreferences: {
+                [key: string]: "target" | "avoid";
+            };
+            auctionBudget: number;
         };
         League: {
             id: string;
@@ -267,6 +392,8 @@ export interface components {
             defaultWeight: number;
             /** @enum {string} */
             importMode: "download" | "pdf-upload";
+            /** @enum {string} */
+            role: "ranking" | "market" | "usage";
             recordCount: number;
             /** Format: date-time */
             refreshedAt?: string | null;
@@ -292,6 +419,32 @@ export interface components {
             sourceRanks: {
                 [key: string]: number;
             };
+            coverage: number;
+            rankRange: number;
+            /** @enum {string} */
+            confidence: "high" | "medium" | "low";
+            /** @enum {string} */
+            method: "weighted-average" | "weighted-median" | "trimmed-mean";
+        };
+        ProjectionSource: {
+            id: string;
+            name: string;
+            recordCount: number;
+            /** Format: date-time */
+            importedAt: string;
+        };
+        IdentityCandidate: {
+            playerKey: string;
+            name: string;
+            position: string;
+            team: string;
+        };
+        IdentityIssue: {
+            issueKey: string;
+            reason: string;
+            candidates: components["schemas"]["IdentityCandidate"][];
+            /** @enum {string} */
+            resolution: "confirmed-separate" | "acknowledged" | "";
         };
         WatchlistSignal: {
             sourceId: string;
@@ -319,6 +472,13 @@ export interface components {
             positionRank: number;
             adp: number;
             tier: number;
+            projectedPoints: number;
+            valueOverReplacement: number;
+            confidence: string;
+            rankRange: number;
+            /** @enum {string} */
+            preference: "target" | "avoid" | "";
+            auctionValue: number;
         };
         Recommendation: {
             player: components["schemas"]["Player"];
@@ -333,6 +493,7 @@ export interface components {
             player: components["schemas"]["Player"];
             /** Format: date-time */
             createdAt: string;
+            cost: number;
         };
         DraftSnapshot: {
             leagueId: string;
@@ -343,12 +504,22 @@ export interface components {
             history: components["schemas"]["Pick"][];
             recommendations: components["schemas"]["Recommendation"][];
             canUndo: boolean;
+            dataMode: string;
+            projectionCount: number;
+            /** @enum {string} */
+            draftType: "snake" | "linear" | "auction";
+            nextUserPick: number;
+            auctionBudget: number;
+            budgetRemaining: number;
+            auctionInflation: number;
+            isUserTurn: boolean;
         };
         DraftActionRequest: {
             leagueId: string;
             playerId: string;
             /** @enum {string} */
             action: "draft" | "taken";
+            cost?: number;
         };
     };
     responses: {
@@ -638,6 +809,101 @@ export interface operations {
             };
         };
     };
+    listProjectionSources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Imported projection sources. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectionSource"][];
+                };
+            };
+        };
+    };
+    importProjectionCSV: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    name: string;
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Imported projection source. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectionSource"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    listRankingIdentityIssues: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Reviewable identity issues. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentityIssue"][];
+                };
+            };
+        };
+    };
+    reviewRankingIdentity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    issueKey: string;
+                    /** @enum {string} */
+                    resolution: "confirmed-separate" | "acknowledged";
+                };
+            };
+        };
+        responses: {
+            /** @description Identity review saved. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getConsensusRankings: {
         parameters: {
             query: {
@@ -782,6 +1048,89 @@ export interface operations {
                 };
             };
             500: components["responses"]["ServerError"];
+        };
+    };
+    setDraftPlayerPreference: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    leagueId: string;
+                    playerId: string;
+                    /** @enum {string} */
+                    preference: "target" | "avoid" | "";
+                };
+            };
+        };
+        responses: {
+            /** @description Updated draft state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftSnapshot"];
+                };
+            };
+        };
+    };
+    simulateDraftToNextTurn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    leagueId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Draft state after simulated opponent picks. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftSnapshot"];
+                };
+            };
+        };
+    };
+    syncSleeperDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    leagueId: string;
+                    sleeperDraftId: string;
+                    rosterId: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Draft state after Sleeper synchronization. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftSnapshot"];
+                };
+            };
         };
     };
 }

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { leagueToRules, updateLeague } from "../shared/api/leagues";
-import { getConsensusRankings, getRankingWatchlist, importRankingPDF, listRankingSources, refreshRankingSources } from "../shared/api/rankings";
-import type { ConsensusRanking, League, RankingSource, RankingSourcePreference, WatchlistPlayer } from "../shared/api/types";
+import { getConsensusRankings, getRankingWatchlist, importRankingPDF, listIdentityIssues, listProjectionSources, listRankingSources, refreshRankingSources } from "../shared/api/rankings";
+import type { ConsensusRanking, IdentityIssue, League, LeagueRules, ProjectionSource, RankingSource, RankingSourcePreference, WatchlistPlayer } from "../shared/api/types";
+import { IdentityReviewQueue } from "./IdentityReviewQueue";
+import { ProjectionImport } from "./ProjectionImport";
 
 const refreshTimeFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 const providerCoverage = [
@@ -25,6 +27,9 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
   const [rankings, setRankings] = useState<ConsensusRanking[]>([]);
   const [preferences, setPreferences] = useState<Record<string, RankingSourcePreference>>({});
   const [watchlist, setWatchlist] = useState<WatchlistPlayer[]>([]);
+  const [projectionSources, setProjectionSources] = useState<ProjectionSource[]>([]);
+  const [identityIssues, setIdentityIssues] = useState<IdentityIssue[]>([]);
+  const [consensusMethod, setConsensusMethod] = useState<LeagueRules["consensusMethod"]>(league.consensusMethod);
   const [busy, setBusy] = useState(true);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -34,13 +39,16 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
     let active = true;
     async function load() {
       try {
-        const [loaded, consensus, disabledSourcePlayers] = await Promise.all([
-          listRankingSources(), getConsensusRankings(league.id), getRankingWatchlist(league.id),
+        const [loaded, consensus, disabledSourcePlayers, projections, identities] = await Promise.all([
+          listRankingSources(), getConsensusRankings(league.id), getRankingWatchlist(league.id), listProjectionSources(), listIdentityIssues(),
         ]);
         if (!active) return;
         setSources(loaded);
         setRankings(consensus);
         setWatchlist(disabledSourcePlayers);
+        setProjectionSources(projections);
+        setIdentityIssues(identities);
+        setConsensusMethod(league.consensusMethod);
         setPreferences(Object.fromEntries(loaded.map((source) => [source.id, league.sourcePreferences[source.id] ?? { weight: source.defaultWeight, enabled: true }])));
       } catch (reason) {
         if (active) setError(reason instanceof Error ? reason.message : "Unable to load ranking sources.");
@@ -60,9 +68,10 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
     try {
       const loaded = await refreshRankingSources();
       setSources(loaded);
-      const [consensus, disabledSourcePlayers] = await Promise.all([getConsensusRankings(league.id), getRankingWatchlist(league.id)]);
+      const [consensus, disabledSourcePlayers, identities] = await Promise.all([getConsensusRankings(league.id), getRankingWatchlist(league.id), listIdentityIssues()]);
       setRankings(consensus);
       setWatchlist(disabledSourcePlayers);
+      setIdentityIssues(identities);
       const count = loaded.reduce((total, source) => total + source.recordCount, 0);
       setMessage(`Rankings refreshed. ${count} source records were normalized.`);
     } catch (reason) {
@@ -86,9 +95,10 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
     try {
       const result = await importRankingPDF(pdfFile);
       setSources((current) => current.map((source) => source.id === result.source.id ? result.source : source));
-      const [consensus, disabledSourcePlayers] = await Promise.all([getConsensusRankings(league.id), getRankingWatchlist(league.id)]);
+      const [consensus, disabledSourcePlayers, identities] = await Promise.all([getConsensusRankings(league.id), getRankingWatchlist(league.id), listIdentityIssues()]);
       setRankings(consensus);
       setWatchlist(disabledSourcePlayers);
+      setIdentityIssues(identities);
       setMessage(`${result.source.name} imported: ${result.source.recordCount} players from ${result.pageCount} page${result.pageCount === 1 ? "" : "s"}.`);
       setPDFFile(null);
       form.reset();
@@ -106,7 +116,7 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
     setError("");
     setMessage(`Saving ranking influence for ${league.name}.`);
     try {
-      const updated = await updateLeague(league.id, { ...leagueToRules(league), sourcePreferences: preferences });
+      const updated = await updateLeague(league.id, { ...leagueToRules(league), sourcePreferences: preferences, consensusMethod });
       onLeagueUpdated(updated);
       const [consensus, disabledSourcePlayers] = await Promise.all([getConsensusRankings(updated.id), getRankingWatchlist(updated.id)]);
       setRankings(consensus);
@@ -125,7 +135,7 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
     setMessage("All sources and default influence values restored. Choose Save preferences to apply them.");
   }
 
-  const preferencesChanged = sources.some((source) => {
+  const preferencesChanged = consensusMethod !== league.consensusMethod || sources.some((source) => {
     const current = preferences[source.id] ?? { weight: source.defaultWeight, enabled: true };
     const saved = league.sourcePreferences[source.id] ?? { weight: source.defaultWeight, enabled: true };
     return current.weight !== saved.weight || current.enabled !== saved.enabled;
@@ -158,6 +168,7 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
           <fieldset disabled={busy}>
             <legend>Source preferences for {league.name}</legend>
             <p className="field-help">Included sources shape the consensus. Excluded sources stay available for the compact "Worth another look" list. Weight 2 has twice the pull of weight 1, and matching weights have equal influence. At least one source must remain included.</p>
+            <label className="consensus-method-control">Consensus method<select value={consensusMethod} onChange={(event) => setConsensusMethod(event.target.value as LeagueRules["consensusMethod"])}><option value="weighted-median">Weighted median — resistant to outliers</option><option value="trimmed-mean">Trimmed mean — ignores extremes</option><option value="weighted-average">Weighted average — maximum source sensitivity</option></select></label>
             <ul className="source-grid">
               {sources.map((source) => {
                 const preference = preferences[source.id] ?? { weight: source.defaultWeight, enabled: true };
@@ -168,6 +179,7 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
                     <p>{source.description}</p>
                     <dl>
                       <div><dt>Method</dt><dd>{source.methodology}</dd></div>
+                      <div><dt>Signal role</dt><dd>{source.role}</dd></div>
                       <div><dt>License</dt><dd>{source.license}</dd></div>
                       <div><dt>Default weight</dt><dd>{source.defaultWeight}</dd></div>
                       <div><dt>Published</dt><dd>{source.publishedAt || "Refresh required"}</dd></div>
@@ -200,6 +212,10 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
         </form>
       </section>
 
+      <ProjectionImport busy={busy} sources={projectionSources} onBusyChange={setBusy} onImported={(source) => setProjectionSources((current) => [...current.filter((candidate) => candidate.id !== source.id), source])} onMessage={setMessage} onError={setError} />
+
+      <IdentityReviewQueue busy={busy} issues={identityIssues} onBusyChange={setBusy} onReviewed={(issueKey, resolution) => setIdentityIssues((current) => current.map((issue) => issue.issueKey === issueKey ? { ...issue, resolution } : issue))} onError={setError} />
+
       {watchlist.length > 0 ? (
         <section className="ranking-panel watchlist-panel" aria-labelledby="watchlist-heading">
           <div className="section-heading"><div><p className="eyebrow">Excluded-source signals</p><h2 id="watchlist-heading">Worth another look</h2><p className="section-description">A short list of players ranked meaningfully higher by sources you excluded from the main consensus.</p></div></div>
@@ -231,12 +247,12 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
 
       {rankings.length > 0 ? (
         <section className="ranking-panel" aria-labelledby="consensus-heading">
-          <div className="section-heading"><div><p className="eyebrow">League-weighted preview</p><h2 id="consensus-heading">DraftMeld consensus for {league.name}</h2><p className="section-description">The blended score is the weighted average of every included, imported source that ranks that player. Lower is better.</p></div></div>
+          <div className="section-heading"><div><p className="eyebrow">League-weighted preview</p><h2 id="consensus-heading">DraftMeld consensus for {league.name}</h2><p className="section-description">Lists are normalized for source depth, primary ranking omissions are handled conservatively, and contextual market or usage signals only apply when present. Lower is better.</p></div></div>
           <div className="table-scroll">
             <table aria-label="Top 25 blended player rankings">
               <caption>Top 25 blended player rankings</caption>
-              <thead><tr><th>Rank</th><th>Player</th><th>Pos.</th><th>Sources</th><th>Blended score</th></tr></thead>
-              <tbody>{rankings.slice(0, 25).map((player) => <tr key={player.playerKey}><td>{player.rank}</td><th scope="row"><span className="player-name">{player.name}</span><span className="player-meta">{player.team || "Team unavailable"}</span></th><td>{player.position}</td><td>{player.sourceCount} of {enabledImportedSourceCount}</td><td>{player.score.toFixed(1)}</td></tr>)}</tbody>
+              <thead><tr><th>Rank</th><th>Player</th><th>Pos.</th><th>Sources</th><th>Score</th><th>Confidence</th></tr></thead>
+              <tbody>{rankings.slice(0, 25).map((player) => <tr key={player.playerKey}><td>{player.rank}</td><th scope="row"><span className="player-name">{player.name}</span><span className="player-meta">{player.team || "Team unavailable"}</span></th><td>{player.position}</td><td>{player.sourceCount} of {enabledImportedSourceCount}</td><td>{player.score.toFixed(1)}</td><td><span className={`confidence-badge confidence-${player.confidence}`}>{player.confidence}</span><span className="player-meta">{Math.round(player.coverage * 100)}% coverage, {player.rankRange}-rank range</span></td></tr>)}</tbody>
             </table>
           </div>
         </section>

@@ -5,13 +5,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ConsensusRanking, DraftSnapshot, League, Player, RankingSource } from "../shared/api/types";
 import { App } from "./App";
 
+const playerIntelligence = { projectedPoints: 0, valueOverReplacement: 0, confidence: "demo", rankRange: 0, preference: "" as const, auctionValue: 0 };
+
 const alex: Player = {
   id: "p001", name: "Alex Rivers", nflTeam: "ATL", position: "RB",
   byeWeek: 12, overallRank: 1, positionRank: 1, adp: 1.8, tier: 1,
+  ...playerIntelligence,
 };
 const jordan: Player = {
   id: "p002", name: "Jordan Hale", nflTeam: "MIN", position: "WR",
   byeWeek: 6, overallRank: 2, positionRank: 1, adp: 2.5, tier: 1,
+  ...playerIntelligence,
 };
 
 function snapshot(overrides: Partial<DraftSnapshot> = {}): DraftSnapshot {
@@ -27,6 +31,9 @@ function snapshot(overrides: Partial<DraftSnapshot> = {}): DraftSnapshot {
       { player: jordan, score: 219, reasons: ["Best available league-adjusted value"] },
     ],
     canUndo: false,
+    dataMode: "demo", projectionCount: 0, draftType: "snake", nextUserPick: 13,
+    auctionBudget: 200, budgetRemaining: 0, auctionInflation: 1,
+    isUserTurn: false,
     ...overrides,
   };
 }
@@ -41,32 +48,36 @@ const demoLeague: League = {
     "cbs-ppr": { weight: 0.9, enabled: true }, "espn-ppr-pdf": { weight: 0.9, enabled: true },
     "espn-dynasty-pdf": { weight: 0.6, enabled: true },
   },
+  consensusMethod: "weighted-median", playerPreferences: {}, auctionBudget: 200,
 };
 const casey: Player = {
   id: "p003", name: "Casey Brooks", nflTeam: "DET", position: "RB",
   byeWeek: 8, overallRank: 10, positionRank: 2, adp: 11.4, tier: 2,
+  ...playerIntelligence,
 };
 const kicker: Player = {
   id: "p004", name: "Avery Cole", nflTeam: "DAL", position: "K",
   byeWeek: 10, overallRank: 11, positionRank: 1, adp: 145.2, tier: 1,
+  ...playerIntelligence,
 };
 const defense: Player = {
   id: "p005", name: "Denver Defense", nflTeam: "DEN", position: "DST",
   byeWeek: 12, overallRank: 12, positionRank: 1, adp: 137.8, tier: 1,
+  ...playerIntelligence,
 };
 
 const rankingSources: RankingSource[] = [
-  { id: "redraft-ecr", name: "Redraft expert consensus", description: "Current overall redraft consensus.", methodology: "Average expert rank", license: "GPL-3.0", projectUrl: "https://github.com/dynastyprocess/data", dataUrl: "https://example.test/ecr.csv", defaultWeight: 1, importMode: "download", recordCount: 500, publishedAt: "2026-07-31" },
-  { id: "dynasty-1qb", name: "Dynasty market - 1 QB", description: "Long-term 1-QB values.", methodology: "Normalized player value", license: "GPL-3.0", projectUrl: "https://github.com/dynastyprocess/data", dataUrl: "https://example.test/1qb.csv", defaultWeight: 0.7, importMode: "download", recordCount: 450, publishedAt: "2026-07-31" },
-  { id: "dynasty-superflex", name: "Dynasty market - Superflex", description: "Long-term Superflex values.", methodology: "Normalized Superflex value", license: "GPL-3.0", projectUrl: "https://github.com/dynastyprocess/data", dataUrl: "https://example.test/superflex.csv", defaultWeight: 0.5, importMode: "download", recordCount: 450, publishedAt: "2026-07-31" },
-  { id: "expected-opportunity", name: "Expected opportunity", description: "Prior-season usage quality.", methodology: "Expected fantasy points", license: "CC-BY-SA-4.0", projectUrl: "https://github.com/ffverse/ffopportunity", dataUrl: "https://example.test/opportunity.csv", defaultWeight: 0.6, importMode: "download", recordCount: 300, publishedAt: "2025" },
-  { id: "cbs-ppr", name: "CBS Sports PPR Top 200", description: "Current CBS consensus.", methodology: "CBS expert consensus", license: "Proprietary; retrieved on demand", projectUrl: "https://www.cbssports.com/fantasy/football/rankings/", dataUrl: "https://www.cbssports.com/fantasy/football/rankings/", defaultWeight: 0.9, importMode: "download", recordCount: 200, publishedAt: "Updated today" },
-  { id: "espn-ppr-pdf", name: "ESPN PPR Top 300 PDF", description: "User-supplied ESPN rankings.", methodology: "Overall ordinal rank", license: "Proprietary; user-supplied", projectUrl: "https://www.espn.com/fantasy/football/", dataUrl: "https://www.espn.com/fantasy/football/", defaultWeight: 0.9, importMode: "pdf-upload", recordCount: 0 },
-  { id: "espn-dynasty-pdf", name: "ESPN Dynasty PDF", description: "User-supplied ESPN dynasty rankings.", methodology: "Dynasty ordinal rank", license: "Proprietary; user-supplied", projectUrl: "https://www.espn.com/fantasy/football/", dataUrl: "https://www.espn.com/fantasy/football/", defaultWeight: 0.6, importMode: "pdf-upload", recordCount: 0 },
+  { id: "redraft-ecr", name: "Redraft expert consensus", description: "Current overall redraft consensus.", methodology: "Average expert rank", license: "GPL-3.0", projectUrl: "https://github.com/dynastyprocess/data", dataUrl: "https://example.test/ecr.csv", defaultWeight: 1, importMode: "download", role: "ranking", recordCount: 500, publishedAt: "2026-07-31" },
+  { id: "dynasty-1qb", name: "Dynasty market - 1 QB", description: "Long-term 1-QB values.", methodology: "Normalized player value", license: "GPL-3.0", projectUrl: "https://github.com/dynastyprocess/data", dataUrl: "https://example.test/1qb.csv", defaultWeight: 0.7, importMode: "download", role: "market", recordCount: 450, publishedAt: "2026-07-31" },
+  { id: "dynasty-superflex", name: "Dynasty market - Superflex", description: "Long-term Superflex values.", methodology: "Normalized Superflex value", license: "GPL-3.0", projectUrl: "https://github.com/dynastyprocess/data", dataUrl: "https://example.test/superflex.csv", defaultWeight: 0.5, importMode: "download", role: "market", recordCount: 450, publishedAt: "2026-07-31" },
+  { id: "expected-opportunity", name: "Expected opportunity", description: "Prior-season usage quality.", methodology: "Expected fantasy points", license: "CC-BY-SA-4.0", projectUrl: "https://github.com/ffverse/ffopportunity", dataUrl: "https://example.test/opportunity.csv", defaultWeight: 0.6, importMode: "download", role: "usage", recordCount: 300, publishedAt: "2025" },
+  { id: "cbs-ppr", name: "CBS Sports PPR Top 200", description: "Current CBS consensus.", methodology: "CBS expert consensus", license: "Proprietary; retrieved on demand", projectUrl: "https://www.cbssports.com/fantasy/football/rankings/", dataUrl: "https://www.cbssports.com/fantasy/football/rankings/", defaultWeight: 0.9, importMode: "download", role: "ranking", recordCount: 200, publishedAt: "Updated today" },
+  { id: "espn-ppr-pdf", name: "ESPN PPR Top 300 PDF", description: "User-supplied ESPN rankings.", methodology: "Overall ordinal rank", license: "Proprietary; user-supplied", projectUrl: "https://www.espn.com/fantasy/football/", dataUrl: "https://www.espn.com/fantasy/football/", defaultWeight: 0.9, importMode: "pdf-upload", role: "ranking", recordCount: 0 },
+  { id: "espn-dynasty-pdf", name: "ESPN Dynasty PDF", description: "User-supplied ESPN dynasty rankings.", methodology: "Dynasty ordinal rank", license: "Proprietary; user-supplied", projectUrl: "https://www.espn.com/fantasy/football/", dataUrl: "https://www.espn.com/fantasy/football/", defaultWeight: 0.6, importMode: "pdf-upload", role: "market", recordCount: 0 },
 ];
 
 const consensusRankings: ConsensusRanking[] = [
-  { playerKey: "alexrivers", name: "Alex Rivers", position: "RB", team: "ATL", rank: 1, score: 1.5, sourceCount: 4, sourceRanks: { "redraft-ecr": 1 } },
+  { playerKey: "alexrivers", name: "Alex Rivers", position: "RB", team: "ATL", rank: 1, score: 1.5, sourceCount: 4, sourceRanks: { "redraft-ecr": 1 }, coverage: 0.8, rankRange: 4, confidence: "high", method: "weighted-median" },
 ];
 
 function jsonResponse(body: unknown, status = 200) {
@@ -170,6 +181,28 @@ describe("accessible draft board", () => {
     expect(screen.getByRole("button", { name: "K" })).toBeInTheDocument();
   });
 
+  it("persists targets and can simulate opponents to the next turn", async () => {
+    const targetedAlex = { ...alex, preference: "target" as const };
+    const targeted = snapshot({ available: [targetedAlex, jordan], recommendations: [{ player: targetedAlex, score: 250, reasons: ["Marked as one of your targets"] }] });
+    const simulated = snapshot({ pickNumber: 24, available: [targetedAlex], recommendations: [{ player: targetedAlex, score: 250, reasons: ["Marked as one of your targets"] }] });
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = input instanceof Request ? input : new Request(input, init);
+      const path = new URL(request.url).pathname;
+      if (path.endsWith("/leagues")) return jsonResponse([demoLeague]);
+      if (path.endsWith("/draft/preferences")) return jsonResponse(targeted);
+      if (path.endsWith("/draft/mock")) return jsonResponse(simulated);
+      return jsonResponse(snapshot());
+    }));
+    const user = userEvent.setup();
+    render(<App />);
+    const targetButtons = await screen.findAllByRole("button", { name: "Target" });
+    await user.click(targetButtons[0]);
+    expect(await screen.findByText("Alex Rivers was added to your target list. Recommendations updated.")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Target" })[0]).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByRole("button", { name: /Simulate to my next turn/ }));
+    expect(await screen.findByText("Mock opponents completed. It is now pick 24.")).toBeInTheDocument();
+  });
+
   it("shows source provenance and refreshes the accessible consensus preview", async () => {
     let savedPreferences: League["sourcePreferences"] | undefined;
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -184,6 +217,8 @@ describe("accessible draft board", () => {
       if (path.endsWith("/ranking-sources/import-pdf") && request.method === "POST") return jsonResponse({ source: { ...rankingSources[5], recordCount: 245, publishedAt: "2026-08-02" }, pageCount: 1 }, 201);
       if (path.endsWith("/ranking-sources/refresh") && request.method === "POST") return jsonResponse(rankingSources);
       if (path.endsWith("/ranking-sources")) return jsonResponse(rankingSources.map((source) => ({ ...source, recordCount: 0, publishedAt: undefined })));
+      if (path.endsWith("/projection-sources")) return jsonResponse([]);
+      if (path.endsWith("/ranking-identities")) return jsonResponse([]);
       if (path.endsWith("/ranking-watchlist")) return jsonResponse(savedPreferences?.["cbs-ppr"]?.enabled === false ? [{
         playerKey: "alexrivers", name: "Alex Rivers", position: "RB", team: "ATL", consensusRank: 42,
         signals: [{ sourceId: "cbs-ppr", sourceName: "CBS Sports PPR Top 200", sourceRank: 11, spotsHigher: 31 }],
@@ -229,7 +264,7 @@ describe("accessible draft board", () => {
       pickNumber: 2,
       available: [jordan],
       myTeam: [alex],
-      history: [{ eventId: 1, number: 1, action: "draft", player: alex, createdAt: new Date().toISOString() }],
+      history: [{ eventId: 1, number: 1, action: "draft", player: alex, createdAt: new Date().toISOString(), cost: 0 }],
       recommendations: [{ player: jordan, score: 219, reasons: ["Fills an open starting roster need"] }],
       canUndo: true,
     });
@@ -254,7 +289,7 @@ describe("accessible draft board", () => {
       pickNumber: 2,
       available: [jordan],
       myTeam: [alex],
-      history: [{ eventId: 1, number: 1, action: "draft", player: alex, createdAt: new Date().toISOString() }],
+      history: [{ eventId: 1, number: 1, action: "draft", player: alex, createdAt: new Date().toISOString(), cost: 0 }],
       recommendations: [{ player: jordan, score: 219, reasons: ["Fills an open starting roster need"] }],
       canUndo: true,
     });

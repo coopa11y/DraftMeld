@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: DraftMeld API
-  version: 0.2.0
+  version: 0.3.0
   description: Public contract between the DraftMeld frontend and backend.
   license:
     name: GNU Affero General Public License v3.0
@@ -169,6 +169,67 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /projection-sources:
+    get:
+      operationId: listProjectionSources
+      summary: List user-imported granular projection sources
+      responses:
+        "200":
+          description: Imported projection sources.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ProjectionSource" }
+  /projection-sources/import-csv:
+    post:
+      operationId: importProjectionCSV
+      summary: Import granular player projections from CSV
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [name, file]
+              properties:
+                name: { type: string }
+                file: { type: string, format: binary }
+      responses:
+        "201":
+          description: Imported projection source.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProjectionSource" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+  /ranking-identities:
+    get:
+      operationId: listRankingIdentityIssues
+      summary: List potentially ambiguous canonical player matches
+      responses:
+        "200":
+          description: Reviewable identity issues.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/IdentityIssue" }
+  /ranking-identities/review:
+    post:
+      operationId: reviewRankingIdentity
+      summary: Record a human review of an identity issue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [issueKey, resolution]
+              properties:
+                issueKey: { type: string }
+                resolution: { type: string, enum: [confirmed-separate, acknowledged] }
+      responses:
+        "204": { description: Identity review saved. }
   /rankings:
     get:
       operationId: getConsensusRankings
@@ -281,6 +342,67 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "500":
           $ref: "#/components/responses/ServerError"
+  /draft/preferences:
+    put:
+      operationId: setDraftPlayerPreference
+      summary: Mark a player as a target, avoid, or neutral
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [leagueId, playerId, preference]
+              properties:
+                leagueId: { type: string }
+                playerId: { type: string }
+                preference: { type: string, enum: [target, avoid, ""] }
+      responses:
+        "200":
+          description: Updated draft state.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DraftSnapshot" }
+  /draft/mock:
+    post:
+      operationId: simulateDraftToNextTurn
+      summary: Simulate opponent picks until the user's next turn
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [leagueId]
+              properties:
+                leagueId: { type: string }
+      responses:
+        "200":
+          description: Draft state after simulated opponent picks.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DraftSnapshot" }
+  /draft/sync/sleeper:
+    post:
+      operationId: syncSleeperDraft
+      summary: Import current picks from a public Sleeper draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [leagueId, sleeperDraftId, rosterId]
+              properties:
+                leagueId: { type: string }
+                sleeperDraftId: { type: string }
+                rosterId: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Draft state after Sleeper synchronization.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DraftSnapshot" }
 components:
   parameters:
     LeagueId:
@@ -335,10 +457,10 @@ components:
           example: draftmeld
         version:
           type: string
-          example: 0.2.0
+          example: 0.3.0
     LeagueRules:
       type: object
-      required: [name, teamCount, draftPosition, draftType, rosterSlots, scoringRules, sourcePreferences]
+      required: [name, teamCount, draftPosition, draftType, rosterSlots, scoringRules, sourcePreferences, consensusMethod, playerPreferences, auctionBudget]
       properties:
         name:
           type: string
@@ -368,6 +490,17 @@ components:
           description: Per-source inclusion and influence. Missing source IDs use enabled published defaults.
           additionalProperties:
             $ref: "#/components/schemas/RankingSourcePreference"
+        consensusMethod:
+          type: string
+          enum: [weighted-average, weighted-median, trimmed-mean]
+        playerPreferences:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [target, avoid]
+        auctionBudget:
+          type: number
+          exclusiveMinimum: 0
     League:
       allOf:
         - type: object
@@ -396,7 +529,7 @@ components:
     RankingSource:
       type: object
       additionalProperties: false
-      required: [id, name, description, methodology, license, projectUrl, dataUrl, defaultWeight, importMode, recordCount]
+      required: [id, name, description, methodology, license, projectUrl, dataUrl, defaultWeight, importMode, role, recordCount]
       properties:
         id: { type: string }
         name: { type: string }
@@ -407,6 +540,7 @@ components:
         dataUrl: { type: string, format: uri }
         defaultWeight: { type: number, exclusiveMinimum: 0 }
         importMode: { type: string, enum: [download, pdf-upload] }
+        role: { type: string, enum: [ranking, market, usage] }
         recordCount: { type: integer, minimum: 0 }
         refreshedAt: { type: [string, "null"], format: date-time }
         publishedAt: { type: string }
@@ -427,7 +561,7 @@ components:
     ConsensusRanking:
       type: object
       additionalProperties: false
-      required: [playerKey, name, position, team, rank, score, sourceCount, sourceRanks]
+      required: [playerKey, name, position, team, rank, score, sourceCount, sourceRanks, coverage, rankRange, confidence, method]
       properties:
         playerKey: { type: string }
         name: { type: string }
@@ -439,6 +573,40 @@ components:
         sourceRanks:
           type: object
           additionalProperties: { type: integer, minimum: 1 }
+        coverage: { type: number, minimum: 0, maximum: 1 }
+        rankRange: { type: integer, minimum: 0 }
+        confidence: { type: string, enum: [high, medium, low] }
+        method: { type: string, enum: [weighted-average, weighted-median, trimmed-mean] }
+    ProjectionSource:
+      type: object
+      additionalProperties: false
+      required: [id, name, recordCount, importedAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        recordCount: { type: integer, minimum: 1 }
+        importedAt: { type: string, format: date-time }
+    IdentityCandidate:
+      type: object
+      additionalProperties: false
+      required: [playerKey, name, position, team]
+      properties:
+        playerKey: { type: string }
+        name: { type: string }
+        position: { type: string }
+        team: { type: string }
+    IdentityIssue:
+      type: object
+      additionalProperties: false
+      required: [issueKey, reason, candidates, resolution]
+      properties:
+        issueKey: { type: string }
+        reason: { type: string }
+        candidates:
+          type: array
+          minItems: 2
+          items: { $ref: "#/components/schemas/IdentityCandidate" }
+        resolution: { type: string, enum: [confirmed-separate, acknowledged, ""] }
     WatchlistSignal:
       type: object
       additionalProperties: false
@@ -464,7 +632,7 @@ components:
           items: { $ref: "#/components/schemas/WatchlistSignal" }
     Player:
       type: object
-      required: [id, name, nflTeam, position, byeWeek, overallRank, positionRank, adp, tier]
+      required: [id, name, nflTeam, position, byeWeek, overallRank, positionRank, adp, tier, projectedPoints, valueOverReplacement, confidence, rankRange, preference, auctionValue]
       properties:
         id: { type: string }
         name: { type: string }
@@ -475,6 +643,12 @@ components:
         positionRank: { type: integer, minimum: 1 }
         adp: { type: number }
         tier: { type: integer, minimum: 1 }
+        projectedPoints: { type: number }
+        valueOverReplacement: { type: number }
+        confidence: { type: string }
+        rankRange: { type: integer, minimum: 0 }
+        preference: { type: string, enum: [target, avoid, ""] }
+        auctionValue: { type: number, minimum: 0 }
     Recommendation:
       type: object
       required: [player, score, reasons]
@@ -486,16 +660,17 @@ components:
           items: { type: string }
     Pick:
       type: object
-      required: [eventId, number, action, player, createdAt]
+      required: [eventId, number, action, player, createdAt, cost]
       properties:
         eventId: { type: integer }
         number: { type: integer, minimum: 1 }
         action: { type: string, enum: [draft, taken] }
         player: { $ref: "#/components/schemas/Player" }
         createdAt: { type: string, format: date-time }
+        cost: { type: number, minimum: 0 }
     DraftSnapshot:
       type: object
-      required: [leagueId, leagueName, pickNumber, available, myTeam, history, recommendations, canUndo]
+      required: [leagueId, leagueName, pickNumber, available, myTeam, history, recommendations, canUndo, dataMode, projectionCount, draftType, nextUserPick, auctionBudget, budgetRemaining, auctionInflation, isUserTurn]
       properties:
         leagueId: { type: string }
         leagueName: { type: string }
@@ -513,6 +688,14 @@ components:
           type: array
           items: { $ref: "#/components/schemas/Recommendation" }
         canUndo: { type: boolean }
+        dataMode: { type: string }
+        projectionCount: { type: integer, minimum: 0 }
+        draftType: { type: string, enum: [snake, linear, auction] }
+        nextUserPick: { type: integer, minimum: 0 }
+        auctionBudget: { type: number, minimum: 0 }
+        budgetRemaining: { type: number }
+        auctionInflation: { type: number, minimum: 0 }
+        isUserTurn: { type: boolean }
     DraftActionRequest:
       type: object
       required: [leagueId, playerId, action]
@@ -520,3 +703,4 @@ components:
         leagueId: { type: string }
         playerId: { type: string }
         action: { type: string, enum: [draft, taken] }
+        cost: { type: number, minimum: 0 }

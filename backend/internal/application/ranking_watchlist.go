@@ -20,12 +20,12 @@ type watchlistCandidate struct {
 	maxGap   int
 }
 
-func (service *RankingService) Watchlist(ctx context.Context, preferences map[string]league.RankingSourcePreference) ([]ranking.WatchlistPlayer, error) {
+func (service *RankingService) Watchlist(ctx context.Context, preferences map[string]league.RankingSourcePreference, methods ...string) ([]ranking.WatchlistPlayer, error) {
 	records, err := service.repository.RankingRecords(ctx)
 	if err != nil {
 		return nil, err
 	}
-	consensus, err := service.Consensus(ctx, preferences)
+	consensus, err := service.Consensus(ctx, preferences, methods...)
 	if err != nil {
 		return nil, err
 	}

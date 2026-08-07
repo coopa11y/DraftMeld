@@ -1,13 +1,16 @@
 import type { DraftAction, DraftSnapshot, Player } from "../shared/api/types";
 import { PlayerActions } from "./PlayerActions";
+import { DraftTools } from "./DraftTools";
 
 interface DraftSidebarProps {
   snapshot: DraftSnapshot;
   busy: boolean;
-  onAction: (player: Player, action: DraftAction) => void;
+  onAction: (player: Player, action: DraftAction, cost?: number) => void;
+  onMock: () => void;
+  onSleeperSync: (draftId: string, rosterId: number) => void;
 }
 
-export function DraftSidebar({ snapshot, busy, onAction }: DraftSidebarProps) {
+export function DraftSidebar({ snapshot, busy, onAction, onMock, onSleeperSync }: DraftSidebarProps) {
   return (
     <aside className="sidebar" aria-label="Draft assistant">
       <section className="side-panel" id="recommendations" aria-labelledby="recommendations-title">
@@ -21,12 +24,14 @@ export function DraftSidebar({ snapshot, busy, onAction }: DraftSidebarProps) {
                 <ul className="reason-list">
                   {recommendation.reasons.map((reason) => <li key={reason}>{reason}</li>)}
                 </ul>
-                <PlayerActions player={recommendation.player} busy={busy} onAction={onAction} />
+                <PlayerActions player={recommendation.player} busy={busy} auction={snapshot.draftType === "auction"} inflation={snapshot.auctionInflation} onAction={onAction} />
               </article>
             </li>
           ))}
         </ol>
       </section>
+
+      <DraftTools snapshot={snapshot} busy={busy} onMock={onMock} onSleeperSync={onSleeperSync} />
 
       <section className="side-panel" id="my-team" aria-labelledby="my-team-title">
         <p className="eyebrow">{snapshot.myTeam.length} players</p>
@@ -46,7 +51,7 @@ export function DraftSidebar({ snapshot, busy, onAction }: DraftSidebarProps) {
           <ol className="history-list">
             {[...snapshot.history].reverse().slice(0, 8).map((pick) => (
               <li key={pick.eventId}>
-                <strong>Pick {pick.number}:</strong> {pick.player.name} {pick.action === "draft" ? "to my team" : "taken"}
+                <strong>Pick {pick.number}:</strong> {pick.player.name} {pick.action === "draft" ? "to my team" : "taken"}{snapshot.draftType === "auction" ? ` for $${pick.cost.toFixed(0)}` : ""}
               </li>
             ))}
           </ol>

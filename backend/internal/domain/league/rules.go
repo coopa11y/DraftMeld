@@ -34,6 +34,9 @@ type Rules struct {
 	RosterSlots       []RosterSlot                       `json:"rosterSlots"`
 	ScoringRules      map[string]float64                 `json:"scoringRules"`
 	SourcePreferences map[string]RankingSourcePreference `json:"sourcePreferences"`
+	ConsensusMethod   string                             `json:"consensusMethod"`
+	PlayerPreferences map[string]string                  `json:"playerPreferences"`
+	AuctionBudget     float64                            `json:"auctionBudget"`
 }
 
 type RecommendationPolicy struct {
@@ -81,8 +84,21 @@ func (rules Rules) Validate() error {
 	default:
 		return fmt.Errorf("unsupported draft type: %q", rules.DraftType)
 	}
+	if rules.DraftType == DraftTypeAuction && rules.AuctionBudget <= 0 {
+		return errors.New("auction leagues require a positive team budget")
+	}
 	if len(rules.RosterSlots) == 0 {
 		return errors.New("at least one roster slot is required")
+	}
+	switch rules.ConsensusMethod {
+	case "", "weighted-average", "weighted-median", "trimmed-mean":
+	default:
+		return fmt.Errorf("unsupported consensus method: %q", rules.ConsensusMethod)
+	}
+	for playerID, preference := range rules.PlayerPreferences {
+		if playerID == "" || (preference != "target" && preference != "avoid") {
+			return fmt.Errorf("invalid player preference for %q", playerID)
+		}
 	}
 	for _, slot := range rules.RosterSlots {
 		if slot.Name == "" || slot.Count < 1 || len(slot.Positions) == 0 {

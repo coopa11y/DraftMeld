@@ -31,6 +31,9 @@ func DemoLeagueConfiguration() LeagueConfiguration {
 			},
 			ScoringRules:      map[string]float64{"reception": 1},
 			SourcePreferences: DefaultRankingSourcePreferences(),
+			ConsensusMethod:   "weighted-median",
+			PlayerPreferences: map[string]string{},
+			AuctionBudget:     200,
 		},
 		Recommendation: DefaultRecommendationPolicy(),
 	}

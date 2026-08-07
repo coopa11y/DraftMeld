@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
+	"time"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/draft"
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/league"
 )
 
 var (
@@ -20,11 +23,19 @@ type DraftEventRepository interface {
 }
 
 type DraftService struct {
-	repository DraftEventRepository
-	players    []draft.Player
-	playerByID map[string]draft.Player
-	leagues    LeagueConfigurationRepository
-	mu         sync.Mutex
+	repository     DraftEventRepository
+	players        []draft.Player
+	playerByID     map[string]draft.Player
+	leagues        LeagueConfigurationRepository
+	rankings       *RankingService
+	projections    *ProjectionService
+	sleeperClient  *http.Client
+	sleeperBaseURL string
+	mu             sync.Mutex
+}
+
+func (service *DraftService) UseIntelligence(rankings *RankingService, projections *ProjectionService) {
+	service.rankings, service.projections = rankings, projections
 }
 
 func NewDraftService(
@@ -68,6 +79,7 @@ func NewDraftServiceWithLeagues(
 	}
 	return &DraftService{
 		repository: repository, players: players, playerByID: playerByID, leagues: leagues,
+		sleeperClient: &http.Client{Timeout: 15 * time.Second}, sleeperBaseURL: "https://api.sleeper.app/v1",
 	}, nil
 }
 
@@ -80,20 +92,36 @@ func (service *DraftService) Snapshot(ctx context.Context, leagueID string) (dra
 	if err != nil {
 		return draft.Snapshot{}, fmt.Errorf("list draft events: %w", err)
 	}
-	return service.buildSnapshot(configuration, events), nil
+	players, playerByID, dataMode, projectionCount, err := service.playersForLeague(ctx, configuration)
+	if err != nil {
+		return draft.Snapshot{}, err
+	}
+	return service.buildSnapshot(configuration, events, players, playerByID, dataMode, projectionCount), nil
 }
 
-func (service *DraftService) Record(ctx context.Context, leagueID, playerID string, action draft.Action) (draft.Snapshot, error) {
+func (service *DraftService) Record(ctx context.Context, leagueID, playerID string, action draft.Action, costs ...float64) (draft.Snapshot, error) {
 	service.mu.Lock()
 	defer service.mu.Unlock()
 
-	if _, err := service.configuration(ctx, leagueID); err != nil {
+	configuration, err := service.configuration(ctx, leagueID)
+	if err != nil {
 		return draft.Snapshot{}, err
 	}
 	if action != draft.ActionDraft && action != draft.ActionTaken {
 		return draft.Snapshot{}, fmt.Errorf("unsupported draft action: %q", action)
 	}
-	if _, exists := service.playerByID[playerID]; !exists {
+	cost := 0.0
+	if len(costs) > 0 {
+		cost = costs[0]
+	}
+	if cost < 0 || (configuration.Rules.DraftType == league.DraftTypeAuction && cost <= 0) {
+		return draft.Snapshot{}, errors.New("auction draft actions require a positive cost")
+	}
+	_, playerByID, _, _, err := service.playersForLeague(ctx, configuration)
+	if err != nil {
+		return draft.Snapshot{}, err
+	}
+	if _, exists := playerByID[playerID]; !exists {
 		return draft.Snapshot{}, fmt.Errorf("unknown player: %s", playerID)
 	}
 	events, err := service.repository.List(ctx, leagueID)
@@ -104,7 +132,7 @@ func (service *DraftService) Record(ctx context.Context, leagueID, playerID stri
 	if _, unavailable := state.playerActions[playerID]; unavailable {
 		return draft.Snapshot{}, ErrPlayerUnavailable
 	}
-	if _, err = service.repository.Append(ctx, draft.Event{LeagueID: leagueID, PlayerID: playerID, Action: action}); err != nil {
+	if _, err = service.repository.Append(ctx, draft.Event{LeagueID: leagueID, PlayerID: playerID, Action: action, Cost: cost}); err != nil {
 		return draft.Snapshot{}, err
 	}
 	return service.Snapshot(ctx, leagueID)
@@ -142,16 +170,17 @@ func (service *DraftService) configuration(ctx context.Context, leagueID string)
 	if !exists {
 		return LeagueConfiguration{}, fmt.Errorf("%w: %s", ErrLeagueNotFound, leagueID)
 	}
+	configuration.Rules = withDefaultSourcePreferences(configuration.Rules)
 	return configuration, nil
 }
 
-func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, events []draft.Event) draft.Snapshot {
+func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, events []draft.Event, players []draft.Player, playerByID map[string]draft.Player, dataMode string, projectionCount int) draft.Snapshot {
 	state := replay(events)
-	available := make([]draft.Player, 0, len(service.players))
+	available := make([]draft.Player, 0, len(players))
 	myTeam := make([]draft.Player, 0)
 	history := make([]draft.Pick, 0, len(state.activeEvents))
 
-	for _, player := range service.players {
+	for _, player := range players {
 		action, unavailable := state.playerActions[player.ID]
 		if !unavailable {
 			available = append(available, player)
@@ -162,14 +191,24 @@ func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, ev
 	for index, event := range state.activeEvents {
 		history = append(history, draft.Pick{
 			EventID: event.ID, Number: index + 1, Action: event.Action,
-			Player: service.playerByID[event.PlayerID], CreatedAt: event.CreatedAt,
+			Player: playerByID[event.PlayerID], CreatedAt: event.CreatedAt, Cost: event.Cost,
 		})
 	}
 
+	nextPick := nextUserPick(len(state.activeEvents)+1, configuration.Rules)
+	budgetRemaining, inflation := auctionState(configuration.Rules, history, available)
 	return draft.Snapshot{
 		LeagueID: configuration.ID, LeagueName: configuration.Rules.Name, PickNumber: len(state.activeEvents) + 1,
 		Available: available, MyTeam: myTeam, History: history,
-		Recommendations: recommend(available, myTeam, configuration.Rules, configuration.Recommendation),
-		CanUndo:         len(state.activeEvents) > 0,
+		Recommendations:  recommend(available, myTeam, configuration.Rules, configuration.Recommendation, recommendationContext{NextUserPick: nextPick, RecentPicks: history}),
+		CanUndo:          len(state.activeEvents) > 0,
+		DataMode:         dataMode,
+		ProjectionCount:  projectionCount,
+		DraftType:        string(configuration.Rules.DraftType),
+		NextUserPick:     nextPick,
+		AuctionBudget:    configuration.Rules.AuctionBudget,
+		BudgetRemaining:  budgetRemaining,
+		AuctionInflation: inflation,
+		IsUserTurn:       isUserTurn(len(state.activeEvents)+1, configuration.Rules),
 	}
 }
