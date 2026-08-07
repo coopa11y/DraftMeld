@@ -93,6 +93,10 @@ func (service *RankingService) ImportPDF(ctx context.Context, contents []byte) (
 		if !exists || source.ImportMode != "pdf-upload" {
 			return PDFImportResult{}, fmt.Errorf("PDF parser returned an unknown source")
 		}
+		records, err = resolveRankingPlayers(ctx, service.repository, records)
+		if err != nil {
+			return PDFImportResult{}, err
+		}
 		refreshed := time.Now().UTC()
 		if err = service.repository.ReplaceRankings(ctx, source, records, published, refreshed); err != nil {
 			return PDFImportResult{}, err

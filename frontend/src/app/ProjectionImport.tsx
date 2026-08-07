@@ -12,7 +12,7 @@ import { FormField } from "../shared/ui/FormField";
 import { Panel } from "../shared/ui/Panel";
 
 const projectionTemplate =
-  "data:text/csv;charset=utf-8,name%2Cposition%2Cteam%2Cadp%2CbyeWeek%2Creception%2CpassingYard%2CpassingTouchdown%2Cinterception%2CrushingYard%2CrushingTouchdown%2CreceivingYard%2CreceivingTouchdown%2CfieldGoalMade%2CextraPointMade%2CdefenseSack%2CdefenseInterception%2CdefenseFumbleRecovery%2CdefenseTouchdown%2CdefenseSafety%0A";
+  "data:text/csv;charset=utf-8,name%2Cposition%2Cteam%2Cadp%2CbyeWeek%2Creception%2CpassingYard%2CpassingTouchdown%2Cinterception%2CrushingYard%2CrushingTouchdown%2CreceivingYard%2CreceivingTouchdown%2CfieldGoalMade%2CextraPointMade%2CdefenseSack%2CdefenseInterception%2CdefenseFumbleRecovery%2CdefenseTouchdown%2CdefenseSafety%2CproviderId%0A";
 
 const projectionColumns: CsvColumnDefinition[] = [
   { key: "name", label: "Player name", required: true, aliases: ["name", "player", "playername", "playerfullname"] },
@@ -20,6 +20,7 @@ const projectionColumns: CsvColumnDefinition[] = [
   { key: "team", label: "NFL team", required: true, aliases: ["team", "nflteam", "tm"] },
   { key: "adp", label: "Average draft position", aliases: ["adp", "averagedraftposition"] },
   { key: "byeWeek", label: "Bye week", aliases: ["bye", "byeweek"] },
+  { key: "providerId", label: "Source player ID", aliases: ["providerid", "playerid", "id"] },
   { key: "reception", label: "Receptions", aliases: ["reception", "receptions", "rec"] },
   { key: "passingYard", label: "Passing yards", aliases: ["passingyard", "passingyards", "passyds"] },
   {

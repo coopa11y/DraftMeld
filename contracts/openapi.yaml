@@ -326,6 +326,16 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/IdentityIssue" }
+  /player-directory/status:
+    get:
+      operationId: getPlayerDirectoryStatus
+      summary: Summarize persisted canonical player identities
+      responses:
+        "200":
+          description: Canonical player directory counts.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlayerDirectoryStatus" }
   /ranking-identities/review:
     post:
       operationId: reviewRankingIdentity
@@ -797,6 +807,14 @@ components:
         name: { type: string }
         position: { type: string }
         team: { type: string }
+    PlayerDirectoryStatus:
+      type: object
+      additionalProperties: false
+      required: [playerCount, identityCount, providerIdCount]
+      properties:
+        playerCount: { type: integer, minimum: 0 }
+        identityCount: { type: integer, minimum: 0 }
+        providerIdCount: { type: integer, minimum: 0 }
     IdentityIssue:
       type: object
       additionalProperties: false

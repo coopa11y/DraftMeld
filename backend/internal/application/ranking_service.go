@@ -90,6 +90,10 @@ func (service *RankingService) Refresh(ctx context.Context) ([]ranking.SourceSta
 		if len(records) == 0 {
 			return nil, fmt.Errorf("parse %s: no usable players", source.Name)
 		}
+		records, err = resolveRankingPlayers(ctx, service.repository, records)
+		if err != nil {
+			return nil, err
+		}
 		if err = service.repository.ReplaceRankings(ctx, source, records, published, time.Now().UTC()); err != nil {
 			return nil, err
 		}

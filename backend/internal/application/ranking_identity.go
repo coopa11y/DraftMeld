@@ -75,13 +75,16 @@ func canonicalNFLTeam(value string) string {
 func canonicalizeRankingRecord(record ranking.Record) ranking.Record {
 	record.Position = normalizePosition(record.Position)
 	if record.Position == "DST" {
-		record.PlayerKey = canonicalRankingKey(record.Name, record.Position, record.Team)
+		if record.PlayerKey == "" || !strings.HasPrefix(record.PlayerKey, "player-") {
+			record.PlayerKey = canonicalRankingKey(record.Name, record.Position, record.Team)
+		}
 		if team := canonicalNFLTeam(record.Team); team != "" {
 			record.Team = team
 		} else if team = canonicalNFLTeam(record.Name); team != "" {
 			record.Team = team
 		}
-	} else if record.PlayerKey == "" {
+	}
+	if record.PlayerKey == "" {
 		record.PlayerKey = canonicalRankingKey(record.Name, record.Position, record.Team)
 	}
 	return record

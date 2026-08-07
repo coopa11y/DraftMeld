@@ -63,6 +63,15 @@ func (store *DraftEventStore) SaveIdentityMerge(ctx context.Context, issueKey, c
 ON CONFLICT(alias_key) DO UPDATE SET canonical_key=excluded.canonical_key, created_at=excluded.created_at`, alias, canonicalKey, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
 			return fmt.Errorf("save identity alias: %w", err)
 		}
+		if _, err = tx.ExecContext(ctx, `UPDATE player_identity_keys SET player_id = ? WHERE player_id = ?`, canonicalKey, alias); err != nil {
+			return fmt.Errorf("merge player identity keys: %w", err)
+		}
+		if _, err = tx.ExecContext(ctx, `UPDATE player_provider_ids SET player_id = ? WHERE player_id = ?`, canonicalKey, alias); err != nil {
+			return fmt.Errorf("merge provider player IDs: %w", err)
+		}
+		if _, err = tx.ExecContext(ctx, `UPDATE canonical_players SET merged_into = ?, updated_at = ? WHERE id = ?`, canonicalKey, time.Now().UTC().Format(time.RFC3339Nano), alias); err != nil {
+			return fmt.Errorf("merge canonical player: %w", err)
+		}
 	}
 	if _, err = tx.ExecContext(ctx, `INSERT INTO identity_reviews (issue_key, resolution, reviewed_at) VALUES (?, 'acknowledged', ?)
 ON CONFLICT(issue_key) DO UPDATE SET resolution=excluded.resolution, reviewed_at=excluded.reviewed_at`, issueKey, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {

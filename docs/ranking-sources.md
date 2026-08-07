@@ -42,7 +42,7 @@ This separation keeps file validation, size/page limits, panic recovery, and tex
 
 ## Known limitations
 
-Individual offensive players still use a normalized player name because these feeds do not share one universal identifier. Suffixes, name changes, and collisions can prevent a valid match; uncertain matches enter the identity review queue and can be merged through persistent aliases. Team defenses are canonicalized separately by NFL team. Scanned PDFs are rejected because DraftMeld does not bundle OCR. ESPN's projection guide and positional-only PPR sheet are intentionally rejected because they do not provide the supported overall-ranking layout. A durable canonical player table and provider identifiers remain planned work.
+DraftMeld resolves imported players into a persistent canonical directory before storing new ranking and projection data. Each player receives an opaque stable DraftMeld ID; normalized names remain searchable identity keys, and an optional source player ID can bind renamed records from the same provider. Existing normalized keys are retained as aliases so upgraded databases continue to match prior rankings and draft history. Uncertain matches enter the identity review queue, where a merge redirects name aliases and provider IDs to the selected canonical player. Team defenses remain canonicalized by NFL team. Scanned PDFs are rejected because DraftMeld does not bundle OCR. ESPN's projection guide and positional-only PPR sheet are intentionally rejected because they do not provide the supported overall-ranking layout.
 
 Source terms and upstream availability can change. Maintainers should verify licenses and attribution before adding a connector, and should never commit or redistribute paid rankings.
 

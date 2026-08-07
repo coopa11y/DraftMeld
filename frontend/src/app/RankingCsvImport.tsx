@@ -10,7 +10,8 @@ import {
 import { FormField } from "../shared/ui/FormField";
 import { Panel } from "../shared/ui/Panel";
 
-const rankingTemplate = "data:text/csv;charset=utf-8,rank%2Cname%2Cposition%2Cteam%2Cadp%2Ctier%0A1%2C%2CRB%2C%2C%2C";
+const rankingTemplate =
+  "data:text/csv;charset=utf-8,rank%2Cname%2Cposition%2Cteam%2Cadp%2Ctier%2CproviderId%0A1%2C%2CRB%2C%2C%2C%2C";
 
 const rankingColumns: CsvColumnDefinition[] = [
   { key: "name", label: "Player name", required: true, aliases: ["name", "player", "playername", "playerfullname"] },
@@ -19,6 +20,7 @@ const rankingColumns: CsvColumnDefinition[] = [
   { key: "team", label: "NFL team", aliases: ["team", "nflteam", "tm"] },
   { key: "adp", label: "Average draft position", aliases: ["adp", "averagedraftposition"] },
   { key: "tier", label: "Tier" },
+  { key: "providerId", label: "Source player ID", aliases: ["providerid", "playerid", "id"] },
 ];
 const requiredRankingColumns = rankingColumns.filter((column) => column.required);
 

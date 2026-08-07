@@ -13,9 +13,13 @@ describe("RankingCsvImport", () => {
     await user.type(screen.getByLabelText("Ranking source name"), "Marcus board");
     await user.upload(
       screen.getByLabelText("Ranking CSV"),
-      new File(["Overall Rank,Player Name,Pos,Tm,ADP,Tier\n1,Example Runner,RB,ATL,4.2,1\n"], "board.csv", {
-        type: "text/csv",
-      }),
+      new File(
+        ["Overall Rank,Player Name,Pos,Tm,ADP,Tier,Player ID\n1,Example Runner,RB,ATL,4.2,1,runner-1\n"],
+        "board.csv",
+        {
+          type: "text/csv",
+        },
+      ),
     );
 
     expect(await screen.findByLabelText("Overall rank")).toHaveValue("Overall Rank");
@@ -25,6 +29,7 @@ describe("RankingCsvImport", () => {
     expect(screen.getByLabelText("NFL team")).toHaveValue("Tm");
     expect(screen.getByLabelText("Average draft position")).toHaveValue("ADP");
     expect(screen.getByLabelText("Tier")).toHaveValue("Tier");
+    expect(screen.getByLabelText("Source player ID")).toHaveValue("Player ID");
     expect((await axe(container)).violations).toHaveLength(0);
 
     await user.click(screen.getByRole("button", { name: "Import rankings" }));
@@ -39,6 +44,7 @@ describe("RankingCsvImport", () => {
           team: "Tm",
           adp: "ADP",
           tier: "Tier",
+          providerId: "Player ID",
         }),
       ),
     );

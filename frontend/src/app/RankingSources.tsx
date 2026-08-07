@@ -3,6 +3,7 @@ import { leagueToRules, updateLeague } from "../shared/api/leagues";
 import {
   getConsensusRankings,
   getRankingWatchlist,
+  getPlayerDirectoryStatus,
   importRankingPDF,
   importRankingCSV,
   listIdentityIssues,
@@ -16,6 +17,7 @@ import type {
   League,
   LeagueRules,
   ProjectionSource,
+  PlayerDirectoryStatus,
   RankingSource,
   RankingSourcePreference,
   WatchlistPlayer,
@@ -44,6 +46,11 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
   const [watchlist, setWatchlist] = useState<WatchlistPlayer[]>([]);
   const [projectionSources, setProjectionSources] = useState<ProjectionSource[]>([]);
   const [identityIssues, setIdentityIssues] = useState<IdentityIssue[]>([]);
+  const [directoryStatus, setDirectoryStatus] = useState<PlayerDirectoryStatus>({
+    playerCount: 0,
+    identityCount: 0,
+    providerIdCount: 0,
+  });
   const [consensusMethod, setConsensusMethod] = useState<LeagueRules["consensusMethod"]>(league.consensusMethod);
   const [busy, setBusy] = useState(true);
   const [message, setMessage] = useState("");
@@ -55,12 +62,13 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
     async function load() {
       try {
         const selectedLeague = initialLeague.current;
-        const [loaded, consensus, disabledSourcePlayers, projections, identities] = await Promise.all([
+        const [loaded, consensus, disabledSourcePlayers, projections, identities, playerDirectory] = await Promise.all([
           listRankingSources(),
           getConsensusRankings(selectedLeague.id),
           getRankingWatchlist(selectedLeague.id),
           listProjectionSources(),
           listIdentityIssues(),
+          getPlayerDirectoryStatus(),
         ]);
         if (!active) return;
         setSources(loaded);
@@ -68,6 +76,7 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
         setWatchlist(disabledSourcePlayers);
         setProjectionSources(projections);
         setIdentityIssues(identities);
+        setDirectoryStatus(playerDirectory);
         setConsensusMethod(selectedLeague.consensusMethod);
         setPreferences(
           Object.fromEntries(
@@ -89,6 +98,12 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
     };
   }, []);
 
+  function refreshDirectoryStatus() {
+    void getPlayerDirectoryStatus()
+      .then(setDirectoryStatus)
+      .catch(() => setError("Unable to refresh the player directory status."));
+  }
+
   async function refresh() {
     setBusy(true);
     setError("");
@@ -97,14 +112,16 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
     try {
       const loaded = await refreshRankingSources();
       setSources(loaded);
-      const [consensus, disabledSourcePlayers, identities] = await Promise.all([
+      const [consensus, disabledSourcePlayers, identities, playerDirectory] = await Promise.all([
         getConsensusRankings(league.id),
         getRankingWatchlist(league.id),
         listIdentityIssues(),
+        getPlayerDirectoryStatus(),
       ]);
       setRankings(consensus);
       setWatchlist(disabledSourcePlayers);
       setIdentityIssues(identities);
+      setDirectoryStatus(playerDirectory);
       const count = loaded.reduce((total, source) => total + source.recordCount, 0);
       setMessage(`Rankings refreshed. ${count} source records were normalized.`);
     } catch (reason) {
@@ -128,14 +145,16 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
     try {
       const result = await importRankingPDF(pdfFile);
       setSources((current) => current.map((source) => (source.id === result.source.id ? result.source : source)));
-      const [consensus, disabledSourcePlayers, identities] = await Promise.all([
+      const [consensus, disabledSourcePlayers, identities, playerDirectory] = await Promise.all([
         getConsensusRankings(league.id),
         getRankingWatchlist(league.id),
         listIdentityIssues(),
+        getPlayerDirectoryStatus(),
       ]);
       setRankings(consensus);
       setWatchlist(disabledSourcePlayers);
       setIdentityIssues(identities);
+      setDirectoryStatus(playerDirectory);
       setMessage(
         `${result.source.name} imported: ${result.source.recordCount} players from ${result.pageCount} page${result.pageCount === 1 ? "" : "s"}.`,
       );
@@ -160,14 +179,16 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
         ...current,
         [imported.id]: current[imported.id] ?? { weight: imported.defaultWeight, enabled: true },
       }));
-      const [consensus, disabledSourcePlayers, identities] = await Promise.all([
+      const [consensus, disabledSourcePlayers, identities, playerDirectory] = await Promise.all([
         getConsensusRankings(league.id),
         getRankingWatchlist(league.id),
         listIdentityIssues(),
+        getPlayerDirectoryStatus(),
       ]);
       setRankings(consensus);
       setWatchlist(disabledSourcePlayers);
       setIdentityIssues(identities);
+      setDirectoryStatus(playerDirectory);
       setMessage(`${imported.name} imported with ${imported.recordCount} ranked players.`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to import ranking CSV.");
@@ -290,9 +311,10 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
         busy={busy}
         sources={projectionSources}
         onBusyChange={setBusy}
-        onImported={(source) =>
-          setProjectionSources((current) => [...current.filter((candidate) => candidate.id !== source.id), source])
-        }
+        onImported={(source) => {
+          setProjectionSources((current) => [...current.filter((candidate) => candidate.id !== source.id), source]);
+          refreshDirectoryStatus();
+        }}
         onMessage={setMessage}
         onError={setError}
       />
@@ -300,14 +322,16 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
       <IdentityReviewQueue
         busy={busy}
         issues={identityIssues}
+        status={directoryStatus}
         onBusyChange={setBusy}
-        onReviewed={(issueKey, resolution, canonicalPlayerKey) =>
+        onReviewed={(issueKey, resolution, canonicalPlayerKey) => {
           setIdentityIssues((current) =>
             current.map((issue) =>
               issue.issueKey === issueKey ? { ...issue, resolution, canonicalPlayerKey } : issue,
             ),
-          )
-        }
+          );
+          refreshDirectoryStatus();
+        }}
         onError={setError}
       />
 

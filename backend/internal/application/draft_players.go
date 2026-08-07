@@ -9,15 +9,19 @@ import (
 )
 
 func (service *DraftService) playersForLeague(ctx context.Context, configuration LeagueConfiguration) ([]draft.Player, map[string]draft.Player, string, int, error) {
+	preferences, err := resolvePlayerPreferences(ctx, service.repository, configuration.Rules.PlayerPreferences)
+	if err != nil {
+		return nil, nil, "", 0, err
+	}
 	if service.rankings == nil {
-		return staticPlayers(service.players, configuration.Rules.PlayerPreferences)
+		return staticPlayers(service.players, preferences)
 	}
 	consensus, err := service.rankings.Consensus(ctx, configuration.Rules.SourcePreferences, configuration.Rules.ConsensusMethod)
 	if err != nil {
 		return nil, nil, "", 0, err
 	}
 	if len(consensus) == 0 {
-		return staticPlayers(service.players, configuration.Rules.PlayerPreferences)
+		return staticPlayers(service.players, preferences)
 	}
 	values := make(map[string]leaguePlayerValue)
 	if service.projections != nil {
@@ -49,7 +53,7 @@ func (service *DraftService) playersForLeague(ctx context.Context, configuration
 			ID: ranked.PlayerKey, Name: ranked.Name, NFLTeam: ranked.Team, Position: ranked.Position,
 			ByeWeek: value.byeWeek, OverallRank: ranked.Rank, PositionRank: positionCounts[ranked.Position], ADP: adp,
 			Tier: ranked.Tier, ProjectedPoints: value.points, Confidence: ranked.Confidence, RankRange: ranked.RankRange,
-			Preference: configuration.Rules.PlayerPreferences[ranked.PlayerKey],
+			Preference: preferences[ranked.PlayerKey],
 		})
 	}
 	applyReplacementValues(players, configuration.Rules)

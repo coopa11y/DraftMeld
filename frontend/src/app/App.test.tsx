@@ -427,6 +427,8 @@ describe("accessible draft board", () => {
           path.endsWith("/rankings")
         )
           return jsonResponse([]);
+        if (path.endsWith("/player-directory/status"))
+          return jsonResponse({ playerCount: 0, identityCount: 0, providerIdCount: 0 });
         if (failDraft) return jsonResponse({ error: "Unable to load the draft." }, 500);
         return jsonResponse(snapshot());
       }),
@@ -445,6 +447,8 @@ describe("accessible draft board", () => {
     await user.keyboard("{Enter}");
     const rankingHeading = await screen.findByRole("heading", { name: "Ranking sources" });
     await waitFor(() => expect(rankingHeading).toHaveFocus());
+    expect(screen.getByRole("region", { name: "Player identity review" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Canonical player directory status")).toHaveTextContent("Players0");
     await user.click(screen.getByRole("button", { name: "Manage leagues" }));
     const leaguesHeading = await screen.findByRole("heading", { name: "Your leagues" });
     await waitFor(() => expect(leaguesHeading).toHaveFocus());
@@ -546,6 +550,8 @@ describe("accessible draft board", () => {
         return jsonResponse(rankingSources.map((source) => ({ ...source, recordCount: 0, publishedAt: undefined })));
       if (path.endsWith("/projection-sources")) return jsonResponse([]);
       if (path.endsWith("/ranking-identities")) return jsonResponse([]);
+      if (path.endsWith("/player-directory/status"))
+        return jsonResponse({ playerCount: 12, identityCount: 12, providerIdCount: 0 });
       if (path.endsWith("/ranking-watchlist"))
         return jsonResponse(
           savedPreferences?.["cbs-ppr"]?.enabled === false
@@ -666,6 +672,8 @@ describe("accessible draft board", () => {
         return new Response(null, { status: 204 });
       }
       if (path.endsWith("/ranking-identities")) return jsonResponse([identityIssue]);
+      if (path.endsWith("/player-directory/status"))
+        return jsonResponse({ playerCount: 2, identityCount: 2, providerIdCount: 1 });
       if (path.endsWith("/ranking-watchlist")) return jsonResponse([]);
       if (path.endsWith("/rankings")) return jsonResponse(consensusRankings);
       return jsonResponse(snapshot());
