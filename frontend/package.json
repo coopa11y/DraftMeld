@@ -9,8 +9,8 @@
     "build": "tsc -b && vite build",
     "check": "npm run api:check && npm run format:check && npm run lint && tsc -b --pretty false",
     "dev": "vite",
-    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"*.{ts,js,json}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"*.{ts,js,json}\"",
+    "format": "prettier --config ../.prettierrc.json --ignore-path ../.prettierignore --write \"src/**/*.{ts,tsx,css}\" \"*.{ts,js,json}\" \"../package.json\" \"../scripts/**/*.{js,mjs,cjs,json}\" \"../contracts/**/*.{yaml,yml,json}\" \"../.github/**/*.{yaml,yml,json}\"",
+    "format:check": "prettier --config ../.prettierrc.json --ignore-path ../.prettierignore --check \"src/**/*.{ts,tsx,css}\" \"*.{ts,js,json}\" \"../package.json\" \"../scripts/**/*.{js,mjs,cjs,json}\" \"../contracts/**/*.{yaml,yml,json}\" \"../.github/**/*.{yaml,yml,json}\"",
     "lint": "eslint . --max-warnings=0",
     "preview": "vite preview",
     "test": "vitest run"

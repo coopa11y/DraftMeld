@@ -1,4 +1,0 @@
-src/shared/api/generated.ts
-coverage/
-dist/
-*.tsbuildinfo
