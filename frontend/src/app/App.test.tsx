@@ -35,6 +35,10 @@ const demoLeague: League = {
   id: "demo", name: "Demo League", teamCount: 12, draftPosition: 1, draftType: "snake",
   rosterSlots: [{ name: "RB", count: 2, positions: ["RB"], isStarting: true }],
   scoringRules: { reception: 1 },
+  sourceWeights: {
+    "redraft-ecr": 1, "dynasty-1qb": 0.7, "dynasty-superflex": 0.5,
+    "expected-opportunity": 0.6, "cbs-ppr": 0.9, "espn-ppr-pdf": 0.9, "espn-dynasty-pdf": 0.6,
+  },
 };
 const casey: Player = {
   id: "p003", name: "Casey Brooks", nflTeam: "DET", position: "RB",
@@ -165,16 +169,23 @@ describe("accessible draft board", () => {
   });
 
   it("shows source provenance and refreshes the accessible consensus preview", async () => {
-    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    let savedWeights: Record<string, number> | undefined;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = input instanceof Request ? input : new Request(input, init);
       const path = new URL(request.url).pathname;
       if (path.endsWith("/leagues")) return jsonResponse([demoLeague]);
+      if (path.endsWith("/leagues/demo") && request.method === "PUT") {
+        const rules = await request.clone().json() as Omit<League, "id">;
+        savedWeights = rules.sourceWeights;
+        return jsonResponse({ id: "demo", ...rules });
+      }
       if (path.endsWith("/ranking-sources/import-pdf") && request.method === "POST") return jsonResponse({ source: { ...rankingSources[5], recordCount: 245, publishedAt: "2026-08-02" }, pageCount: 1 }, 201);
       if (path.endsWith("/ranking-sources/refresh") && request.method === "POST") return jsonResponse(rankingSources);
       if (path.endsWith("/ranking-sources")) return jsonResponse(rankingSources.map((source) => ({ ...source, recordCount: 0, publishedAt: undefined })));
       if (path.endsWith("/rankings")) return jsonResponse(consensusRankings);
       return jsonResponse(snapshot());
-    }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     const { container } = render(<App />);
 
@@ -184,6 +195,14 @@ describe("accessible draft board", () => {
     expect(screen.getAllByRole("link", { name: /View source website/ })).toHaveLength(7);
     expect(screen.getByRole("heading", { name: "Platform connector status" })).toBeInTheDocument();
     expect(screen.getByText("The public overall draft table still contains the prior-season board.")).toBeInTheDocument();
+
+    const cbsWeight = screen.getByRole("spinbutton", { name: "CBS Sports PPR Top 200 influence" });
+    await user.clear(cbsWeight);
+    await user.type(cbsWeight, "3");
+    await user.click(screen.getByRole("button", { name: "Save weights" }));
+    expect(await screen.findByText("Ranking influence saved for Demo League. Every imported source remains included.")).toBeInTheDocument();
+    expect(savedWeights?.["cbs-ppr"]).toBe(3);
+    expect(Object.values(savedWeights ?? {}).every((weight) => weight > 0)).toBe(true);
 
     const pdf = new File(["%PDF-test"], "espn-rankings.pdf", { type: "application/pdf" });
     await user.upload(screen.getByLabelText("Import a ranking PDF"), pdf);

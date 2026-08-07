@@ -21,3 +21,11 @@ func BuiltInRankingSources() []ranking.SourceDefinition {
 		{ID: "espn-dynasty-pdf", Name: "ESPN Dynasty PDF", Description: "Long-term overall rankings imported from a user-supplied ESPN dynasty cheat sheet.", Methodology: "ESPN dynasty overall ordinal rank for supported positions present in the sheet", License: "Proprietary; user-supplied and never redistributed", ProjectURL: espnDraftKitURL, DataURL: espnDraftKitURL, DefaultWeight: 0.6, ImportMode: "pdf-upload"},
 	}
 }
+
+func DefaultRankingSourceWeights() map[string]float64 {
+	weights := make(map[string]float64)
+	for _, source := range BuiltInRankingSources() {
+		weights[source.ID] = source.DefaultWeight
+	}
+	return weights
+}

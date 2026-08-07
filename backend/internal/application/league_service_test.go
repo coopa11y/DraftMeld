@@ -26,11 +26,12 @@ func TestLeagueServiceCreatesUniqueIDsAndDuplicatesIndependentRules(t *testing.T
 	}
 	copy.Rules.RosterSlots[0].Positions[0] = "WR"
 	copy.Rules.ScoringRules["reception"] = 0
+	copy.Rules.SourceWeights["cbs-ppr"] = 10
 	stored, err := service.Get(t.Context(), first.ID)
 	if err != nil {
 		t.Fatalf("reload source league: %v", err)
 	}
-	if stored.Rules.RosterSlots[0].Positions[0] != "QB" || stored.Rules.ScoringRules["reception"] != 1 {
+	if stored.Rules.RosterSlots[0].Positions[0] != "QB" || stored.Rules.ScoringRules["reception"] != 1 || stored.Rules.SourceWeights["cbs-ppr"] == 10 {
 		t.Fatalf("duplicate mutated source configuration: %#v", stored.Rules)
 	}
 }

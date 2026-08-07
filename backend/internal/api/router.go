@@ -111,7 +111,7 @@ func NewRouter(
 		writeJSON(response, http.StatusOK, snapshot)
 	})
 	registerLeagueRoutes(mux, leagueService)
-	registerRankingRoutes(mux, rankingService)
+	registerRankingRoutes(mux, rankingService, leagueService)
 	mux.Handle("/", webui.Handler())
 	return requestLogger(logger, mux)
 }

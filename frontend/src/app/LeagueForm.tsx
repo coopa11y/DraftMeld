@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { leagueToRules } from "../shared/api/leagues";
 import type { League, LeagueRules, RosterSlot } from "../shared/api/types";
 
 const playerPositions = ["QB", "RB", "WR", "TE", "K", "DST"] as const;
@@ -55,6 +56,7 @@ function defaultRules(): LeagueRules {
       defenseTouchdown: 6,
       defenseSafety: 2,
     },
+    sourceWeights: {},
   };
 }
 
@@ -66,7 +68,7 @@ interface LeagueFormProps {
 }
 
 export function LeagueForm({ league, busy, onCancel, onSave }: LeagueFormProps) {
-  const [rules, setRules] = useState<LeagueRules>(() => league ? toRules(league) : defaultRules());
+  const [rules, setRules] = useState<LeagueRules>(() => league ? leagueToRules(league) : defaultRules());
 
   function updateSlot(index: number, update: Partial<RosterSlot>) {
     setRules((current) => ({
@@ -153,11 +155,6 @@ export function LeagueForm({ league, busy, onCancel, onSave }: LeagueFormProps) 
       </div>
     </form>
   );
-}
-
-function toRules(league: League): LeagueRules {
-  const { id: _id, ...rules } = league;
-  return { ...rules, rosterSlots: rules.rosterSlots.map((slot) => ({ ...slot, positions: [...slot.positions] })), scoringRules: { ...rules.scoringRules } };
 }
 
 function scoringPreset(receptions: number): string {

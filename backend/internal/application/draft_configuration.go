@@ -29,7 +29,8 @@ func DemoLeagueConfiguration() LeagueConfiguration {
 				{Name: "DST", Count: 1, Positions: []string{"DST"}, IsStarting: true},
 				{Name: "Bench", Count: 6, Positions: []string{"QB", "RB", "WR", "TE", "K", "DST"}, IsStarting: false},
 			},
-			ScoringRules: map[string]float64{"reception": 1},
+			ScoringRules:  map[string]float64{"reception": 1},
+			SourceWeights: DefaultRankingSourceWeights(),
 		},
 		Recommendation: DefaultRecommendationPolicy(),
 	}

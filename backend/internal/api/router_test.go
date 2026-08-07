@@ -62,6 +62,21 @@ func TestRankingSourcesExposeBuiltInProvenance(t *testing.T) {
 	}
 }
 
+func TestConsensusRankingsRequireKnownLeague(t *testing.T) {
+	router, closeStore := testRouter(t)
+	defer closeStore()
+	for _, test := range []struct {
+		path string
+		want int
+	}{{"/api/v1/rankings", http.StatusBadRequest}, {"/api/v1/rankings?leagueId=missing", http.StatusNotFound}, {"/api/v1/rankings?leagueId=demo", http.StatusOK}} {
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, test.path, nil))
+		if response.Code != test.want {
+			t.Errorf("expected %d for %s, got %d: %s", test.want, test.path, response.Code, response.Body.String())
+		}
+	}
+}
+
 func TestRankingPDFImportRequiresAFile(t *testing.T) {
 	router, closeStore := testRouter(t)
 	defer closeStore()
@@ -163,7 +178,7 @@ func TestLeagueLifecycleEndpoints(t *testing.T) {
 	if err := json.NewDecoder(createResponse.Body).Decode(&created); err != nil {
 		t.Fatalf("decode created league: %v", err)
 	}
-	if created.ID != "work-league" || created.DraftPosition != 4 {
+	if created.ID != "work-league" || created.DraftPosition != 4 || len(created.SourceWeights) != len(application.BuiltInRankingSources()) {
 		t.Fatalf("unexpected created league: %#v", created)
 	}
 

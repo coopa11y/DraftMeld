@@ -34,7 +34,7 @@ func TestLeagueConfigurationPersistsAndDeletesItsDraft(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get league: %v", err)
 	}
-	if !found || loaded.Rules.DraftPosition != 7 || len(loaded.Rules.RosterSlots) != 2 || loaded.Rules.ScoringRules["reception"] != 0.5 {
+	if !found || loaded.Rules.DraftPosition != 7 || len(loaded.Rules.RosterSlots) != 2 || loaded.Rules.ScoringRules["reception"] != 0.5 || loaded.Rules.SourceWeights["cbs-ppr"] != 2.5 {
 		t.Fatalf("unexpected persisted league: %#v", loaded)
 	}
 
@@ -60,7 +60,8 @@ func testLeagueConfiguration() league.Configuration {
 				{Name: "QB", Count: 1, Positions: []string{"QB"}, IsStarting: true},
 				{Name: "Bench", Count: 5, Positions: []string{"QB", "RB", "WR", "TE"}, IsStarting: false},
 			},
-			ScoringRules: map[string]float64{"reception": 0.5},
+			ScoringRules:  map[string]float64{"reception": 0.5},
+			SourceWeights: map[string]float64{"cbs-ppr": 2.5},
 		},
 		Recommendation: league.RecommendationPolicy{
 			BaseScore: 200, StartingNeedBonus: 24, ADPValueThreshold: 5,

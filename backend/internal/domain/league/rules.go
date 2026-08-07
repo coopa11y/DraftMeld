@@ -28,6 +28,7 @@ type Rules struct {
 	DraftType     DraftType          `json:"draftType"`
 	RosterSlots   []RosterSlot       `json:"rosterSlots"`
 	ScoringRules  map[string]float64 `json:"scoringRules"`
+	SourceWeights map[string]float64 `json:"sourceWeights"`
 }
 
 type RecommendationPolicy struct {
@@ -86,6 +87,11 @@ func (rules Rules) Validate() error {
 	for name, value := range rules.ScoringRules {
 		if name == "" || math.IsNaN(value) || math.IsInf(value, 0) {
 			return fmt.Errorf("invalid scoring rule: %q", name)
+		}
+	}
+	for sourceID, weight := range rules.SourceWeights {
+		if sourceID == "" || math.IsNaN(weight) || math.IsInf(weight, 0) || weight <= 0 || weight > 10 {
+			return fmt.Errorf("ranking source weight must be greater than 0 and no more than 10: %q", sourceID)
 		}
 	}
 	return nil

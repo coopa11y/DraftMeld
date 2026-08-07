@@ -11,8 +11,10 @@ export async function refreshRankingSources(): Promise<RankingSource[]> {
   return unwrap(data, error, response);
 }
 
-export async function getConsensusRankings(): Promise<ConsensusRanking[]> {
-  const { data, error, response } = await apiClient.GET("/rankings");
+export async function getConsensusRankings(leagueId: string): Promise<ConsensusRanking[]> {
+  const { data, error, response } = await apiClient.GET("/rankings", {
+    params: { query: { leagueId } },
+  });
   return unwrap(data, error, response);
 }
 

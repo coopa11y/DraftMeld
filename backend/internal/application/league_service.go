@@ -65,6 +65,7 @@ func (service *LeagueService) Create(ctx context.Context, rules league.Rules) (L
 	service.mu.Lock()
 	defer service.mu.Unlock()
 
+	rules = withDefaultSourceWeights(rules)
 	configuration := LeagueConfiguration{
 		ID: slugify(rules.Name), Rules: rules, Recommendation: DefaultRecommendationPolicy(),
 	}
@@ -90,7 +91,7 @@ func (service *LeagueService) Update(ctx context.Context, id string, rules leagu
 	if err != nil {
 		return LeagueConfiguration{}, err
 	}
-	configuration.Rules = rules
+	configuration.Rules = withDefaultSourceWeights(rules)
 	if err = configuration.Validate(); err != nil {
 		return LeagueConfiguration{}, fmt.Errorf("%w: %v", ErrInvalidLeague, err)
 	}
@@ -109,6 +110,7 @@ func (service *LeagueService) Duplicate(ctx context.Context, id string) (LeagueC
 	rules.Name = "Copy of " + rules.Name
 	rules.RosterSlots = cloneRosterSlots(rules.RosterSlots)
 	rules.ScoringRules = cloneScoringRules(rules.ScoringRules)
+	rules.SourceWeights = cloneSourceWeights(rules.SourceWeights)
 	return service.Create(ctx, rules)
 }
 
@@ -165,4 +167,19 @@ func cloneScoringRules(rules map[string]float64) map[string]float64 {
 		cloned[name] = value
 	}
 	return cloned
+}
+
+func cloneSourceWeights(weights map[string]float64) map[string]float64 {
+	cloned := make(map[string]float64, len(weights))
+	for sourceID, weight := range weights {
+		cloned[sourceID] = weight
+	}
+	return cloned
+}
+
+func withDefaultSourceWeights(rules league.Rules) league.Rules {
+	if len(rules.SourceWeights) == 0 {
+		rules.SourceWeights = DefaultRankingSourceWeights()
+	}
+	return rules
 }

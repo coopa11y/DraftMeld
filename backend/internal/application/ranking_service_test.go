@@ -59,7 +59,7 @@ func TestConsensusUsesCurrentRedraftPoolAsEligibilityAnchor(t *testing.T) {
 	}}
 	service := NewRankingService(repository)
 
-	consensus, err := service.Consensus(t.Context())
+	consensus, err := service.Consensus(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("build consensus: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestConsensusMergesStoredDefenseAliases(t *testing.T) {
 	}}
 	service := NewRankingService(repository)
 
-	consensus, err := service.Consensus(t.Context())
+	consensus, err := service.Consensus(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("build consensus: %v", err)
 	}
@@ -90,5 +90,28 @@ func TestConsensusMergesStoredDefenseAliases(t *testing.T) {
 	}
 	if consensus[0].SourceCount != 2 || consensus[0].Team != "DEN" {
 		t.Fatalf("expected both defense signals and canonical metadata, got %#v", consensus[0])
+	}
+}
+
+func TestConsensusUsesLeagueSourceWeightsWithoutDroppingSources(t *testing.T) {
+	repository := &rankingRepositoryStub{records: []ranking.Record{
+		{SourceID: "redraft-ecr", PlayerKey: "player-a", Name: "Player A", Position: "RB", Rank: 1},
+		{SourceID: "redraft-ecr", PlayerKey: "player-b", Name: "Player B", Position: "RB", Rank: 3},
+		{SourceID: "cbs-ppr", PlayerKey: "player-a", Name: "Player A", Position: "RB", Rank: 3},
+		{SourceID: "cbs-ppr", PlayerKey: "player-b", Name: "Player B", Position: "RB", Rank: 1},
+	}}
+	service := NewRankingService(repository)
+
+	consensus, err := service.Consensus(t.Context(), map[string]float64{"redraft-ecr": 1, "cbs-ppr": 5})
+	if err != nil {
+		t.Fatalf("build weighted consensus: %v", err)
+	}
+	if len(consensus) != 2 || consensus[0].PlayerKey != "player-b" {
+		t.Fatalf("expected CBS preference to move player-b first, got %#v", consensus)
+	}
+	for _, player := range consensus {
+		if player.SourceCount != 2 {
+			t.Fatalf("expected every available source to contribute, got %#v", player)
+		}
 	}
 }

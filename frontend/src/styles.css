@@ -224,6 +224,10 @@ tbody tr:focus-within { background: var(--color-control); }
 .ranking-panel { overflow: hidden; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 0.9rem; }
 .section-description { max-width: 70ch; margin: 0.65rem 0 0; color: var(--color-text-muted); line-height: 1.55; }
 .status-message { min-height: 1.5rem; margin: 0; padding: 0 1.4rem 1rem; color: var(--color-text-muted); }
+.source-weight-form { padding-bottom: 1.4rem; }
+.source-weight-form > fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.source-weight-form > fieldset > legend { margin: 0; padding: 0 1.4rem 0.35rem; font-size: 1.1rem; font-weight: 850; }
+.source-weight-form > fieldset > .field-help { padding: 0 1.4rem; }
 .source-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 0; padding: 0 1.4rem 1.4rem; list-style: none; }
 .pdf-import-form { display: grid; grid-template-columns: minmax(16rem, 1fr) minmax(15rem, 1fr) auto; align-items: end; gap: 1rem; margin: 0 1.4rem 1.4rem; padding: 1rem; background: var(--color-surface-deep); border: 1px solid var(--color-border-subtle); border-radius: 0.75rem; }
 .pdf-import-form p { margin: 0.35rem 0 0; color: var(--color-text-muted); line-height: 1.45; }
@@ -236,7 +240,10 @@ tbody tr:focus-within { background: var(--color-control); }
 .source-card dl div { display: grid; grid-template-columns: 8rem 1fr; gap: 0.6rem; }
 .source-card dt { color: var(--color-text-label); font-weight: 800; }
 .source-card dd { margin: 0; color: var(--color-text-muted); }
+.source-weight-control { display: grid; grid-template-columns: minmax(0, 1fr) 6rem; align-items: center; gap: 0.75rem; margin-top: 1rem; font-weight: 800; }
+.source-weight-control input { min-width: 0; }
 .source-card a { display: inline-flex; align-items: center; min-height: 44px; color: var(--color-accent); font-weight: 800; }
+.source-weight-actions { display: flex; flex-wrap: wrap; gap: 0.65rem; padding: 0 1.4rem; }
 .coverage-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; margin: 0; padding: 0 1.4rem 1.4rem; list-style: none; }
 .coverage-list li { padding: 1rem; background: var(--color-surface-deep); border: 1px solid var(--color-border-subtle); border-radius: 0.7rem; }
 .coverage-list li > div { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }

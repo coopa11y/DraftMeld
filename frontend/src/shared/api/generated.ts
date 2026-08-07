@@ -137,7 +137,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Build the default weighted consensus from imported feeds */
+        /** Build a league-weighted consensus from every imported feed */
         get: operations["getConsensusRankings"];
         put?: never;
         post?: never;
@@ -221,6 +221,10 @@ export interface components {
             draftType: "snake" | "linear" | "auction";
             rosterSlots: components["schemas"]["RosterSlot"][];
             scoringRules: {
+                [key: string]: number;
+            };
+            /** @description Positive per-source influence values. Missing source IDs use their published defaults. */
+            sourceWeights: {
                 [key: string]: number;
             };
         };
@@ -600,7 +604,9 @@ export interface operations {
     };
     getConsensusRankings: {
         parameters: {
-            query?: never;
+            query: {
+                leagueId: components["parameters"]["LeagueId"];
+            };
             header?: never;
             path?: never;
             cookie?: never;

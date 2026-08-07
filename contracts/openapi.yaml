@@ -172,7 +172,9 @@ paths:
   /rankings:
     get:
       operationId: getConsensusRankings
-      summary: Build the default weighted consensus from imported feeds
+      summary: Build a league-weighted consensus from every imported feed
+      parameters:
+        - $ref: "#/components/parameters/LeagueId"
       responses:
         "200":
           description: Normalized consensus rankings.
@@ -318,7 +320,7 @@ components:
           example: 0.2.0
     LeagueRules:
       type: object
-      required: [name, teamCount, draftPosition, draftType, rosterSlots, scoringRules]
+      required: [name, teamCount, draftPosition, draftType, rosterSlots, scoringRules, sourceWeights]
       properties:
         name:
           type: string
@@ -343,6 +345,13 @@ components:
           type: object
           additionalProperties:
             type: number
+        sourceWeights:
+          type: object
+          description: Positive per-source influence values. Missing source IDs use their published defaults.
+          additionalProperties:
+            type: number
+            exclusiveMinimum: 0
+            maximum: 10
     League:
       allOf:
         - type: object

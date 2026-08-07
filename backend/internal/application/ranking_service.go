@@ -117,7 +117,7 @@ func (service *RankingService) download(ctx context.Context, source ranking.Sour
 	return nil, fmt.Errorf("download %s after retry: %w", source.Name, lastErr)
 }
 
-func (service *RankingService) Consensus(ctx context.Context) ([]ranking.PlayerRanking, error) {
+func (service *RankingService) Consensus(ctx context.Context, requestedWeights map[string]float64) ([]ranking.PlayerRanking, error) {
 	records, err := service.repository.RankingRecords(ctx)
 	if err != nil {
 		return nil, err
@@ -149,7 +149,14 @@ func (service *RankingService) Consensus(ctx context.Context) ([]ranking.PlayerR
 			continue
 		}
 		source := sources[record.SourceID]
-		source.ID, source.Weight = record.SourceID, definition.DefaultWeight
+		weight := definition.DefaultWeight
+		if requested, configured := requestedWeights[record.SourceID]; configured {
+			if requested <= 0 || requested > 10 {
+				return nil, fmt.Errorf("ranking source %s requires a weight greater than 0 and no more than 10", record.SourceID)
+			}
+			weight = requested
+		}
+		source.ID, source.Weight = record.SourceID, weight
 		if source.Ranks == nil {
 			source.Ranks = make(map[string]int)
 		}

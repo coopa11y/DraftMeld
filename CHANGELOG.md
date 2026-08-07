@@ -22,6 +22,7 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 - Private, in-memory imports for user-supplied ESPN PPR and dynasty ranking PDFs
 - Reusable PDF extraction and provider-adapter boundary for adding future ranking sheets
 - Position-only draft views for QB, RB, WR, TE, K, and DST with position-relative ranks
+- Accessible per-league influence controls for every ranking source
 
 ### Changed
 
@@ -34,6 +35,7 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 - Ranking refreshes normalize provider CSV formats and replace each source atomically
 - Ranking downloads use an identifying user agent, bounded response size, timeout, and one transient-failure retry
 - Defense rankings now share one team-based identity across provider names, abbreviations, and position labels
+- Weighted consensus uses each league's positive source weights while retaining every imported ranking signal
 
 ## [0.1.0] - 2026-08-05
 
