@@ -115,6 +115,43 @@ func TestRankingPDFImportRejectsMultipleFiles(t *testing.T) {
 	}
 }
 
+func TestRankingCSVImportCreatesAWeightablePrivateSource(t *testing.T) {
+	router, closeStore := testRouter(t)
+	defer closeStore()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	_ = writer.WriteField("name", "Marcus rankings")
+	_ = writer.WriteField("mapping", `{"rank":"RK","name":"Player","position":"POS","team":"TM","adp":"ADP","tier":"Tier"}`)
+	file, err := writer.CreateFormFile("file", "rankings.csv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = file.Write([]byte("RK,Player,POS,TM,ADP,Tier\n1,Custom Runner,RB,ATL,4.2,1\n2,Custom Receiver,WR,DAL,9.5,2\n"))
+	_ = writer.Close()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/ranking-sources/import-csv", &body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("ranking import failed: %d %s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), `"id":"custom-marcus-rankings"`) || !strings.Contains(response.Body.String(), `"isCustom":true`) {
+		t.Fatalf("unexpected import response: %s", response.Body.String())
+	}
+
+	rankingsResponse := httptest.NewRecorder()
+	router.ServeHTTP(rankingsResponse, httptest.NewRequest(http.MethodGet, "/api/v1/rankings?leagueId=demo", nil))
+	if rankingsResponse.Code != http.StatusOK || !strings.Contains(rankingsResponse.Body.String(), `"name":"Custom Runner"`) || !strings.Contains(rankingsResponse.Body.String(), `"adp":4.2`) {
+		t.Fatalf("custom source did not reach consensus: %d %s", rankingsResponse.Code, rankingsResponse.Body.String())
+	}
+
+	sourcesResponse := httptest.NewRecorder()
+	router.ServeHTTP(sourcesResponse, httptest.NewRequest(http.MethodGet, "/api/v1/ranking-sources", nil))
+	if sourcesResponse.Code != http.StatusOK || !strings.Contains(sourcesResponse.Body.String(), `"name":"Marcus rankings"`) {
+		t.Fatalf("custom source was not persisted: %d %s", sourcesResponse.Code, sourcesResponse.Body.String())
+	}
+}
+
 func TestDraftActionAndUndoEndpoints(t *testing.T) {
 	router, closeStore := testRouter(t)
 	defer closeStore()

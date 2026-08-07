@@ -147,6 +147,7 @@ const rankingSources: RankingSource[] = [
     defaultWeight: 1,
     importMode: "download",
     role: "ranking",
+    isCustom: false,
     recordCount: 500,
     publishedAt: "2026-07-31",
   },
@@ -161,6 +162,7 @@ const rankingSources: RankingSource[] = [
     defaultWeight: 0.7,
     importMode: "download",
     role: "market",
+    isCustom: false,
     recordCount: 450,
     publishedAt: "2026-07-31",
   },
@@ -175,6 +177,7 @@ const rankingSources: RankingSource[] = [
     defaultWeight: 0.5,
     importMode: "download",
     role: "market",
+    isCustom: false,
     recordCount: 450,
     publishedAt: "2026-07-31",
   },
@@ -189,6 +192,7 @@ const rankingSources: RankingSource[] = [
     defaultWeight: 0.6,
     importMode: "download",
     role: "usage",
+    isCustom: false,
     recordCount: 300,
     publishedAt: "2025",
   },
@@ -203,6 +207,7 @@ const rankingSources: RankingSource[] = [
     defaultWeight: 0.9,
     importMode: "download",
     role: "ranking",
+    isCustom: false,
     recordCount: 200,
     publishedAt: "Updated today",
   },
@@ -217,6 +222,7 @@ const rankingSources: RankingSource[] = [
     defaultWeight: 0.9,
     importMode: "pdf-upload",
     role: "ranking",
+    isCustom: false,
     recordCount: 0,
   },
   {
@@ -230,6 +236,7 @@ const rankingSources: RankingSource[] = [
     defaultWeight: 0.6,
     importMode: "pdf-upload",
     role: "market",
+    isCustom: false,
     recordCount: 0,
   },
 ];
@@ -248,6 +255,8 @@ const consensusRankings: ConsensusRanking[] = [
     rankRange: 4,
     confidence: "high",
     method: "weighted-median",
+    adp: 1.8,
+    tier: 1,
   },
 ];
 
@@ -612,10 +621,34 @@ describe("accessible draft board", () => {
     }
 
     vi.stubGlobal("FormData", CompatibleFormData);
+    let importedRankingMapping: Record<string, string> | undefined;
     let importedMapping: Record<string, string> | undefined;
     let identityReview: Record<string, string> | undefined;
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const path = new URL(input instanceof Request ? input.url : input.toString()).pathname;
+      if (path.endsWith("/ranking-sources/import-csv")) {
+        const form = init?.body as FormData;
+        importedRankingMapping = JSON.parse(String(form.get("mapping"))) as Record<string, string>;
+        return jsonResponse(
+          {
+            id: "custom-marcus-board",
+            name: "Marcus board",
+            description: "Private ranking CSV uploaded by the user.",
+            methodology: "User-supplied ordinal player ranking",
+            license: "Private user data",
+            projectUrl: "",
+            dataUrl: "",
+            defaultWeight: 1,
+            importMode: "csv-upload",
+            role: "ranking",
+            isCustom: true,
+            recordCount: 1,
+            refreshedAt: new Date().toISOString(),
+            publishedAt: "Private CSV import",
+          },
+          201,
+        );
+      }
       if (path.endsWith("/projection-sources/import-csv")) {
         const form = init?.body as FormData;
         importedMapping = JSON.parse(String(form.get("mapping"))) as Record<string, string>;
@@ -641,6 +674,18 @@ describe("accessible draft board", () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(await screen.findByRole("button", { name: "Ranking sources" }));
+
+    await user.type(screen.getByRole("textbox", { name: "Ranking source name" }), "Marcus board");
+    await user.upload(
+      screen.getByLabelText("Ranking CSV"),
+      new File(["RK,Player,POS,TM\n1,Alex Rivers,RB,ATL\n"], "rankings.csv", { type: "text/csv" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Import rankings" }));
+    await waitFor(() =>
+      expect(importedRankingMapping).toMatchObject({ rank: "RK", name: "Player", position: "POS", team: "TM" }),
+    );
+    expect(await screen.findByText("Marcus board imported with 1 ranked players.")).toBeInTheDocument();
+    expect(screen.getByText("Private upload")).toBeInTheDocument();
 
     await user.type(screen.getByRole("textbox", { name: "Projection source name" }), "Mapped model");
     await user.upload(

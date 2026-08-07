@@ -52,6 +52,8 @@ scripts/        Native build entrypoints
 
 See the [product brief](docs/product-brief.md) and [architecture overview](docs/architecture.md) for the initial direction.
 
+The remaining release-readiness work is tracked in the [feature-completeness roadmap](docs/roadmap.md).
+
 The formulas, projection CSV schema, draft-day integrations, and current limitations are documented in [draft intelligence](docs/draft-intelligence.md).
 
 Accessibility requirements and current limitations are documented in [docs/accessibility.md](docs/accessibility.md).

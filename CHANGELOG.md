@@ -25,6 +25,7 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 - Consensus ranking CSV exports with source weights, evidence, and spreadsheet-formula protection
 - Current draft result exports in CSV and versioned JSON formats
 - Automated Windows and Linux release archives, checksums, provenance attestations, GHCR images, and smoke tests
+- Reusable private ranking CSV imports with interactive column mapping, optional ADP and tiers, and persistent source metadata
 - Accessible manual draft board with overall and position rankings
 - Draft and Taken actions with descriptive screen-reader labels
 - My Team, recommendations, and draft-history panels

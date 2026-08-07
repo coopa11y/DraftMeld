@@ -37,6 +37,9 @@ func (service *DraftService) playersForLeague(ctx context.Context, configuration
 		value := values[ranked.PlayerKey]
 		adp := value.adp
 		if adp <= 0 {
+			adp = ranked.ADP
+		}
+		if adp <= 0 {
 			adp = float64(ranked.Rank)
 		}
 		if value.points != 0 {
@@ -45,7 +48,7 @@ func (service *DraftService) playersForLeague(ctx context.Context, configuration
 		players = append(players, draft.Player{
 			ID: ranked.PlayerKey, Name: ranked.Name, NFLTeam: ranked.Team, Position: ranked.Position,
 			ByeWeek: value.byeWeek, OverallRank: ranked.Rank, PositionRank: positionCounts[ranked.Position], ADP: adp,
-			Tier: 1, ProjectedPoints: value.points, Confidence: ranked.Confidence, RankRange: ranked.RankRange,
+			Tier: ranked.Tier, ProjectedPoints: value.points, Confidence: ranked.Confidence, RankRange: ranked.RankRange,
 			Preference: configuration.Rules.PlayerPreferences[ranked.PlayerKey],
 		})
 	}
@@ -94,7 +97,9 @@ func applyReplacementValues(players []draft.Player, rules league.Rules) {
 	}
 	if projected == 0 {
 		for index := range players {
-			players[index].Tier = 1 + (players[index].PositionRank-1)/5
+			if players[index].Tier == 0 {
+				players[index].Tier = 1 + (players[index].PositionRank-1)/5
+			}
 		}
 		return
 	}

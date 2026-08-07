@@ -4,6 +4,7 @@ import {
   getConsensusRankings,
   getRankingWatchlist,
   importRankingPDF,
+  importRankingCSV,
   listIdentityIssues,
   listProjectionSources,
   listRankingSources,
@@ -26,6 +27,7 @@ import { StatusMessage } from "../shared/ui/StatusMessage";
 import { IdentityReviewQueue } from "./IdentityReviewQueue";
 import { ProjectionImport } from "./ProjectionImport";
 import { RankingEvidencePanels } from "./RankingEvidencePanels";
+import { RankingCsvImport } from "./RankingCsvImport";
 import { RankingSourcePreferences } from "./RankingSourcePreferences";
 
 interface RankingSourcesProps {
@@ -147,6 +149,35 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
     }
   }
 
+  async function uploadRankingCSV(name: string, file: File, mapping: Record<string, string>) {
+    setBusy(true);
+    setError("");
+    setMessage(`Importing ${name} and normalizing its player rankings.`);
+    try {
+      const imported = await importRankingCSV(name, file, mapping);
+      setSources((current) => [...current.filter((source) => source.id !== imported.id), imported]);
+      setPreferences((current) => ({
+        ...current,
+        [imported.id]: current[imported.id] ?? { weight: imported.defaultWeight, enabled: true },
+      }));
+      const [consensus, disabledSourcePlayers, identities] = await Promise.all([
+        getConsensusRankings(league.id),
+        getRankingWatchlist(league.id),
+        listIdentityIssues(),
+      ]);
+      setRankings(consensus);
+      setWatchlist(disabledSourcePlayers);
+      setIdentityIssues(identities);
+      setMessage(`${imported.name} imported with ${imported.recordCount} ranked players.`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to import ranking CSV.");
+      setMessage("");
+      throw reason;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function saveWeights(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -252,6 +283,8 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
           onSubmit={saveWeights}
         />
       </Panel>
+
+      <RankingCsvImport busy={busy} sources={sources} onImport={uploadRankingCSV} />
 
       <ProjectionImport
         busy={busy}

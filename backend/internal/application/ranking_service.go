@@ -17,6 +17,7 @@ type RankingRepository interface {
 	ReplaceRankings(context.Context, ranking.SourceDefinition, []ranking.Record, string, time.Time) error
 	RankingRecords(context.Context) ([]ranking.Record, error)
 	RankingStatuses(context.Context) (map[string]ranking.SourceStatus, error)
+	CustomRankingSources(context.Context) ([]ranking.SourceDefinition, error)
 }
 
 type RankingService struct {
@@ -36,13 +37,26 @@ func (service *RankingService) Sources(ctx context.Context) ([]ranking.SourceSta
 	if err != nil {
 		return nil, err
 	}
-	statuses := make([]ranking.SourceStatus, 0, len(service.sources))
-	for _, source := range service.sources {
+	definitions, err := service.definitions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	statuses := make([]ranking.SourceStatus, 0, len(definitions))
+	for _, source := range definitions {
 		status := stored[source.ID]
 		status.SourceDefinition = source
 		statuses = append(statuses, status)
 	}
 	return statuses, nil
+}
+
+func (service *RankingService) definitions(ctx context.Context) ([]ranking.SourceDefinition, error) {
+	custom, err := service.repository.CustomRankingSources(ctx)
+	if err != nil {
+		return nil, err
+	}
+	definitions := append([]ranking.SourceDefinition(nil), service.sources...)
+	return append(definitions, custom...), nil
 }
 
 func (service *RankingService) sourceByID(id string) (ranking.SourceDefinition, bool) {
@@ -127,10 +141,14 @@ func (service *RankingService) Consensus(ctx context.Context, preferences map[st
 	if err != nil {
 		return nil, err
 	}
-	if err = validateRankingSourcePreferences(service.sources, preferences); err != nil {
+	definitions, err := service.definitions(ctx)
+	if err != nil {
 		return nil, err
 	}
-	inputs := buildConsensusInputs(service.sources, resolveRankingRecords(records, aliases), preferences)
+	if err = validateRankingSourcePreferences(definitions, preferences); err != nil {
+		return nil, err
+	}
+	inputs := buildConsensusInputs(definitions, resolveRankingRecords(records, aliases), preferences)
 	method := requestedConsensusMethod(methods)
 	entries, err := ranking.Combine(inputs.sources, inputs.players, method)
 	if err != nil {

@@ -254,6 +254,30 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /ranking-sources/import-csv:
+    post:
+      operationId: importRankingCSV
+      summary: Import a private ordinal ranking source from CSV
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [name, file]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 80 }
+                file: { type: string, format: binary }
+                mapping:
+                  type: string
+                  description: JSON object mapping DraftMeld field names to source CSV headers.
+      responses:
+        "201":
+          description: The private ranking source was normalized and imported.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RankingSource" }
+        "400": { $ref: "#/components/responses/BadRequest" }
   /projection-sources:
     get:
       operationId: listProjectionSources
@@ -675,18 +699,32 @@ components:
       type: object
       additionalProperties: false
       required:
-        [id, name, description, methodology, license, projectUrl, dataUrl, defaultWeight, importMode, role, recordCount]
+        [
+          id,
+          name,
+          description,
+          methodology,
+          license,
+          projectUrl,
+          dataUrl,
+          defaultWeight,
+          importMode,
+          role,
+          isCustom,
+          recordCount,
+        ]
       properties:
         id: { type: string }
         name: { type: string }
         description: { type: string }
         methodology: { type: string }
         license: { type: string }
-        projectUrl: { type: string, format: uri }
-        dataUrl: { type: string, format: uri }
+        projectUrl: { type: string }
+        dataUrl: { type: string }
         defaultWeight: { type: number, exclusiveMinimum: 0 }
-        importMode: { type: string, enum: [download, pdf-upload] }
+        importMode: { type: string, enum: [download, pdf-upload, csv-upload] }
         role: { type: string, enum: [ranking, market, usage] }
+        isCustom: { type: boolean }
         recordCount: { type: integer, minimum: 0 }
         refreshedAt: { type: [string, "null"], format: date-time }
         publishedAt: { type: string }
@@ -721,6 +759,8 @@ components:
           rankRange,
           confidence,
           method,
+          adp,
+          tier,
         ]
       properties:
         playerKey: { type: string }
@@ -737,6 +777,8 @@ components:
         rankRange: { type: integer, minimum: 0 }
         confidence: { type: string, enum: [high, medium, low] }
         method: { type: string, enum: [weighted-average, weighted-median, trimmed-mean] }
+        adp: { type: number, minimum: 0 }
+        tier: { type: integer, minimum: 0 }
     ProjectionSource:
       type: object
       additionalProperties: false
