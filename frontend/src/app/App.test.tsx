@@ -268,18 +268,31 @@ describe("accessible draft board", () => {
   });
 
   it("maps projection columns and merges player aliases", async () => {
+    class CompatibleFormData {
+      private readonly values = new Map<string, string | File>();
+
+      append(name: string, value: string | File) {
+        this.values.set(name, value);
+      }
+
+      get(name: string) {
+        return this.values.get(name) ?? null;
+      }
+    }
+
+    vi.stubGlobal("FormData", CompatibleFormData);
     let importedMapping: Record<string, string> | undefined;
     let identityReview: Record<string, string> | undefined;
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const request = input instanceof Request ? input : new Request(input, init);
-      const path = new URL(request.url).pathname;
-      if (path.endsWith("/leagues")) return jsonResponse([demoLeague]);
-      if (path.endsWith("/ranking-sources")) return jsonResponse(rankingSources);
+      const path = new URL(input instanceof Request ? input.url : input.toString()).pathname;
       if (path.endsWith("/projection-sources/import-csv")) {
-        const form = await request.formData();
+        const form = init?.body as FormData;
         importedMapping = JSON.parse(String(form.get("mapping"))) as Record<string, string>;
         return jsonResponse({ id: "mapped", name: "Mapped model", recordCount: 1, importedAt: new Date().toISOString() }, 201);
       }
+      const request = input instanceof Request ? input : new Request(input, init);
+      if (path.endsWith("/leagues")) return jsonResponse([demoLeague]);
+      if (path.endsWith("/ranking-sources")) return jsonResponse(rankingSources);
       if (path.endsWith("/projection-sources")) return jsonResponse([]);
       if (path.endsWith("/ranking-identities/review")) {
         identityReview = await request.json() as Record<string, string>;
