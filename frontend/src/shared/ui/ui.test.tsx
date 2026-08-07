@@ -12,7 +12,9 @@ describe("shared UI primitives", () => {
   it("provides consistent controls and semantics", () => {
     render(
       <Panel variant="ranking" aria-label="Settings">
-        <FormField label="League name" help="Shown on the draft board."><input /></FormField>
+        <FormField label="League name" help="Shown on the draft board.">
+          <input />
+        </FormField>
         <Button variant="primary">Save</Button>
         <StatusMessage tone="error">Unable to save.</StatusMessage>
       </Panel>,
@@ -37,7 +39,11 @@ describe("shared UI primitives", () => {
     fireEvent(dialog, new Event("cancel", { bubbles: true, cancelable: true }));
     expect(onClose).toHaveBeenCalledOnce();
 
-    rerender(<Dialog open={false} labelledBy="confirm-title" onClose={onClose}><h2 id="confirm-title">Delete league?</h2></Dialog>);
+    rerender(
+      <Dialog open={false} labelledBy="confirm-title" onClose={onClose}>
+        <h2 id="confirm-title">Delete league?</h2>
+      </Dialog>,
+    );
     expect(dialog).not.toHaveAttribute("open");
   });
 });

@@ -15,9 +15,11 @@ export function DraftTools({ snapshot, busy, onMock, onSleeperSync }: DraftTools
     <Panel variant="side" aria-labelledby="draft-tools-title">
       <p className="eyebrow">Optional automation</p>
       <h2 id="draft-tools-title">Draft tools</h2>
-      {snapshot.draftType === "auction"
-        ? <AuctionSummary snapshot={snapshot} />
-        : <MockDraftControl snapshot={snapshot} busy={busy} onMock={onMock} />}
+      {snapshot.draftType === "auction" ? (
+        <AuctionSummary snapshot={snapshot} />
+      ) : (
+        <MockDraftControl snapshot={snapshot} busy={busy} onMock={onMock} />
+      )}
       <SleeperSyncForm busy={busy} onSync={onSleeperSync} />
     </Panel>
   );
@@ -37,9 +39,20 @@ function MockDraftControl({ snapshot, busy, onMock }: Pick<DraftToolsProps, "sna
 function AuctionSummary({ snapshot }: Pick<DraftToolsProps, "snapshot">) {
   return (
     <dl className="auction-summary">
-      <div><dt>My budget</dt><dd>${snapshot.budgetRemaining.toFixed(0)} of ${snapshot.auctionBudget.toFixed(0)}</dd></div>
-      <div><dt>Maximum bid</dt><dd>${snapshot.maximumBid.toFixed(0)}</dd></div>
-      <div><dt>Market inflation</dt><dd>{snapshot.auctionInflation.toFixed(2)}×</dd></div>
+      <div>
+        <dt>My budget</dt>
+        <dd>
+          ${snapshot.budgetRemaining.toFixed(0)} of ${snapshot.auctionBudget.toFixed(0)}
+        </dd>
+      </div>
+      <div>
+        <dt>Maximum bid</dt>
+        <dd>${snapshot.maximumBid.toFixed(0)}</dd>
+      </div>
+      <div>
+        <dt>Market inflation</dt>
+        <dd>{snapshot.auctionInflation.toFixed(2)}×</dd>
+      </div>
     </dl>
   );
 }

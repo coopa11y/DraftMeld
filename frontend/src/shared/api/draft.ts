@@ -18,8 +18,14 @@ export async function recordDraftAction(
   return unwrap(data, error, response);
 }
 
-export async function setPlayerPreference(leagueId: string, playerId: string, preference: "target" | "avoid" | ""): Promise<DraftSnapshot> {
-  const { data, error, response } = await apiClient.PUT("/draft/preferences", { body: { leagueId, playerId, preference } });
+export async function setPlayerPreference(
+  leagueId: string,
+  playerId: string,
+  preference: "target" | "avoid" | "",
+): Promise<DraftSnapshot> {
+  const { data, error, response } = await apiClient.PUT("/draft/preferences", {
+    body: { leagueId, playerId, preference },
+  });
   return unwrap(data, error, response);
 }
 
@@ -28,8 +34,14 @@ export async function simulateToNextTurn(leagueId: string): Promise<DraftSnapsho
   return unwrap(data, error, response);
 }
 
-export async function syncSleeperDraft(leagueId: string, sleeperDraftId: string, rosterId: number): Promise<SleeperSyncResult> {
-  const { data, error, response } = await apiClient.POST("/draft/sync/sleeper", { body: { leagueId, sleeperDraftId, rosterId } });
+export async function syncSleeperDraft(
+  leagueId: string,
+  sleeperDraftId: string,
+  rosterId: number,
+): Promise<SleeperSyncResult> {
+  const { data, error, response } = await apiClient.POST("/draft/sync/sleeper", {
+    body: { leagueId, sleeperDraftId, rosterId },
+  });
   return unwrap(data, error, response);
 }
 

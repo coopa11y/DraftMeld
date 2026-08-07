@@ -16,5 +16,9 @@ const variantClasses: Record<PanelVariant, string> = {
 };
 
 export function Panel({ children, className, variant, ...props }: PanelProps) {
-  return <section className={classNames(variantClasses[variant], className)} {...props}>{children}</section>;
+  return (
+    <section className={classNames(variantClasses[variant], className)} {...props}>
+      {children}
+    </section>
+  );
 }

@@ -1,5 +1,13 @@
 import { apiClient, postMultipart, unwrap } from "./client";
-import type { ConsensusRanking, ErrorResponse, IdentityIssue, ProjectionSource, RankingPDFImport, RankingSource, WatchlistPlayer } from "./types";
+import type {
+  ConsensusRanking,
+  ErrorResponse,
+  IdentityIssue,
+  ProjectionSource,
+  RankingPDFImport,
+  RankingSource,
+  WatchlistPlayer,
+} from "./types";
 
 export async function listRankingSources(): Promise<RankingSource[]> {
   const { data, error, response } = await apiClient.GET("/ranking-sources");
@@ -36,7 +44,11 @@ export async function listProjectionSources(): Promise<ProjectionSource[]> {
   return unwrap(data, error, response);
 }
 
-export async function importProjectionCSV(name: string, file: File, mapping: Record<string, string>): Promise<ProjectionSource> {
+export async function importProjectionCSV(
+  name: string,
+  file: File,
+  mapping: Record<string, string>,
+): Promise<ProjectionSource> {
   const form = new FormData();
   form.append("name", name);
   form.append("file", file);
@@ -49,7 +61,14 @@ export async function listIdentityIssues(): Promise<IdentityIssue[]> {
   return unwrap(data, error, response);
 }
 
-export async function reviewIdentity(issueKey: string, resolution: "confirmed-separate" | "acknowledged" | "merged", canonicalPlayerKey = ""): Promise<void> {
-  const { error, response } = await apiClient.POST("/ranking-identities/review", { body: { issueKey, resolution, canonicalPlayerKey } });
-  if (!response.ok) throw new Error((error as ErrorResponse | undefined)?.error ?? `Request failed with ${response.status}`);
+export async function reviewIdentity(
+  issueKey: string,
+  resolution: "confirmed-separate" | "acknowledged" | "merged",
+  canonicalPlayerKey = "",
+): Promise<void> {
+  const { error, response } = await apiClient.POST("/ranking-identities/review", {
+    body: { issueKey, resolution, canonicalPlayerKey },
+  });
+  if (!response.ok)
+    throw new Error((error as ErrorResponse | undefined)?.error ?? `Request failed with ${response.status}`);
 }

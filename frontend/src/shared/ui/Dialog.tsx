@@ -28,7 +28,10 @@ export function Dialog({ children, className, labelledBy, onClose, open }: Dialo
     <dialog
       aria-labelledby={labelledBy}
       className={classNames("app-dialog", className)}
-      onCancel={(event) => { event.preventDefault(); onClose(); }}
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
       ref={dialogRef}
     >
       {children}

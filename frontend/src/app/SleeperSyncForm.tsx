@@ -29,19 +29,39 @@ export function SleeperSyncForm({ busy, onSync }: SleeperSyncFormProps) {
   return (
     <form className="sleeper-sync-form" onSubmit={submit}>
       <h3>Sleeper live sync</h3>
-      <p>Sleeper is treated as the read-only source of truth. Changed or deleted remote picks are reconciled locally; DraftMeld never submits a selection.</p>
+      <p>
+        Sleeper is treated as the read-only source of truth. Changed or deleted remote picks are reconciled locally;
+        DraftMeld never submits a selection.
+      </p>
       <FormField label="Draft ID">
         <input required value={draftId} onChange={(event) => setDraftId(event.target.value)} />
       </FormField>
       <FormField label="Your roster ID">
-        <input required type="number" min="1" value={rosterId} onChange={(event) => setRosterId(Number(event.target.value))} />
+        <input
+          required
+          type="number"
+          min="1"
+          value={rosterId}
+          onChange={(event) => setRosterId(Number(event.target.value))}
+        />
       </FormField>
-      <Button type="submit" disabled={busy || !draftId.trim()}>Sync picks</Button>
+      <Button type="submit" disabled={busy || !draftId.trim()}>
+        Sync picks
+      </Button>
       <label className="checkbox-label">
-        <input type="checkbox" checked={autoSync} disabled={!draftId.trim() || rosterId < 1} onChange={(event) => setAutoSync(event.target.checked)} />
+        <input
+          type="checkbox"
+          checked={autoSync}
+          disabled={!draftId.trim() || rosterId < 1}
+          onChange={(event) => setAutoSync(event.target.checked)}
+        />
         Automatically check every 15 seconds
       </label>
-      {autoSync ? <StatusMessage className="tool-help">Automatic read-only synchronization is active while this page remains open.</StatusMessage> : null}
+      {autoSync ? (
+        <StatusMessage className="tool-help">
+          Automatic read-only synchronization is active while this page remains open.
+        </StatusMessage>
+      ) : null}
     </form>
   );
 }

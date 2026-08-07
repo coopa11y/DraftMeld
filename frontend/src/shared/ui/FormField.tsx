@@ -16,9 +16,15 @@ export function FormField({ children, className, help, label }: FormFieldProps) 
 
   return (
     <div className={classNames("form-field", className)}>
-      <label className="form-field-label" htmlFor={controlId}>{label}</label>
+      <label className="form-field-label" htmlFor={controlId}>
+        {label}
+      </label>
       {cloneElement(children, { id: controlId, "aria-describedby": describedBy })}
-      {help ? <span className="field-help" id={helpId}>{help}</span> : null}
+      {help ? (
+        <span className="field-help" id={helpId}>
+          {help}
+        </span>
+      ) : null}
     </div>
   );
 }

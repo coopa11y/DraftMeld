@@ -66,15 +66,24 @@ export function LeagueManager({ leagues, activeLeagueId, onLeaguesChange, onOpen
         <div className="form-heading">
           <div>
             <p className="eyebrow">DraftMeld settings</p>
-            <h1 id="league-manager-title" ref={heading} tabIndex={-1}>Your leagues</h1>
+            <h1 id="league-manager-title" ref={heading} tabIndex={-1}>
+              Your leagues
+            </h1>
             <p>Create a league from familiar defaults, then customize every rule that matters.</p>
           </div>
-          <Button variant="primary" onClick={() => setEditingId("new")}>Create league</Button>
+          <Button variant="primary" onClick={() => setEditingId("new")}>
+            Create league
+          </Button>
         </div>
 
         <StatusMessage visuallyHidden>{message}</StatusMessage>
         {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
-        {leagues.length === 0 ? <div className="empty-leagues"><h2>No leagues yet</h2><p>Create your first league to open the draft board.</p></div> : null}
+        {leagues.length === 0 ? (
+          <div className="empty-leagues">
+            <h2>No leagues yet</h2>
+            <p>Create your first league to open the draft board.</p>
+          </div>
+        ) : null}
 
         <ul className="league-list">
           {leagues.map((league) => (
@@ -82,33 +91,62 @@ export function LeagueManager({ leagues, activeLeagueId, onLeaguesChange, onOpen
               <article>
                 <div>
                   <h2>{league.name}</h2>
-                  <p>{league.teamCount} teams · {formatDraftType(league.draftType)} · Draft position {league.draftPosition}</p>
-                  <p>{formatScoring(league.scoringRules.reception)} · {league.rosterSlots.reduce((total, slot) => total + slot.count, 0)} roster spots</p>
+                  <p>
+                    {league.teamCount} teams · {formatDraftType(league.draftType)} · Draft position{" "}
+                    {league.draftPosition}
+                  </p>
+                  <p>
+                    {formatScoring(league.scoringRules.reception)} ·{" "}
+                    {league.rosterSlots.reduce((total, slot) => total + slot.count, 0)} roster spots
+                  </p>
                   {league.id === activeLeagueId ? <span className="active-badge">Active league</span> : null}
                 </div>
                 <div className="league-actions">
-                  <Button variant="primary" onClick={() => onOpenDraft(league.id)}>Open draft</Button>
+                  <Button variant="primary" onClick={() => onOpenDraft(league.id)}>
+                    Open draft
+                  </Button>
                   <Button onClick={() => setEditingId(league.id)}>Edit</Button>
-                  <Button disabled={busy} onClick={() => run(async () => {
-                    const copy = await duplicateLeague(league.id);
-                    await refresh(copy.id);
-                    setMessage(`${copy.name} was created.`);
-                  })}>Duplicate</Button>
-                  <Button variant="dangerText" onClick={() => setDeleteId(league.id)}>Delete</Button>
+                  <Button
+                    disabled={busy}
+                    onClick={() =>
+                      run(async () => {
+                        const copy = await duplicateLeague(league.id);
+                        await refresh(copy.id);
+                        setMessage(`${copy.name} was created.`);
+                      })
+                    }
+                  >
+                    Duplicate
+                  </Button>
+                  <Button variant="dangerText" onClick={() => setDeleteId(league.id)}>
+                    Delete
+                  </Button>
                 </div>
-                <Dialog open={deleteId === league.id} labelledBy={`delete-league-${league.id}`} onClose={() => setDeleteId(null)}>
-                    <h2 id={`delete-league-${league.id}`}>Delete {league.name}?</h2>
-                    <p>Its draft history will also be permanently deleted.</p>
-                    <div className="dialog-actions">
-                    <Button variant="danger" disabled={busy} onClick={() => run(async () => {
-                      await deleteLeague(league.id);
-                      await refresh();
-                      setDeleteId(null);
-                      setMessage(`${league.name} was deleted.`);
-                      heading.current?.focus();
-                    })}>Yes, delete league</Button>
+                <Dialog
+                  open={deleteId === league.id}
+                  labelledBy={`delete-league-${league.id}`}
+                  onClose={() => setDeleteId(null)}
+                >
+                  <h2 id={`delete-league-${league.id}`}>Delete {league.name}?</h2>
+                  <p>Its draft history will also be permanently deleted.</p>
+                  <div className="dialog-actions">
+                    <Button
+                      variant="danger"
+                      disabled={busy}
+                      onClick={() =>
+                        run(async () => {
+                          await deleteLeague(league.id);
+                          await refresh();
+                          setDeleteId(null);
+                          setMessage(`${league.name} was deleted.`);
+                          heading.current?.focus();
+                        })
+                      }
+                    >
+                      Yes, delete league
+                    </Button>
                     <Button onClick={() => setDeleteId(null)}>Cancel</Button>
-                    </div>
+                  </div>
                 </Dialog>
               </article>
             </li>

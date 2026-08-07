@@ -9,6 +9,8 @@
     "audit": "npm --prefix frontend audit --audit-level=high",
     "check": "npm --prefix frontend run check && cd backend && go vet ./...",
     "dev": "npm --prefix frontend run dev",
+    "format": "npm --prefix frontend run format",
+    "format:check": "npm --prefix frontend run format:check",
     "test": "npm run test:frontend && npm run test:backend",
     "test:frontend": "npm --prefix frontend test",
     "test:backend": "cd backend && go test ./...",

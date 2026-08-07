@@ -23,7 +23,9 @@ export function App() {
       .then((loaded) => {
         if (!active) return;
         setLeagues(loaded);
-        const selected = loaded.some((league) => league.id === initialActiveLeagueId.current) ? initialActiveLeagueId.current : loaded[0]?.id;
+        const selected = loaded.some((league) => league.id === initialActiveLeagueId.current)
+          ? initialActiveLeagueId.current
+          : loaded[0]?.id;
         if (selected) selectLeague(selected);
         else setView("leagues");
       })
@@ -33,7 +35,9 @@ export function App() {
       .finally(() => {
         if (active) setLoading(false);
       });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, []);
 
   function selectLeague(id: string) {
@@ -43,50 +47,80 @@ export function App() {
 
   function handleLeaguesChange(updated: League[], preferredId?: string) {
     setLeagues(updated);
-    const nextId = preferredId ?? (updated.some((league) => league.id === activeLeagueId) ? activeLeagueId : updated[0]?.id);
+    const nextId =
+      preferredId ?? (updated.some((league) => league.id === activeLeagueId) ? activeLeagueId : updated[0]?.id);
     if (nextId) selectLeague(nextId);
     else setView("leagues");
   }
 
   function handleLeagueUpdated(updated: League) {
-    setLeagues((current) => current.map((league) => league.id === updated.id ? updated : league));
+    setLeagues((current) => current.map((league) => (league.id === updated.id ? updated : league)));
   }
 
   const activeLeague = leagues.find((league) => league.id === activeLeagueId);
 
   if (loading) {
-    return <main className="centered-status" aria-busy="true"><StatusMessage>Loading leagues...</StatusMessage></main>;
+    return (
+      <main className="centered-status" aria-busy="true">
+        <StatusMessage>Loading leagues...</StatusMessage>
+      </main>
+    );
   }
 
   return (
     <>
       <header className="app-header">
         <div>
-          <a className="brand" href="/" aria-label="DraftMeld home">DraftMeld</a>
+          <a className="brand" href="/" aria-label="DraftMeld home">
+            DraftMeld
+          </a>
           <span className="version">v{__APP_VERSION__}</span>
         </div>
         <nav className="league-navigation" aria-label="DraftMeld navigation">
           {leagues.length > 0 ? (
             <label>
               <span>Active league</span>
-              <select value={activeLeagueId} onChange={(event) => { selectLeague(event.target.value); setView("draft"); }}>
-                {leagues.map((league) => <option key={league.id} value={league.id}>{league.name}</option>)}
+              <select
+                value={activeLeagueId}
+                onChange={(event) => {
+                  selectLeague(event.target.value);
+                  setView("draft");
+                }}
+              >
+                {leagues.map((league) => (
+                  <option key={league.id} value={league.id}>
+                    {league.name}
+                  </option>
+                ))}
               </select>
             </label>
           ) : null}
           {view !== "leagues" ? <Button onClick={() => setView("leagues")}>Manage leagues</Button> : null}
-          {view !== "rankings" ? <Button onClick={() => setView("rankings")} disabled={!activeLeague}>Ranking sources</Button> : null}
-          {view !== "draft" ? <Button onClick={() => setView("draft")} disabled={leagues.length === 0}>Return to draft</Button> : null}
+          {view !== "rankings" ? (
+            <Button onClick={() => setView("rankings")} disabled={!activeLeague}>
+              Ranking sources
+            </Button>
+          ) : null}
+          {view !== "draft" ? (
+            <Button onClick={() => setView("draft")} disabled={leagues.length === 0}>
+              Return to draft
+            </Button>
+          ) : null}
         </nav>
       </header>
 
       {error ? <StatusMessage tone="error">Unable to load leagues. {error}</StatusMessage> : null}
-      {view === "rankings" && activeLeague ? <RankingSources key={activeLeague.id} league={activeLeague} onLeagueUpdated={handleLeagueUpdated} /> : view === "leagues" ? (
+      {view === "rankings" && activeLeague ? (
+        <RankingSources key={activeLeague.id} league={activeLeague} onLeagueUpdated={handleLeagueUpdated} />
+      ) : view === "leagues" ? (
         <LeagueManager
           leagues={leagues}
           activeLeagueId={activeLeagueId}
           onLeaguesChange={handleLeaguesChange}
-          onOpenDraft={(id) => { selectLeague(id); setView("draft"); }}
+          onOpenDraft={(id) => {
+            selectLeague(id);
+            setView("draft");
+          }}
         />
       ) : (
         <DraftWorkspace key={activeLeagueId} leagueId={activeLeagueId} />

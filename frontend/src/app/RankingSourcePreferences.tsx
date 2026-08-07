@@ -43,9 +43,16 @@ export function RankingSourcePreferences({
     <form className="source-weight-form" onSubmit={onSubmit}>
       <fieldset disabled={busy}>
         <legend>Source preferences for {leagueName}</legend>
-        <p className="field-help">Included sources shape the consensus. Excluded sources stay available for the compact &quot;Worth another look&quot; list. Weight 2 has twice the pull of weight 1, and matching weights have equal influence. At least one source must remain included.</p>
+        <p className="field-help">
+          Included sources shape the consensus. Excluded sources stay available for the compact &quot;Worth another
+          look&quot; list. Weight 2 has twice the pull of weight 1, and matching weights have equal influence. At least
+          one source must remain included.
+        </p>
         <FormField className="consensus-method-control" label="Consensus method">
-          <select value={consensusMethod} onChange={(event) => onConsensusMethodChange(event.target.value as LeagueRules["consensusMethod"])}>
+          <select
+            value={consensusMethod}
+            onChange={(event) => onConsensusMethodChange(event.target.value as LeagueRules["consensusMethod"])}
+          >
             <option value="weighted-median">Weighted median — resistant to outliers</option>
             <option value="trimmed-mean">Trimmed mean — ignores extremes</option>
             <option value="weighted-average">Weighted average — maximum source sensitivity</option>
@@ -57,15 +64,36 @@ export function RankingSourcePreferences({
             return (
               <li key={source.id}>
                 <article className={`source-card${preference.enabled ? "" : " source-card-disabled"}`}>
-                  <div className="source-card-heading"><h2>{source.name}</h2><span>{source.recordCount > 0 ? `${source.recordCount} players` : "Not imported"}</span></div>
+                  <div className="source-card-heading">
+                    <h2>{source.name}</h2>
+                    <span>{source.recordCount > 0 ? `${source.recordCount} players` : "Not imported"}</span>
+                  </div>
                   <p>{source.description}</p>
                   <dl>
-                    <div><dt>Method</dt><dd>{source.methodology}</dd></div>
-                    <div><dt>Signal role</dt><dd>{source.role}</dd></div>
-                    <div><dt>License</dt><dd>{source.license}</dd></div>
-                    <div><dt>Default weight</dt><dd>{source.defaultWeight}</dd></div>
-                    <div><dt>Published</dt><dd>{source.publishedAt || "Refresh required"}</dd></div>
-                    <div><dt>Last refreshed</dt><dd>{formatRefreshTime(source.refreshedAt)}</dd></div>
+                    <div>
+                      <dt>Method</dt>
+                      <dd>{source.methodology}</dd>
+                    </div>
+                    <div>
+                      <dt>Signal role</dt>
+                      <dd>{source.role}</dd>
+                    </div>
+                    <div>
+                      <dt>License</dt>
+                      <dd>{source.license}</dd>
+                    </div>
+                    <div>
+                      <dt>Default weight</dt>
+                      <dd>{source.defaultWeight}</dd>
+                    </div>
+                    <div>
+                      <dt>Published</dt>
+                      <dd>{source.publishedAt || "Refresh required"}</dd>
+                    </div>
+                    <div>
+                      <dt>Last refreshed</dt>
+                      <dd>{formatRefreshTime(source.refreshedAt)}</dd>
+                    </div>
                   </dl>
                   <label className="source-enabled-control">
                     <input
@@ -90,15 +118,21 @@ export function RankingSourcePreferences({
                       onChange={(event) => updatePreference(source.id, { weight: Number(event.target.value) })}
                     />
                   </label>
-                  <a href={source.projectUrl} target="_blank" rel="noreferrer">View source website<span className="sr-only"> for {source.name} (opens in a new tab)</span></a>
+                  <a href={source.projectUrl} target="_blank" rel="noreferrer">
+                    View source website<span className="sr-only"> for {source.name} (opens in a new tab)</span>
+                  </a>
                 </article>
               </li>
             );
           })}
         </ul>
         <div className="source-weight-actions">
-          <Button variant="primary" type="submit" disabled={!preferencesChanged || busy}>Save preferences</Button>
-          <Button onClick={onReset} disabled={busy}>Include all and restore defaults</Button>
+          <Button variant="primary" type="submit" disabled={!preferencesChanged || busy}>
+            Save preferences
+          </Button>
+          <Button onClick={onReset} disabled={busy}>
+            Include all and restore defaults
+          </Button>
         </div>
       </fieldset>
     </form>

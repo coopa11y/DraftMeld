@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { getDraft, recordDraftAction, setPlayerPreference, simulateToNextTurn, syncSleeperDraft, undoDraftAction } from "../shared/api/draft";
+import {
+  getDraft,
+  recordDraftAction,
+  setPlayerPreference,
+  simulateToNextTurn,
+  syncSleeperDraft,
+  undoDraftAction,
+} from "../shared/api/draft";
 import type { DraftAction, DraftSnapshot, Player } from "../shared/api/types";
 import { useViewHeadingFocus } from "../shared/hooks/useViewHeadingFocus";
 import { StatusMessage } from "../shared/ui/StatusMessage";
@@ -30,7 +37,9 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
       .catch((reason: Error) => {
         if (active) setError(reason.message);
       });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [leagueId]);
 
   useEffect(() => {
@@ -69,33 +78,51 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
 
   async function handlePreference(player: Player, preference: "target" | "avoid" | "") {
     if (busy) return;
-    setBusy(true); setError("");
+    setBusy(true);
+    setError("");
     try {
       const updated = await setPlayerPreference(leagueId, player.id, preference);
       setSnapshot(updated);
-      setAnnouncement(`${player.name} ${preference ? `was added to your ${preference} list` : "was returned to neutral"}. Recommendations updated.`);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to save player preference."); }
-    finally { setBusy(false); }
+      setAnnouncement(
+        `${player.name} ${preference ? `was added to your ${preference} list` : "was returned to neutral"}. Recommendations updated.`,
+      );
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to save player preference.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function handleMock() {
     if (busy) return;
-    setBusy(true); setError("");
-    try { const updated = await simulateToNextTurn(leagueId); setSnapshot(updated); setAnnouncement(`Mock opponents completed. It is now pick ${updated.pickNumber}.`); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to simulate opponent picks."); }
-    finally { setBusy(false); }
+    setBusy(true);
+    setError("");
+    try {
+      const updated = await simulateToNextTurn(leagueId);
+      setSnapshot(updated);
+      setAnnouncement(`Mock opponents completed. It is now pick ${updated.pickNumber}.`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to simulate opponent picks.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function handleSleeperSync(draftId: string, rosterId: number) {
     if (busy) return;
-    setBusy(true); setError("");
+    setBusy(true);
+    setError("");
     try {
       const result = await syncSleeperDraft(leagueId, draftId, rosterId);
       setSnapshot(result.snapshot);
-      setAnnouncement(`Sleeper sync reconciled ${result.snapshot.history.length} picks: ${result.added} added, ${result.updated} changed, ${result.removed} removed${result.unmatched ? `, ${result.unmatched} unmatched` : ""}.`);
+      setAnnouncement(
+        `Sleeper sync reconciled ${result.snapshot.history.length} picks: ${result.added} added, ${result.updated} changed, ${result.removed} removed${result.unmatched ? `, ${result.unmatched} unmatched` : ""}.`,
+      );
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to synchronize Sleeper picks.");
+    } finally {
+      setBusy(false);
     }
-    catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to synchronize Sleeper picks."); }
-    finally { setBusy(false); }
   }
 
   async function handleUndo() {
@@ -118,38 +145,66 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
   if (!snapshot) {
     return (
       <main className="centered-status" aria-busy={!error}>
-        {error
-          ? <StatusMessage tone="error" tabIndex={-1} ref={errorAlert}>{error}</StatusMessage>
-          : <StatusMessage>Loading draft board…</StatusMessage>}
+        {error ? (
+          <StatusMessage tone="error" tabIndex={-1} ref={errorAlert}>
+            {error}
+          </StatusMessage>
+        ) : (
+          <StatusMessage>Loading draft board…</StatusMessage>
+        )}
       </main>
     );
   }
 
   return (
     <>
-      <a className="skip-link" href="#player-board">Skip to player board</a>
-      <a className="skip-link" href="#recommendations">Skip to recommendations</a>
-      <a className="skip-link" href="#my-team">Skip to my team</a>
+      <a className="skip-link" href="#player-board">
+        Skip to player board
+      </a>
+      <a className="skip-link" href="#recommendations">
+        Skip to recommendations
+      </a>
+      <a className="skip-link" href="#my-team">
+        Skip to my team
+      </a>
 
-      <StatusMessage visuallyHidden aria-atomic="true">{announcement}</StatusMessage>
+      <StatusMessage visuallyHidden aria-atomic="true">
+        {announcement}
+      </StatusMessage>
       <main id="main-content">
-        {error ? <StatusMessage tone="error" tabIndex={-1} ref={errorAlert}>{error}</StatusMessage> : null}
-        <section className="workspace-status" aria-label={`Draft status. Pick ${snapshot.pickNumber}. ${snapshot.available.length} players available.`}>
+        {error ? (
+          <StatusMessage tone="error" tabIndex={-1} ref={errorAlert}>
+            {error}
+          </StatusMessage>
+        ) : null}
+        <section
+          className="workspace-status"
+          aria-label={`Draft status. Pick ${snapshot.pickNumber}. ${snapshot.available.length} players available.`}
+        >
           <span>{snapshot.leagueName}</span>
           <strong>Pick {snapshot.pickNumber}</strong>
           <span>{snapshot.available.length} available</span>
-          <span>{snapshot.dataMode}{snapshot.projectionCount ? ` · ${snapshot.projectionCount} projections` : ""}</span>
+          <span>
+            {snapshot.dataMode}
+            {snapshot.projectionCount ? ` · ${snapshot.projectionCount} projections` : ""}
+          </span>
         </section>
         <div className="draft-layout" aria-busy={busy}>
-            <PlayerBoard
-              snapshot={snapshot}
-              busy={busy}
-              headingRef={boardHeading}
-              onAction={handleAction}
-              onUndo={handleUndo}
-              onPreference={handlePreference}
-            />
-            <DraftSidebar snapshot={snapshot} busy={busy} onAction={handleAction} onMock={handleMock} onSleeperSync={handleSleeperSync} />
+          <PlayerBoard
+            snapshot={snapshot}
+            busy={busy}
+            headingRef={boardHeading}
+            onAction={handleAction}
+            onUndo={handleUndo}
+            onPreference={handlePreference}
+          />
+          <DraftSidebar
+            snapshot={snapshot}
+            busy={busy}
+            onAction={handleAction}
+            onMock={handleMock}
+            onSleeperSync={handleSleeperSync}
+          />
         </div>
       </main>
     </>

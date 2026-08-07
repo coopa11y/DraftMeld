@@ -1,7 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { leagueToRules, updateLeague } from "../shared/api/leagues";
-import { getConsensusRankings, getRankingWatchlist, importRankingPDF, listIdentityIssues, listProjectionSources, listRankingSources, refreshRankingSources } from "../shared/api/rankings";
-import type { ConsensusRanking, IdentityIssue, League, LeagueRules, ProjectionSource, RankingSource, RankingSourcePreference, WatchlistPlayer } from "../shared/api/types";
+import {
+  getConsensusRankings,
+  getRankingWatchlist,
+  importRankingPDF,
+  listIdentityIssues,
+  listProjectionSources,
+  listRankingSources,
+  refreshRankingSources,
+} from "../shared/api/rankings";
+import type {
+  ConsensusRanking,
+  IdentityIssue,
+  League,
+  LeagueRules,
+  ProjectionSource,
+  RankingSource,
+  RankingSourcePreference,
+  WatchlistPlayer,
+} from "../shared/api/types";
 import { useViewHeadingFocus } from "../shared/hooks/useViewHeadingFocus";
 import { Button } from "../shared/ui/Button";
 import { Panel } from "../shared/ui/Panel";
@@ -37,7 +54,11 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
       try {
         const selectedLeague = initialLeague.current;
         const [loaded, consensus, disabledSourcePlayers, projections, identities] = await Promise.all([
-          listRankingSources(), getConsensusRankings(selectedLeague.id), getRankingWatchlist(selectedLeague.id), listProjectionSources(), listIdentityIssues(),
+          listRankingSources(),
+          getConsensusRankings(selectedLeague.id),
+          getRankingWatchlist(selectedLeague.id),
+          listProjectionSources(),
+          listIdentityIssues(),
         ]);
         if (!active) return;
         setSources(loaded);
@@ -46,7 +67,14 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
         setProjectionSources(projections);
         setIdentityIssues(identities);
         setConsensusMethod(selectedLeague.consensusMethod);
-        setPreferences(Object.fromEntries(loaded.map((source) => [source.id, selectedLeague.sourcePreferences[source.id] ?? { weight: source.defaultWeight, enabled: true }])));
+        setPreferences(
+          Object.fromEntries(
+            loaded.map((source) => [
+              source.id,
+              selectedLeague.sourcePreferences[source.id] ?? { weight: source.defaultWeight, enabled: true },
+            ]),
+          ),
+        );
       } catch (reason) {
         if (active) setError(reason instanceof Error ? reason.message : "Unable to load ranking sources.");
       } finally {
@@ -54,7 +82,9 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
       }
     }
     void load();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, []);
 
   async function refresh() {
@@ -65,7 +95,11 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
     try {
       const loaded = await refreshRankingSources();
       setSources(loaded);
-      const [consensus, disabledSourcePlayers, identities] = await Promise.all([getConsensusRankings(league.id), getRankingWatchlist(league.id), listIdentityIssues()]);
+      const [consensus, disabledSourcePlayers, identities] = await Promise.all([
+        getConsensusRankings(league.id),
+        getRankingWatchlist(league.id),
+        listIdentityIssues(),
+      ]);
       setRankings(consensus);
       setWatchlist(disabledSourcePlayers);
       setIdentityIssues(identities);
@@ -91,12 +125,18 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
     setMessage("Reading the PDF locally and normalizing its player rankings.");
     try {
       const result = await importRankingPDF(pdfFile);
-      setSources((current) => current.map((source) => source.id === result.source.id ? result.source : source));
-      const [consensus, disabledSourcePlayers, identities] = await Promise.all([getConsensusRankings(league.id), getRankingWatchlist(league.id), listIdentityIssues()]);
+      setSources((current) => current.map((source) => (source.id === result.source.id ? result.source : source)));
+      const [consensus, disabledSourcePlayers, identities] = await Promise.all([
+        getConsensusRankings(league.id),
+        getRankingWatchlist(league.id),
+        listIdentityIssues(),
+      ]);
       setRankings(consensus);
       setWatchlist(disabledSourcePlayers);
       setIdentityIssues(identities);
-      setMessage(`${result.source.name} imported: ${result.source.recordCount} players from ${result.pageCount} page${result.pageCount === 1 ? "" : "s"}.`);
+      setMessage(
+        `${result.source.name} imported: ${result.source.recordCount} players from ${result.pageCount} page${result.pageCount === 1 ? "" : "s"}.`,
+      );
       setPDFFile(null);
       form.reset();
     } catch (reason) {
@@ -113,12 +153,21 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
     setError("");
     setMessage(`Saving ranking influence for ${league.name}.`);
     try {
-      const updated = await updateLeague(league.id, { ...leagueToRules(league), sourcePreferences: preferences, consensusMethod });
+      const updated = await updateLeague(league.id, {
+        ...leagueToRules(league),
+        sourcePreferences: preferences,
+        consensusMethod,
+      });
       onLeagueUpdated(updated);
-      const [consensus, disabledSourcePlayers] = await Promise.all([getConsensusRankings(updated.id), getRankingWatchlist(updated.id)]);
+      const [consensus, disabledSourcePlayers] = await Promise.all([
+        getConsensusRankings(updated.id),
+        getRankingWatchlist(updated.id),
+      ]);
       setRankings(consensus);
       setWatchlist(disabledSourcePlayers);
-      setMessage(`Ranking preferences saved for ${updated.name}. Excluded sources are still checked for players worth another look.`);
+      setMessage(
+        `Ranking preferences saved for ${updated.name}. Excluded sources are still checked for players worth another look.`,
+      );
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to save ranking preferences.");
       setMessage("");
@@ -128,17 +177,23 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
   }
 
   function resetPreferences() {
-    setPreferences(Object.fromEntries(sources.map((source) => [source.id, { weight: source.defaultWeight, enabled: true }])));
+    setPreferences(
+      Object.fromEntries(sources.map((source) => [source.id, { weight: source.defaultWeight, enabled: true }])),
+    );
     setMessage("All sources and default influence values restored. Choose Save preferences to apply them.");
   }
 
-  const preferencesChanged = consensusMethod !== league.consensusMethod || sources.some((source) => {
-    const current = preferences[source.id] ?? { weight: source.defaultWeight, enabled: true };
-    const saved = league.sourcePreferences[source.id] ?? { weight: source.defaultWeight, enabled: true };
-    return current.weight !== saved.weight || current.enabled !== saved.enabled;
-  });
+  const preferencesChanged =
+    consensusMethod !== league.consensusMethod ||
+    sources.some((source) => {
+      const current = preferences[source.id] ?? { weight: source.defaultWeight, enabled: true };
+      const saved = league.sourcePreferences[source.id] ?? { weight: source.defaultWeight, enabled: true };
+      return current.weight !== saved.weight || current.enabled !== saved.enabled;
+    });
   const enabledSourceCount = Object.values(preferences).filter((preference) => preference.enabled).length;
-  const enabledImportedSourceCount = sources.filter((source) => source.recordCount > 0 && (preferences[source.id]?.enabled ?? true)).length;
+  const enabledImportedSourceCount = sources.filter(
+    (source) => source.recordCount > 0 && (preferences[source.id]?.enabled ?? true),
+  ).length;
 
   return (
     <main className="ranking-page" id="main-content" aria-busy={busy}>
@@ -146,20 +201,42 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
         <div className="section-heading">
           <div>
             <p className="eyebrow">Ranking data</p>
-            <h1 id="ranking-sources-heading" ref={heading} tabIndex={-1}>Ranking sources</h1>
-            <p className="section-description">Choose which sources shape {league.name}, then tune their relative influence. Equal weights have equal pull.</p>
+            <h1 id="ranking-sources-heading" ref={heading} tabIndex={-1}>
+              Ranking sources
+            </h1>
+            <p className="section-description">
+              Choose which sources shape {league.name}, then tune their relative influence. Equal weights have equal
+              pull.
+            </p>
           </div>
-          <Button variant="primary" onClick={refresh} disabled={busy}>{busy ? "Working..." : "Refresh all sources"}</Button>
+          <Button variant="primary" onClick={refresh} disabled={busy}>
+            {busy ? "Working..." : "Refresh all sources"}
+          </Button>
         </div>
         <StatusMessage>{message}</StatusMessage>
         {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
         <form className="pdf-import-form" onSubmit={uploadPDF}>
           <div>
-            <label htmlFor="ranking-pdf"><strong>Import a ranking PDF</strong></label>
-            <p id="ranking-pdf-help">DraftMeld detects supported ESPN PPR Top 300 and Dynasty cheat sheets. Files are processed in memory and are not retained.</p>
+            <label htmlFor="ranking-pdf">
+              <strong>Import a ranking PDF</strong>
+            </label>
+            <p id="ranking-pdf-help">
+              DraftMeld detects supported ESPN PPR Top 300 and Dynasty cheat sheets. Files are processed in memory and
+              are not retained.
+            </p>
           </div>
-          <input id="ranking-pdf" name="file" type="file" accept="application/pdf,.pdf" aria-describedby="ranking-pdf-help" onChange={(event) => setPDFFile(event.target.files?.[0] ?? null)} disabled={busy} />
-          <Button type="submit" disabled={busy || !pdfFile}>Import PDF</Button>
+          <input
+            id="ranking-pdf"
+            name="file"
+            type="file"
+            accept="application/pdf,.pdf"
+            aria-describedby="ranking-pdf-help"
+            onChange={(event) => setPDFFile(event.target.files?.[0] ?? null)}
+            disabled={busy}
+          />
+          <Button type="submit" disabled={busy || !pdfFile}>
+            Import PDF
+          </Button>
         </form>
         <RankingSourcePreferences
           busy={busy}
@@ -176,9 +253,30 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
         />
       </Panel>
 
-      <ProjectionImport busy={busy} sources={projectionSources} onBusyChange={setBusy} onImported={(source) => setProjectionSources((current) => [...current.filter((candidate) => candidate.id !== source.id), source])} onMessage={setMessage} onError={setError} />
+      <ProjectionImport
+        busy={busy}
+        sources={projectionSources}
+        onBusyChange={setBusy}
+        onImported={(source) =>
+          setProjectionSources((current) => [...current.filter((candidate) => candidate.id !== source.id), source])
+        }
+        onMessage={setMessage}
+        onError={setError}
+      />
 
-      <IdentityReviewQueue busy={busy} issues={identityIssues} onBusyChange={setBusy} onReviewed={(issueKey, resolution, canonicalPlayerKey) => setIdentityIssues((current) => current.map((issue) => issue.issueKey === issueKey ? { ...issue, resolution, canonicalPlayerKey } : issue))} onError={setError} />
+      <IdentityReviewQueue
+        busy={busy}
+        issues={identityIssues}
+        onBusyChange={setBusy}
+        onReviewed={(issueKey, resolution, canonicalPlayerKey) =>
+          setIdentityIssues((current) =>
+            current.map((issue) =>
+              issue.issueKey === issueKey ? { ...issue, resolution, canonicalPlayerKey } : issue,
+            ),
+          )
+        }
+        onError={setError}
+      />
 
       <RankingEvidencePanels
         enabledImportedSourceCount={enabledImportedSourceCount}

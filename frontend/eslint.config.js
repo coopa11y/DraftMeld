@@ -1,4 +1,5 @@
 import js from "@eslint/js";
+import eslintConfigPrettier from "eslint-config-prettier";
 import jsxA11y from "eslint-plugin-jsx-a11y";
 import reactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
@@ -26,4 +27,5 @@ export default tseslint.config(
       "jsx-a11y/no-noninteractive-tabindex": ["error", { roles: ["region"] }],
     },
   },
+  eslintConfigPrettier,
 );

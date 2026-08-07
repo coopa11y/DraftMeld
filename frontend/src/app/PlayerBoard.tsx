@@ -32,19 +32,23 @@ export function PlayerBoard({ snapshot, busy, headingRef, onAction, onUndo, onPr
     const normalizedSearch = search.trim().toLowerCase();
     const matchingPlayers = snapshot.available.filter((player) => {
       const matchesPosition = position === "Overall" || player.position === position;
-      const matchesSearch = !normalizedSearch ||
+      const matchesSearch =
+        !normalizedSearch ||
         `${player.name} ${player.nflTeam} ${player.position}`.toLowerCase().includes(normalizedSearch);
       return matchesPosition && matchesSearch;
     });
     if (position !== "Overall") {
-      matchingPlayers.sort((left, right) => left.positionRank - right.positionRank || left.overallRank - right.overallRank);
+      matchingPlayers.sort(
+        (left, right) => left.positionRank - right.positionRank || left.overallRank - right.overallRank,
+      );
     }
     return matchingPlayers;
   }, [position, search, snapshot.available]);
   const rankHeading = position === "Overall" ? "Overall rank" : `${position} rank`;
-  const tableCaption = position === "Overall"
-    ? "Available players sorted by overall rank"
-    : `Available ${position} players sorted by ${position} rank`;
+  const tableCaption =
+    position === "Overall"
+      ? "Available players sorted by overall rank"
+      : `Available ${position} players sorted by ${position} rank`;
   const resultSubject = position === "Overall" ? "players" : `${position} players`;
 
   return (
@@ -52,7 +56,9 @@ export function PlayerBoard({ snapshot, busy, headingRef, onAction, onUndo, onPr
       <div className="section-heading">
         <div>
           <p className="eyebrow">{snapshot.leagueName}</p>
-          <h1 id="board-title" ref={headingRef} tabIndex={-1}>Available players</h1>
+          <h1 id="board-title" ref={headingRef} tabIndex={-1}>
+            Available players
+          </h1>
         </div>
         <Button
           className="undo-button"
@@ -62,7 +68,9 @@ export function PlayerBoard({ snapshot, busy, headingRef, onAction, onUndo, onPr
         >
           Undo last action
         </Button>
-        <span className="sr-only" id="undo-help">Restores the most recently drafted or taken player.</span>
+        <span className="sr-only" id="undo-help">
+          Restores the most recently drafted or taken player.
+        </span>
       </div>
 
       <div className="board-controls">
@@ -104,8 +112,17 @@ export function PlayerBoard({ snapshot, busy, headingRef, onAction, onUndo, onPr
               <th scope="col">Player</th>
               <th scope="col">Position</th>
               <th scope="col">Tier</th>
-              {snapshot.projectionCount > 0 ? <><th scope="col">Proj.</th><th scope="col"><abbr title="Value over replacement">VOR</abbr></th></> : null}
-              <th scope="col"><abbr title="Average draft position">ADP</abbr></th>
+              {snapshot.projectionCount > 0 ? (
+                <>
+                  <th scope="col">Proj.</th>
+                  <th scope="col">
+                    <abbr title="Value over replacement">VOR</abbr>
+                  </th>
+                </>
+              ) : null}
+              <th scope="col">
+                <abbr title="Average draft position">ADP</abbr>
+              </th>
               <th scope="col">Value</th>
               <th scope="col">My list</th>
               <th scope="col">Actions</th>
@@ -117,18 +134,58 @@ export function PlayerBoard({ snapshot, busy, headingRef, onAction, onUndo, onPr
                 <td>{position === "Overall" ? player.overallRank : player.positionRank}</td>
                 <th scope="row">
                   <span className="player-name">{player.name}</span>
-                  <span className="player-meta">{player.nflTeam}, bye week {player.byeWeek}</span>
+                  <span className="player-meta">
+                    {player.nflTeam}, bye week {player.byeWeek}
+                  </span>
                 </th>
-                <td>{player.position}{player.positionRank}</td>
+                <td>
+                  {player.position}
+                  {player.positionRank}
+                </td>
                 <td>{player.tier}</td>
-                {snapshot.projectionCount > 0 ? <><td>{player.projectedPoints.toFixed(1)}</td><td>{player.valueOverReplacement.toFixed(1)}</td></> : null}
+                {snapshot.projectionCount > 0 ? (
+                  <>
+                    <td>{player.projectedPoints.toFixed(1)}</td>
+                    <td>{player.valueOverReplacement.toFixed(1)}</td>
+                  </>
+                ) : null}
                 <td>{player.adp.toFixed(1)}</td>
                 <td>
                   <span aria-hidden="true">{(player.adp - player.overallRank).toFixed(1)}</span>
                   <span className="sr-only">{valueLabel(player)}</span>
                 </td>
-                <td><div className="preference-actions"><Button variant="neutral" aria-pressed={player.preference === "target"} onClick={() => onPreference(player, player.preference === "target" ? "" : "target")} disabled={busy}>Target</Button><Button variant="neutral" aria-pressed={player.preference === "avoid"} onClick={() => onPreference(player, player.preference === "avoid" ? "" : "avoid")} disabled={busy}>Avoid</Button></div></td>
-                <td><PlayerActions player={player} busy={busy} primary auction={snapshot.draftType === "auction"} inflation={snapshot.auctionInflation} minimumBid={snapshot.auctionMinimumBid} maximumBid={snapshot.maximumBid} onAction={onAction} /></td>
+                <td>
+                  <div className="preference-actions">
+                    <Button
+                      variant="neutral"
+                      aria-pressed={player.preference === "target"}
+                      onClick={() => onPreference(player, player.preference === "target" ? "" : "target")}
+                      disabled={busy}
+                    >
+                      Target
+                    </Button>
+                    <Button
+                      variant="neutral"
+                      aria-pressed={player.preference === "avoid"}
+                      onClick={() => onPreference(player, player.preference === "avoid" ? "" : "avoid")}
+                      disabled={busy}
+                    >
+                      Avoid
+                    </Button>
+                  </div>
+                </td>
+                <td>
+                  <PlayerActions
+                    player={player}
+                    busy={busy}
+                    primary
+                    auction={snapshot.draftType === "auction"}
+                    inflation={snapshot.auctionInflation}
+                    minimumBid={snapshot.auctionMinimumBid}
+                    maximumBid={snapshot.maximumBid}
+                    onAction={onAction}
+                  />
+                </td>
               </tr>
             ))}
           </tbody>

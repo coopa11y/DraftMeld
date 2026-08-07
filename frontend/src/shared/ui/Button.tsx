@@ -16,6 +16,18 @@ const variantClasses: Record<ButtonVariant, string> = {
   neutral: "neutral-button",
 };
 
-export function Button({ className, fullWidth = false, type = "button", variant = "secondary", ...props }: ButtonProps) {
-  return <button className={classNames(variantClasses[variant], fullWidth && "full-width-button", className)} type={type} {...props} />;
+export function Button({
+  className,
+  fullWidth = false,
+  type = "button",
+  variant = "secondary",
+  ...props
+}: ButtonProps) {
+  return (
+    <button
+      className={classNames(variantClasses[variant], fullWidth && "full-width-button", className)}
+      type={type}
+      {...props}
+    />
+  );
 }
