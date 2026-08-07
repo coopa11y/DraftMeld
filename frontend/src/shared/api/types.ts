@@ -1,38 +1,21 @@
-export type DraftAction = "draft" | "taken";
+import type { components } from "./generated";
 
-export interface Player {
-  id: string;
-  name: string;
-  nflTeam: string;
-  position: "QB" | "RB" | "WR" | "TE";
-  byeWeek: number;
-  overallRank: number;
-  positionRank: number;
-  adp: number;
-  tier: number;
-}
-
-export interface Recommendation {
-  player: Player;
-  score: number;
-  reasons: string[];
-}
-
-export interface Pick {
-  eventId: number;
-  number: number;
-  action: DraftAction;
-  player: Player;
-  createdAt: string;
-}
-
-export interface DraftSnapshot {
-  leagueId: string;
-  leagueName: string;
-  pickNumber: number;
-  available: Player[];
-  myTeam: Player[];
-  history: Pick[];
-  recommendations: Recommendation[];
-  canUndo: boolean;
-}
+export type DraftActionRequest = components["schemas"]["DraftActionRequest"];
+export type DraftSnapshot = components["schemas"]["DraftSnapshot"];
+export type ErrorResponse = components["schemas"]["ErrorResponse"];
+export type Pick = components["schemas"]["Pick"];
+export type Player = components["schemas"]["Player"];
+export type Recommendation = components["schemas"]["Recommendation"];
+export type League = components["schemas"]["League"];
+export type LeagueRules = components["schemas"]["LeagueRules"];
+export type LeagueBackup = components["schemas"]["LeagueBackup"];
+export type RosterSlot = components["schemas"]["RosterSlot"];
+export type RankingSource = components["schemas"]["RankingSource"];
+export type ConsensusRanking = components["schemas"]["ConsensusRanking"];
+export type RankingPDFImport = components["schemas"]["RankingPDFImport"];
+export type RankingSourcePreference = components["schemas"]["RankingSourcePreference"];
+export type WatchlistPlayer = components["schemas"]["WatchlistPlayer"];
+export type ProjectionSource = components["schemas"]["ProjectionSource"];
+export type IdentityIssue = components["schemas"]["IdentityIssue"];
+export type SleeperSyncResult = components["schemas"]["SleeperSyncResult"];
+export type DraftAction = DraftActionRequest["action"];

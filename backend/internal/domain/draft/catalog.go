@@ -26,5 +26,9 @@ func DemoCatalog() []Player {
 		{ID: "p022", Name: "Nolan Banks", NFLTeam: "WAS", Position: "QB", ByeWeek: 14, OverallRank: 22, PositionRank: 4, ADP: 36.8, Tier: 2},
 		{ID: "p023", Name: "Xavier Dunn", NFLTeam: "DEN", Position: "RB", ByeWeek: 12, OverallRank: 23, PositionRank: 8, ADP: 34.3, Tier: 4},
 		{ID: "p024", Name: "Elijah Frost", NFLTeam: "NE", Position: "WR", ByeWeek: 14, OverallRank: 24, PositionRank: 9, ADP: 41.6, Tier: 5},
+		{ID: "p025", Name: "Austin Reed", NFLTeam: "DAL", Position: "K", ByeWeek: 10, OverallRank: 25, PositionRank: 1, ADP: 145.2, Tier: 1},
+		{ID: "p026", Name: "Mateo Silva", NFLTeam: "BAL", Position: "K", ByeWeek: 7, OverallRank: 26, PositionRank: 2, ADP: 158.7, Tier: 1},
+		{ID: "p027", Name: "Denver Defense", NFLTeam: "DEN", Position: "DST", ByeWeek: 12, OverallRank: 27, PositionRank: 1, ADP: 137.8, Tier: 1},
+		{ID: "p028", Name: "Pittsburgh Defense", NFLTeam: "PIT", Position: "DST", ByeWeek: 5, OverallRank: 28, PositionRank: 2, ADP: 151.3, Tier: 1},
 	}
 }

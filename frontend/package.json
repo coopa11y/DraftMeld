@@ -1,20 +1,28 @@
 {
   "name": "@draftmeld/frontend",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
+    "api:generate": "openapi-typescript ../contracts/openapi.yaml -o src/shared/api/generated.ts",
+    "api:check": "npm run api:generate && git diff --exit-code -- src/shared/api/generated.ts",
     "build": "tsc -b && vite build",
-    "check": "tsc -b --pretty false",
+    "check": "npm run api:check && npm run format:check && npm run lint && tsc -b --pretty false",
     "dev": "vite",
+    "format": "prettier --config ../.prettierrc.json --ignore-path ../.prettierignore --write \"src/**/*.{ts,tsx,css}\" \"*.{ts,js,json}\" \"../package.json\" \"../scripts/**/*.{js,mjs,cjs,json}\" \"../contracts/**/*.{yaml,yml,json}\" \"../.github/**/*.{yaml,yml,json}\"",
+    "format:check": "prettier --config ../.prettierrc.json --ignore-path ../.prettierignore --check \"src/**/*.{ts,tsx,css}\" \"*.{ts,js,json}\" \"../package.json\" \"../scripts/**/*.{js,mjs,cjs,json}\" \"../contracts/**/*.{yaml,yml,json}\" \"../.github/**/*.{yaml,yml,json}\"",
+    "lint": "eslint . --max-warnings=0",
     "preview": "vite preview",
     "test": "vitest run"
   },
   "dependencies": {
+    "draftmeld": "file:..",
+    "openapi-fetch": "0.15.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@eslint/js": "9.39.5",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.3",
@@ -23,10 +31,25 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.0.5",
+    "eslint": "9.39.5",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-jsx-a11y": "6.10.2",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.9.0",
     "jest-axe": "^11.0.0",
     "jsdom": "^29.1.1",
-    "typescript": "^7.0.2",
+    "openapi-typescript": "7.13.0",
+    "prettier": "3.9.6",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.66.0",
     "vite": "^8.2.0",
     "vitest": "^4.1.10"
-  }
+  },
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "overrides": {
+    "js-yaml": "4.3.1"
+  },
+  "packageManager": "npm@11.19.0"
 }

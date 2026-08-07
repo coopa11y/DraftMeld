@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: DraftMeld API
-  version: 0.2.0
+  version: 0.3.0
   description: Public contract between the DraftMeld frontend and backend.
   license:
     name: GNU Affero General Public License v3.0
@@ -21,6 +21,337 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Health"
+  /leagues:
+    get:
+      operationId: listLeagues
+      summary: List configured fantasy leagues
+      responses:
+        "200":
+          description: Configured leagues ordered by name.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/League"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    post:
+      operationId: createLeague
+      summary: Create a fantasy league
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeagueRules"
+      responses:
+        "201":
+          description: League created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/League"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /leagues/{leagueId}:
+    parameters:
+      - $ref: "#/components/parameters/LeagueIdPath"
+    get:
+      operationId: getLeague
+      summary: Get one league configuration
+      responses:
+        "200":
+          description: League configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/League"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateLeague
+      summary: Replace a league configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeagueRules"
+      responses:
+        "200":
+          description: Updated league configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/League"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteLeague
+      summary: Delete a league and its draft history
+      responses:
+        "204":
+          description: League deleted.
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /leagues/{leagueId}/duplicate:
+    parameters:
+      - $ref: "#/components/parameters/LeagueIdPath"
+    post:
+      operationId: duplicateLeague
+      summary: Duplicate a league configuration without its draft history
+      responses:
+        "201":
+          description: League duplicated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/League"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /leagues/import:
+    post:
+      operationId: importLeagueBackup
+      summary: Restore a versioned league backup as a new league
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeagueBackup"
+      responses:
+        "201":
+          description: Backup restored as a new league without overwriting the original.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/League"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          description: The backup exceeds the 256 KiB limit.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /leagues/{leagueId}/backup:
+    parameters:
+      - $ref: "#/components/parameters/LeagueIdPath"
+    get:
+      operationId: exportLeagueBackup
+      summary: Download a versioned league configuration backup
+      responses:
+        "200":
+          description: Portable league backup.
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeagueBackup"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /leagues/{leagueId}/exports/rankings.csv:
+    parameters:
+      - $ref: "#/components/parameters/LeagueIdPath"
+    get:
+      operationId: exportConsensusRankingsCSV
+      summary: Download league-weighted consensus rankings as CSV
+      responses:
+        "200":
+          description: Consensus rankings with source evidence and weights.
+          content:
+            text/csv:
+              schema: { type: string }
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /leagues/{leagueId}/exports/draft.csv:
+    parameters:
+      - $ref: "#/components/parameters/LeagueIdPath"
+    get:
+      operationId: exportDraftResultsCSV
+      summary: Download current draft results as CSV
+      responses:
+        "200":
+          description: Active draft picks in pick order.
+          content:
+            text/csv:
+              schema: { type: string }
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /leagues/{leagueId}/exports/draft.json:
+    parameters:
+      - $ref: "#/components/parameters/LeagueIdPath"
+    get:
+      operationId: exportDraftResultsJSON
+      summary: Download versioned draft results as JSON
+      responses:
+        "200":
+          description: Versioned draft result export.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DraftExport"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /ranking-sources:
+    get:
+      operationId: listRankingSources
+      summary: List built-in ranking feeds and their refresh status
+      responses:
+        "200":
+          description: Ranking source catalog.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/RankingSource" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /ranking-sources/refresh:
+    post:
+      operationId: refreshRankingSources
+      summary: Download and normalize every built-in ranking feed
+      responses:
+        "200":
+          description: Refreshed ranking sources.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/RankingSource" }
+        "502":
+          description: An upstream ranking feed could not be downloaded or parsed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /ranking-sources/import-pdf:
+    post:
+      operationId: importRankingPDF
+      summary: Detect and import a supported user-supplied ranking PDF
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: The detected ranking source was normalized and imported.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RankingPDFImport" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "413":
+          description: The uploaded PDF exceeds the 20 MiB limit.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /projection-sources:
+    get:
+      operationId: listProjectionSources
+      summary: List user-imported granular projection sources
+      responses:
+        "200":
+          description: Imported projection sources.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ProjectionSource" }
+  /projection-sources/import-csv:
+    post:
+      operationId: importProjectionCSV
+      summary: Import granular player projections from CSV
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [name, file]
+              properties:
+                name: { type: string }
+                file: { type: string, format: binary }
+                mapping:
+                  type: string
+                  description: JSON object mapping DraftMeld field names to source CSV headers.
+      responses:
+        "201":
+          description: Imported projection source.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProjectionSource" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+  /ranking-identities:
+    get:
+      operationId: listRankingIdentityIssues
+      summary: List potentially ambiguous canonical player matches
+      responses:
+        "200":
+          description: Reviewable identity issues.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/IdentityIssue" }
+  /ranking-identities/review:
+    post:
+      operationId: reviewRankingIdentity
+      summary: Record a human review of an identity issue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [issueKey, resolution]
+              properties:
+                issueKey: { type: string }
+                resolution: { type: string, enum: [confirmed-separate, acknowledged, merged] }
+                canonicalPlayerKey: { type: string }
+      responses:
+        "204": { description: Identity review saved. }
+  /rankings:
+    get:
+      operationId: getConsensusRankings
+      summary: Build a league-weighted consensus from every imported feed
+      parameters:
+        - $ref: "#/components/parameters/LeagueId"
+      responses:
+        "200":
+          description: Normalized consensus rankings.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ConsensusRanking" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /ranking-watchlist:
+    get:
+      operationId: getRankingWatchlist
+      summary: Find players favored by sources excluded from the league consensus
+      parameters:
+        - $ref: "#/components/parameters/LeagueId"
+      responses:
+        "200":
+          description: Up to five meaningful disabled-source ranking outliers.
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 5
+                items: { $ref: "#/components/schemas/WatchlistPlayer" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
   /draft:
     get:
       operationId: getDraft
@@ -34,6 +365,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DraftSnapshot"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
   /draft/actions:
     post:
       operationId: recordDraftAction
@@ -51,8 +388,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DraftSnapshot"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "409":
           description: Player is no longer available.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /draft/undo:
     post:
       operationId: undoDraftAction
@@ -74,18 +419,120 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DraftSnapshot"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "409":
           description: There is no active action to undo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /draft/preferences:
+    put:
+      operationId: setDraftPlayerPreference
+      summary: Mark a player as a target, avoid, or neutral
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [leagueId, playerId, preference]
+              properties:
+                leagueId: { type: string }
+                playerId: { type: string }
+                preference: { type: string, enum: [target, avoid, ""] }
+      responses:
+        "200":
+          description: Updated draft state.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DraftSnapshot" }
+  /draft/mock:
+    post:
+      operationId: simulateDraftToNextTurn
+      summary: Simulate opponent picks until the user's next turn
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [leagueId]
+              properties:
+                leagueId: { type: string }
+      responses:
+        "200":
+          description: Draft state after simulated opponent picks.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DraftSnapshot" }
+  /draft/sync/sleeper:
+    post:
+      operationId: syncSleeperDraft
+      summary: Import current picks from a public Sleeper draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [leagueId, sleeperDraftId, rosterId]
+              properties:
+                leagueId: { type: string }
+                sleeperDraftId: { type: string }
+                rosterId: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Reconciliation summary and draft state after Sleeper synchronization.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SleeperSyncResult" }
 components:
   parameters:
     LeagueId:
       name: leagueId
       in: query
-      required: false
+      required: true
       schema:
         type: string
-        default: demo
+    LeagueIdPath:
+      name: leagueId
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: The request was not valid.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: The requested resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ServerError:
+      description: The request could not be completed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
   schemas:
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: string
     Health:
       type: object
       additionalProperties: false
@@ -99,11 +546,26 @@ components:
           example: draftmeld
         version:
           type: string
-          example: 0.1.0
+          example: 0.3.0
     LeagueRules:
       type: object
-      additionalProperties: false
-      required: [name, teamCount, draftType, rosterSlots, scoringRules]
+      required:
+        [
+          name,
+          teamCount,
+          draftPosition,
+          draftType,
+          rosterSlots,
+          scoringRules,
+          sourcePreferences,
+          consensusMethod,
+          playerPreferences,
+          auctionBudget,
+          auctionMinimumBid,
+          keeperBudgetSpent,
+          myKeeperSpend,
+          keeperValueRemoved,
+        ]
       properties:
         name:
           type: string
@@ -111,6 +573,10 @@ components:
         teamCount:
           type: integer
           minimum: 2
+          maximum: 32
+        draftPosition:
+          type: integer
+          minimum: 1
           maximum: 32
         draftType:
           type: string
@@ -124,6 +590,70 @@ components:
           type: object
           additionalProperties:
             type: number
+        sourcePreferences:
+          type: object
+          description: Per-source inclusion and influence. Missing source IDs use enabled published defaults.
+          additionalProperties:
+            $ref: "#/components/schemas/RankingSourcePreference"
+        consensusMethod:
+          type: string
+          enum: [weighted-average, weighted-median, trimmed-mean]
+        playerPreferences:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [target, avoid]
+        auctionBudget:
+          type: number
+          exclusiveMinimum: 0
+        auctionMinimumBid:
+          type: number
+          exclusiveMinimum: 0
+        keeperBudgetSpent:
+          type: number
+          minimum: 0
+        myKeeperSpend:
+          type: number
+          minimum: 0
+        keeperValueRemoved:
+          type: number
+          minimum: 0
+    League:
+      allOf:
+        - type: object
+          required: [id]
+          properties:
+            id:
+              type: string
+        - $ref: "#/components/schemas/LeagueRules"
+    LeagueBackup:
+      type: object
+      additionalProperties: false
+      required: [formatVersion, exportedAt, originalLeagueId, rules, recommendationPolicy]
+      properties:
+        formatVersion:
+          type: integer
+          const: 1
+        exportedAt:
+          type: string
+          format: date-time
+        originalLeagueId:
+          type: string
+        rules:
+          $ref: "#/components/schemas/LeagueRules"
+        recommendationPolicy:
+          $ref: "#/components/schemas/RecommendationPolicy"
+    RecommendationPolicy:
+      type: object
+      additionalProperties: false
+      required: [baseScore, startingNeedBonus, adpValueThreshold, scarcityBonus, scarcityDropOff, recommendationLimit]
+      properties:
+        baseScore: { type: number, exclusiveMinimum: 0 }
+        startingNeedBonus: { type: number, minimum: 0 }
+        adpValueThreshold: { type: number, minimum: 0 }
+        scarcityBonus: { type: number, minimum: 0 }
+        scarcityDropOff: { type: integer, minimum: 1 }
+        recommendationLimit: { type: integer, minimum: 1 }
     RosterSlot:
       type: object
       additionalProperties: false
@@ -141,19 +671,162 @@ components:
             type: string
         isStarting:
           type: boolean
+    RankingSource:
+      type: object
+      additionalProperties: false
+      required:
+        [id, name, description, methodology, license, projectUrl, dataUrl, defaultWeight, importMode, role, recordCount]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        methodology: { type: string }
+        license: { type: string }
+        projectUrl: { type: string, format: uri }
+        dataUrl: { type: string, format: uri }
+        defaultWeight: { type: number, exclusiveMinimum: 0 }
+        importMode: { type: string, enum: [download, pdf-upload] }
+        role: { type: string, enum: [ranking, market, usage] }
+        recordCount: { type: integer, minimum: 0 }
+        refreshedAt: { type: [string, "null"], format: date-time }
+        publishedAt: { type: string }
+    RankingSourcePreference:
+      type: object
+      additionalProperties: false
+      required: [weight, enabled]
+      properties:
+        weight: { type: number, exclusiveMinimum: 0, maximum: 10 }
+        enabled: { type: boolean }
+    RankingPDFImport:
+      type: object
+      additionalProperties: false
+      required: [source, pageCount]
+      properties:
+        source: { $ref: "#/components/schemas/RankingSource" }
+        pageCount: { type: integer, minimum: 1 }
+    ConsensusRanking:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          playerKey,
+          name,
+          position,
+          team,
+          rank,
+          score,
+          sourceCount,
+          sourceRanks,
+          coverage,
+          rankRange,
+          confidence,
+          method,
+        ]
+      properties:
+        playerKey: { type: string }
+        name: { type: string }
+        position: { type: string, enum: [QB, RB, WR, TE, K, DST] }
+        team: { type: string }
+        rank: { type: integer, minimum: 1 }
+        score: { type: number }
+        sourceCount: { type: integer, minimum: 1 }
+        sourceRanks:
+          type: object
+          additionalProperties: { type: integer, minimum: 1 }
+        coverage: { type: number, minimum: 0, maximum: 1 }
+        rankRange: { type: integer, minimum: 0 }
+        confidence: { type: string, enum: [high, medium, low] }
+        method: { type: string, enum: [weighted-average, weighted-median, trimmed-mean] }
+    ProjectionSource:
+      type: object
+      additionalProperties: false
+      required: [id, name, recordCount, importedAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        recordCount: { type: integer, minimum: 1 }
+        importedAt: { type: string, format: date-time }
+    IdentityCandidate:
+      type: object
+      additionalProperties: false
+      required: [playerKey, name, position, team]
+      properties:
+        playerKey: { type: string }
+        name: { type: string }
+        position: { type: string }
+        team: { type: string }
+    IdentityIssue:
+      type: object
+      additionalProperties: false
+      required: [issueKey, reason, candidates, resolution]
+      properties:
+        issueKey: { type: string }
+        reason: { type: string }
+        candidates:
+          type: array
+          minItems: 2
+          items: { $ref: "#/components/schemas/IdentityCandidate" }
+        resolution: { type: string, enum: [confirmed-separate, acknowledged, merged, ""] }
+        canonicalPlayerKey: { type: string }
+    WatchlistSignal:
+      type: object
+      additionalProperties: false
+      required: [sourceId, sourceName, sourceRank, spotsHigher]
+      properties:
+        sourceId: { type: string }
+        sourceName: { type: string }
+        sourceRank: { type: integer, minimum: 1 }
+        spotsHigher: { type: integer }
+    WatchlistPlayer:
+      type: object
+      additionalProperties: false
+      required: [playerKey, name, position, team, consensusRank, signals]
+      properties:
+        playerKey: { type: string }
+        name: { type: string }
+        position: { type: string, enum: [QB, RB, WR, TE, K, DST] }
+        team: { type: string }
+        consensusRank: { type: [integer, "null"], minimum: 1 }
+        signals:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/WatchlistSignal" }
     Player:
       type: object
-      required: [id, name, nflTeam, position, byeWeek, overallRank, positionRank, adp, tier]
+      required:
+        [
+          id,
+          name,
+          nflTeam,
+          position,
+          byeWeek,
+          overallRank,
+          positionRank,
+          adp,
+          tier,
+          projectedPoints,
+          valueOverReplacement,
+          confidence,
+          rankRange,
+          preference,
+          auctionValue,
+        ]
       properties:
         id: { type: string }
         name: { type: string }
         nflTeam: { type: string }
-        position: { type: string, enum: [QB, RB, WR, TE] }
+        position: { type: string, enum: [QB, RB, WR, TE, K, DST] }
         byeWeek: { type: integer }
         overallRank: { type: integer, minimum: 1 }
         positionRank: { type: integer, minimum: 1 }
         adp: { type: number }
         tier: { type: integer, minimum: 1 }
+        projectedPoints: { type: number }
+        valueOverReplacement: { type: number }
+        confidence: { type: string }
+        rankRange: { type: integer, minimum: 0 }
+        preference: { type: string, enum: [target, avoid, ""] }
+        auctionValue: { type: number, minimum: 0 }
     Recommendation:
       type: object
       required: [player, score, reasons]
@@ -165,16 +838,37 @@ components:
           items: { type: string }
     Pick:
       type: object
-      required: [eventId, number, action, player, createdAt]
+      required: [eventId, number, action, player, createdAt, cost]
       properties:
         eventId: { type: integer }
         number: { type: integer, minimum: 1 }
         action: { type: string, enum: [draft, taken] }
         player: { $ref: "#/components/schemas/Player" }
         createdAt: { type: string, format: date-time }
+        cost: { type: number, minimum: 0 }
     DraftSnapshot:
       type: object
-      required: [leagueId, leagueName, pickNumber, available, myTeam, history, recommendations, canUndo]
+      required:
+        [
+          leagueId,
+          leagueName,
+          pickNumber,
+          available,
+          myTeam,
+          history,
+          recommendations,
+          canUndo,
+          dataMode,
+          projectionCount,
+          draftType,
+          nextUserPick,
+          auctionBudget,
+          budgetRemaining,
+          auctionInflation,
+          auctionMinimumBid,
+          maximumBid,
+          isUserTurn,
+        ]
       properties:
         leagueId: { type: string }
         leagueName: { type: string }
@@ -192,6 +886,46 @@ components:
           type: array
           items: { $ref: "#/components/schemas/Recommendation" }
         canUndo: { type: boolean }
+        dataMode: { type: string }
+        projectionCount: { type: integer, minimum: 0 }
+        draftType: { type: string, enum: [snake, linear, auction] }
+        nextUserPick: { type: integer, minimum: 0 }
+        auctionBudget: { type: number, minimum: 0 }
+        budgetRemaining: { type: number }
+        auctionInflation: { type: number, minimum: 0 }
+        auctionMinimumBid: { type: number, minimum: 0 }
+        maximumBid: { type: number, minimum: 0 }
+        isUserTurn: { type: boolean }
+    DraftExport:
+      type: object
+      additionalProperties: false
+      required: [formatVersion, exportedAt, leagueId, leagueName, draftType, picks, myTeam]
+      properties:
+        formatVersion:
+          type: integer
+          const: 1
+        exportedAt:
+          type: string
+          format: date-time
+        leagueId: { type: string }
+        leagueName: { type: string }
+        draftType: { type: string, enum: [snake, linear, auction] }
+        picks:
+          type: array
+          items: { $ref: "#/components/schemas/Pick" }
+        myTeam:
+          type: array
+          items: { $ref: "#/components/schemas/Player" }
+    SleeperSyncResult:
+      type: object
+      additionalProperties: false
+      required: [snapshot, added, updated, removed, unmatched]
+      properties:
+        snapshot: { $ref: "#/components/schemas/DraftSnapshot" }
+        added: { type: integer, minimum: 0 }
+        updated: { type: integer, minimum: 0 }
+        removed: { type: integer, minimum: 0 }
+        unmatched: { type: integer, minimum: 0 }
     DraftActionRequest:
       type: object
       required: [leagueId, playerId, action]
@@ -199,3 +933,4 @@ components:
         leagueId: { type: string }
         playerId: { type: string }
         action: { type: string, enum: [draft, taken] }
+        cost: { type: number, minimum: 0 }

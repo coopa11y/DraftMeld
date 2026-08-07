@@ -22,13 +22,33 @@ type actionRequest struct {
 	LeagueID string       `json:"leagueId"`
 	PlayerID string       `json:"playerId"`
 	Action   draft.Action `json:"action"`
+	Cost     float64      `json:"cost"`
 }
 
 type undoRequest struct {
 	LeagueID string `json:"leagueId"`
 }
 
-func NewRouter(logger *slog.Logger, version string, draftService *application.DraftService) http.Handler {
+type playerPreferenceRequest struct {
+	LeagueID   string `json:"leagueId"`
+	PlayerID   string `json:"playerId"`
+	Preference string `json:"preference"`
+}
+
+type sleeperSyncRequest struct {
+	LeagueID       string `json:"leagueId"`
+	SleeperDraftID string `json:"sleeperDraftId"`
+	RosterID       int    `json:"rosterId"`
+}
+
+func NewRouter(
+	logger *slog.Logger,
+	version string,
+	draftService *application.DraftService,
+	leagueService *application.LeagueService,
+	rankingService *application.RankingService,
+	projectionServices ...*application.ProjectionService,
+) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/health", func(response http.ResponseWriter, _ *http.Request) {
 		writeJSON(response, http.StatusOK, healthResponse{
@@ -40,9 +60,14 @@ func NewRouter(logger *slog.Logger, version string, draftService *application.Dr
 	mux.HandleFunc("GET /api/v1/draft", func(response http.ResponseWriter, request *http.Request) {
 		leagueID := request.URL.Query().Get("leagueId")
 		if leagueID == "" {
-			leagueID = "demo"
+			writeError(response, http.StatusBadRequest, "A league ID is required.")
+			return
 		}
 		snapshot, err := draftService.Snapshot(request.Context(), leagueID)
+		if errors.Is(err, application.ErrLeagueNotFound) {
+			writeError(response, http.StatusNotFound, "That league was not found.")
+			return
+		}
 		if err != nil {
 			writeError(response, http.StatusInternalServerError, "Unable to load the draft.")
 			return
@@ -56,9 +81,14 @@ func NewRouter(logger *slog.Logger, version string, draftService *application.Dr
 			return
 		}
 		if input.LeagueID == "" {
-			input.LeagueID = "demo"
+			writeError(response, http.StatusBadRequest, "A league ID is required.")
+			return
 		}
-		snapshot, err := draftService.Record(request.Context(), input.LeagueID, input.PlayerID, input.Action)
+		snapshot, err := draftService.Record(request.Context(), input.LeagueID, input.PlayerID, input.Action, input.Cost)
+		if errors.Is(err, application.ErrLeagueNotFound) {
+			writeError(response, http.StatusNotFound, "That league was not found.")
+			return
+		}
 		if errors.Is(err, application.ErrPlayerUnavailable) {
 			writeError(response, http.StatusConflict, "That player is no longer available.")
 			return
@@ -76,9 +106,14 @@ func NewRouter(logger *slog.Logger, version string, draftService *application.Dr
 			return
 		}
 		if input.LeagueID == "" {
-			input.LeagueID = "demo"
+			writeError(response, http.StatusBadRequest, "A league ID is required.")
+			return
 		}
 		snapshot, err := draftService.Undo(request.Context(), input.LeagueID)
+		if errors.Is(err, application.ErrLeagueNotFound) {
+			writeError(response, http.StatusNotFound, "That league was not found.")
+			return
+		}
 		if errors.Is(err, application.ErrNothingToUndo) {
 			writeError(response, http.StatusConflict, "There is no draft action to undo.")
 			return
@@ -89,6 +124,56 @@ func NewRouter(logger *slog.Logger, version string, draftService *application.Dr
 		}
 		writeJSON(response, http.StatusOK, snapshot)
 	})
+	mux.HandleFunc("POST /api/v1/draft/mock", func(response http.ResponseWriter, request *http.Request) {
+		var input undoRequest
+		if err := json.NewDecoder(request.Body).Decode(&input); err != nil || input.LeagueID == "" {
+			writeError(response, http.StatusBadRequest, "A league ID is required.")
+			return
+		}
+		snapshot, err := draftService.MockToNextTurn(request.Context(), input.LeagueID)
+		if err != nil {
+			writeError(response, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(response, http.StatusOK, snapshot)
+	})
+	mux.HandleFunc("POST /api/v1/draft/sync/sleeper", func(response http.ResponseWriter, request *http.Request) {
+		var input sleeperSyncRequest
+		if err := json.NewDecoder(request.Body).Decode(&input); err != nil {
+			writeError(response, http.StatusBadRequest, "The Sleeper sync settings were not valid.")
+			return
+		}
+		result, err := draftService.SyncSleeper(request.Context(), input.LeagueID, input.SleeperDraftID, input.RosterID)
+		if err != nil {
+			writeError(response, http.StatusBadGateway, err.Error())
+			return
+		}
+		writeJSON(response, http.StatusOK, result)
+	})
+	mux.HandleFunc("PUT /api/v1/draft/preferences", func(response http.ResponseWriter, request *http.Request) {
+		var input playerPreferenceRequest
+		if err := json.NewDecoder(request.Body).Decode(&input); err != nil {
+			writeError(response, http.StatusBadRequest, "The player preference was not valid.")
+			return
+		}
+		if _, err := leagueService.SetPlayerPreference(request.Context(), input.LeagueID, input.PlayerID, input.Preference); err != nil {
+			if writeLeagueServiceError(response, err) {
+				return
+			}
+		}
+		snapshot, err := draftService.Snapshot(request.Context(), input.LeagueID)
+		if err != nil {
+			writeError(response, http.StatusInternalServerError, "Unable to refresh the draft board.")
+			return
+		}
+		writeJSON(response, http.StatusOK, snapshot)
+	})
+	registerLeagueRoutes(mux, leagueService)
+	registerExportRoutes(mux, application.NewExportService(leagueService, draftService, rankingService))
+	registerRankingRoutes(mux, rankingService, leagueService)
+	if len(projectionServices) > 0 && projectionServices[0] != nil {
+		registerProjectionRoutes(mux, projectionServices[0])
+	}
 	mux.Handle("/", webui.Handler())
 	return requestLogger(logger, mux)
 }

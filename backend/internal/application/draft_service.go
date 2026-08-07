@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"net/http"
 	"sync"
+	"time"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/draft"
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/league"
 )
 
 var (
@@ -21,65 +23,167 @@ type DraftEventRepository interface {
 }
 
 type DraftService struct {
-	repository DraftEventRepository
-	players    []draft.Player
-	playerByID map[string]draft.Player
-	mu         sync.Mutex
+	repository     DraftEventRepository
+	players        []draft.Player
+	playerByID     map[string]draft.Player
+	leagues        LeagueConfigurationRepository
+	rankings       *RankingService
+	projections    *ProjectionService
+	sleeperClient  *http.Client
+	sleeperBaseURL string
+	mu             sync.Mutex
 }
 
-func NewDraftService(repository DraftEventRepository, players []draft.Player) *DraftService {
+func (service *DraftService) UseIntelligence(rankings *RankingService, projections *ProjectionService) {
+	service.rankings, service.projections = rankings, projections
+}
+
+func (service *DraftService) ConfigureSleeperClient(client *http.Client, baseURL string) {
+	if client != nil && baseURL != "" {
+		service.sleeperClient, service.sleeperBaseURL = client, baseURL
+	}
+}
+
+func NewDraftService(
+	repository DraftEventRepository,
+	players []draft.Player,
+	configurations ...LeagueConfiguration,
+) (*DraftService, error) {
+	if len(configurations) == 0 {
+		return nil, errors.New("at least one league configuration is required")
+	}
+	seenLeagueIDs := make(map[string]struct{}, len(configurations))
+	for _, configuration := range configurations {
+		if err := configuration.Validate(); err != nil {
+			return nil, err
+		}
+		if _, exists := seenLeagueIDs[configuration.ID]; exists {
+			return nil, fmt.Errorf("duplicate league configuration: %s", configuration.ID)
+		}
+		seenLeagueIDs[configuration.ID] = struct{}{}
+	}
+	return NewDraftServiceWithLeagues(repository, NewMemoryLeagueRepository(configurations...), players)
+}
+
+func NewDraftServiceWithLeagues(
+	repository DraftEventRepository,
+	leagues LeagueConfigurationRepository,
+	players []draft.Player,
+) (*DraftService, error) {
 	playerByID := make(map[string]draft.Player, len(players))
 	for _, player := range players {
+		if player.ID == "" {
+			return nil, errors.New("draft players require an ID")
+		}
+		if _, exists := playerByID[player.ID]; exists {
+			return nil, fmt.Errorf("duplicate draft player ID: %s", player.ID)
+		}
 		playerByID[player.ID] = player
 	}
-	return &DraftService{repository: repository, players: players, playerByID: playerByID}
+	if leagues == nil {
+		return nil, errors.New("league configuration repository is required")
+	}
+	return &DraftService{
+		repository: repository, players: players, playerByID: playerByID, leagues: leagues,
+		sleeperClient: &http.Client{Timeout: 15 * time.Second}, sleeperBaseURL: "https://api.sleeper.app/v1",
+	}, nil
 }
 
 func (service *DraftService) Snapshot(ctx context.Context, leagueID string) (draft.Snapshot, error) {
+	configuration, err := service.configuration(ctx, leagueID)
+	if err != nil {
+		return draft.Snapshot{}, err
+	}
 	events, err := service.repository.List(ctx, leagueID)
 	if err != nil {
 		return draft.Snapshot{}, fmt.Errorf("list draft events: %w", err)
 	}
-	return service.buildSnapshot(leagueID, events), nil
+	players, playerByID, dataMode, projectionCount, err := service.playersForLeague(ctx, configuration)
+	if err != nil {
+		return draft.Snapshot{}, err
+	}
+	return service.buildSnapshot(configuration, events, players, playerByID, dataMode, projectionCount), nil
 }
 
-func (service *DraftService) Record(ctx context.Context, leagueID, playerID string, action draft.Action) (draft.Snapshot, error) {
+func (service *DraftService) Record(ctx context.Context, leagueID, playerID string, action draft.Action, costs ...float64) (draft.Snapshot, error) {
 	service.mu.Lock()
 	defer service.mu.Unlock()
 
+	configuration, err := service.configuration(ctx, leagueID)
+	if err != nil {
+		return draft.Snapshot{}, err
+	}
 	if action != draft.ActionDraft && action != draft.ActionTaken {
 		return draft.Snapshot{}, fmt.Errorf("unsupported draft action: %q", action)
 	}
-	if _, exists := service.playerByID[playerID]; !exists {
+	cost := 0.0
+	if len(costs) > 0 {
+		cost = costs[0]
+	}
+	if cost < 0 || (configuration.Rules.DraftType == league.DraftTypeAuction && cost <= 0) {
+		return draft.Snapshot{}, errors.New("auction draft actions require a positive cost")
+	}
+	players, playerByID, _, _, err := service.playersForLeague(ctx, configuration)
+	if err != nil {
+		return draft.Snapshot{}, err
+	}
+	if _, exists := playerByID[playerID]; !exists {
 		return draft.Snapshot{}, fmt.Errorf("unknown player: %s", playerID)
 	}
 	events, err := service.repository.List(ctx, leagueID)
 	if err != nil {
 		return draft.Snapshot{}, err
 	}
-	states, _, _ := replay(events)
-	if _, unavailable := states[playerID]; unavailable {
+	state := replay(events)
+	if _, unavailable := state.playerActions[playerID]; unavailable {
 		return draft.Snapshot{}, ErrPlayerUnavailable
 	}
-	if _, err = service.repository.Append(ctx, draft.Event{LeagueID: leagueID, PlayerID: playerID, Action: action}); err != nil {
+	if configuration.Rules.DraftType == league.DraftTypeAuction && action == draft.ActionDraft {
+		available := make([]draft.Player, 0, len(players))
+		myRosterSize := 0
+		for _, player := range players {
+			existingAction, unavailable := state.playerActions[player.ID]
+			if !unavailable {
+				available = append(available, player)
+			} else if existingAction == draft.ActionDraft {
+				myRosterSize++
+			}
+		}
+		_, _, maximumBid := auctionState(configuration.Rules, service.history(state.activeEvents, playerByID), available, myRosterSize)
+		if cost > maximumBid {
+			return draft.Snapshot{}, fmt.Errorf("bid exceeds your maximum available bid of $%.0f", maximumBid)
+		}
+	}
+	if _, err = service.repository.Append(ctx, draft.Event{LeagueID: leagueID, PlayerID: playerID, Action: action, Cost: cost}); err != nil {
 		return draft.Snapshot{}, err
 	}
 	return service.Snapshot(ctx, leagueID)
+}
+
+func (service *DraftService) history(events []draft.Event, playerByID map[string]draft.Player) []draft.Pick {
+	history := make([]draft.Pick, 0, len(events))
+	for index, event := range events {
+		history = append(history, draft.Pick{EventID: event.ID, Number: index + 1, Action: event.Action, Player: playerByID[event.PlayerID], CreatedAt: event.CreatedAt, Cost: event.Cost})
+	}
+	return history
 }
 
 func (service *DraftService) Undo(ctx context.Context, leagueID string) (draft.Snapshot, error) {
 	service.mu.Lock()
 	defer service.mu.Unlock()
 
+	if _, err := service.configuration(ctx, leagueID); err != nil {
+		return draft.Snapshot{}, err
+	}
 	events, err := service.repository.List(ctx, leagueID)
 	if err != nil {
 		return draft.Snapshot{}, err
 	}
-	_, active, _ := replay(events)
-	if len(active) == 0 {
+	state := replay(events)
+	if len(state.activeEvents) == 0 {
 		return draft.Snapshot{}, ErrNothingToUndo
 	}
-	target := active[len(active)-1]
+	target := state.activeEvents[len(state.activeEvents)-1]
 	if _, err = service.repository.Append(ctx, draft.Event{
 		LeagueID: leagueID, PlayerID: target.PlayerID, Action: draft.ActionUndo, TargetEventID: &target.ID,
 	}); err != nil {
@@ -88,93 +192,55 @@ func (service *DraftService) Undo(ctx context.Context, leagueID string) (draft.S
 	return service.Snapshot(ctx, leagueID)
 }
 
-func (service *DraftService) buildSnapshot(leagueID string, events []draft.Event) draft.Snapshot {
-	states, active, _ := replay(events)
-	available := make([]draft.Player, 0, len(service.players))
-	myTeam := make([]draft.Player, 0)
-	history := make([]draft.Pick, 0, len(active))
+func (service *DraftService) configuration(ctx context.Context, leagueID string) (LeagueConfiguration, error) {
+	configuration, exists, err := service.leagues.GetLeague(ctx, leagueID)
+	if err != nil {
+		return LeagueConfiguration{}, fmt.Errorf("load league configuration: %w", err)
+	}
+	if !exists {
+		return LeagueConfiguration{}, fmt.Errorf("%w: %s", ErrLeagueNotFound, leagueID)
+	}
+	configuration.Rules = withDefaultSourcePreferences(configuration.Rules)
+	return configuration, nil
+}
 
-	for _, player := range service.players {
-		action, unavailable := states[player.ID]
+func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, events []draft.Event, players []draft.Player, playerByID map[string]draft.Player, dataMode string, projectionCount int) draft.Snapshot {
+	state := replay(events)
+	available := make([]draft.Player, 0, len(players))
+	myTeam := make([]draft.Player, 0)
+	history := make([]draft.Pick, 0, len(state.activeEvents))
+
+	for _, player := range players {
+		action, unavailable := state.playerActions[player.ID]
 		if !unavailable {
 			available = append(available, player)
 		} else if action == draft.ActionDraft {
 			myTeam = append(myTeam, player)
 		}
 	}
-	for index, event := range active {
+	for index, event := range state.activeEvents {
 		history = append(history, draft.Pick{
 			EventID: event.ID, Number: index + 1, Action: event.Action,
-			Player: service.playerByID[event.PlayerID], CreatedAt: event.CreatedAt,
+			Player: playerByID[event.PlayerID], CreatedAt: event.CreatedAt, Cost: event.Cost,
 		})
 	}
 
+	nextPick := nextUserPick(len(state.activeEvents)+1, configuration.Rules)
+	budgetRemaining, inflation, maximumBid := auctionState(configuration.Rules, history, available, len(myTeam))
 	return draft.Snapshot{
-		LeagueID: leagueID, LeagueName: "Demo League", PickNumber: len(active) + 1,
+		LeagueID: configuration.ID, LeagueName: configuration.Rules.Name, PickNumber: len(state.activeEvents) + 1,
 		Available: available, MyTeam: myTeam, History: history,
-		Recommendations: recommend(available, myTeam), CanUndo: len(active) > 0,
+		Recommendations:   recommend(available, myTeam, configuration.Rules, configuration.Recommendation, recommendationContext{NextUserPick: nextPick, RecentPicks: history}),
+		CanUndo:           len(state.activeEvents) > 0,
+		DataMode:          dataMode,
+		ProjectionCount:   projectionCount,
+		DraftType:         string(configuration.Rules.DraftType),
+		NextUserPick:      nextPick,
+		AuctionBudget:     configuration.Rules.AuctionBudget,
+		BudgetRemaining:   budgetRemaining,
+		AuctionInflation:  inflation,
+		AuctionMinimumBid: configuration.Rules.AuctionMinimumBid,
+		MaximumBid:        maximumBid,
+		IsUserTurn:        isUserTurn(len(state.activeEvents)+1, configuration.Rules),
 	}
-}
-
-func replay(events []draft.Event) (map[string]draft.Action, []draft.Event, map[int64]bool) {
-	undone := make(map[int64]bool)
-	for _, event := range events {
-		if event.Action == draft.ActionUndo && event.TargetEventID != nil {
-			undone[*event.TargetEventID] = true
-		}
-	}
-	states := make(map[string]draft.Action)
-	active := make([]draft.Event, 0)
-	for _, event := range events {
-		if event.Action == draft.ActionUndo || undone[event.ID] {
-			continue
-		}
-		states[event.PlayerID] = event.Action
-		active = append(active, event)
-	}
-	return states, active, undone
-}
-
-func recommend(available, myTeam []draft.Player) []draft.Recommendation {
-	needs := map[string]int{"QB": 1, "RB": 2, "WR": 2, "TE": 1}
-	for _, player := range myTeam {
-		if needs[player.Position] > 0 {
-			needs[player.Position]--
-		}
-	}
-	positionRanks := make(map[string][]int)
-	for _, player := range available {
-		positionRanks[player.Position] = append(positionRanks[player.Position], player.OverallRank)
-	}
-
-	recommendations := make([]draft.Recommendation, 0, len(available))
-	for _, player := range available {
-		score := 200.0 - float64(player.OverallRank)
-		reasons := make([]string, 0, 3)
-		if needs[player.Position] > 0 {
-			score += 24
-			reasons = append(reasons, "Fills an open starting roster need")
-		}
-		value := player.ADP - float64(player.OverallRank)
-		if value >= 5 {
-			score += value
-			reasons = append(reasons, fmt.Sprintf("Ranks %.0f spots above draft-room ADP", value))
-		}
-		ranks := positionRanks[player.Position]
-		if len(ranks) > 1 && ranks[0] == player.OverallRank && ranks[1]-ranks[0] >= 5 {
-			score += 8
-			reasons = append(reasons, "Top option before a positional drop-off")
-		}
-		if len(reasons) == 0 {
-			reasons = append(reasons, "Best available league-adjusted value")
-		}
-		recommendations = append(recommendations, draft.Recommendation{Player: player, Score: score, Reasons: reasons})
-	}
-	sort.SliceStable(recommendations, func(left, right int) bool {
-		return recommendations[left].Score > recommendations[right].Score
-	})
-	if len(recommendations) > 5 {
-		recommendations = recommendations[:5]
-	}
-	return recommendations
 }

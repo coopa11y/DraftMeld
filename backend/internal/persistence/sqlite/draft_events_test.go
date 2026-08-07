@@ -28,3 +28,40 @@ func TestDraftEventsPersist(t *testing.T) {
 		t.Fatalf("unexpected events: %#v", events)
 	}
 }
+
+func TestMigrationsAreRecordedAndIdempotent(t *testing.T) {
+	path := t.TempDir() + "/draftmeld.db"
+	store, err := Open(path)
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	var migrationCount int
+	if err = store.database.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&migrationCount); err != nil {
+		t.Fatalf("count migrations: %v", err)
+	}
+	if migrationCount < 1 {
+		t.Fatal("expected at least one applied migration")
+	}
+	var initialMigration int
+	if err = store.database.QueryRow(
+		"SELECT COUNT(*) FROM schema_migrations WHERE version = '0001_draft_events.sql'",
+	).Scan(&initialMigration); err != nil || initialMigration != 1 {
+		t.Fatalf("initial migration was not recorded: count=%d error=%v", initialMigration, err)
+	}
+	initialCount := migrationCount
+	if err = store.Close(); err != nil {
+		t.Fatalf("close database: %v", err)
+	}
+
+	reopened, err := Open(path)
+	if err != nil {
+		t.Fatalf("reopen database: %v", err)
+	}
+	defer reopened.Close()
+	if err = reopened.database.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&migrationCount); err != nil {
+		t.Fatalf("count migrations after reopen: %v", err)
+	}
+	if migrationCount != initialCount {
+		t.Fatalf("migration count changed after reopen: before=%d after=%d", initialCount, migrationCount)
+	}
+}

@@ -2,6 +2,8 @@ package application
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/draft"
@@ -14,7 +16,7 @@ func TestDraftTakenAndUndo(t *testing.T) {
 		t.Fatalf("open database: %v", err)
 	}
 	defer store.Close()
-	service := NewDraftService(store, draft.DemoCatalog())
+	service := newTestDraftService(t, store)
 	ctx := context.Background()
 
 	afterDraft, err := service.Record(ctx, "demo", "p001", draft.ActionDraft)
@@ -51,7 +53,7 @@ func TestRecommendationsReactToRosterNeed(t *testing.T) {
 		t.Fatalf("open database: %v", err)
 	}
 	defer store.Close()
-	service := NewDraftService(store, draft.DemoCatalog())
+	service := newTestDraftService(t, store)
 	before, err := service.Snapshot(context.Background(), "demo")
 	if err != nil {
 		t.Fatalf("load snapshot: %v", err)
@@ -66,6 +68,132 @@ func TestRecommendationsReactToRosterNeed(t *testing.T) {
 	if after.Recommendations[0].Player.ID == before.Recommendations[0].Player.ID {
 		t.Fatalf("taken player remained recommended")
 	}
+}
+
+func TestLeagueConfigurationControlsSnapshotAndRecommendationLimit(t *testing.T) {
+	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	defer store.Close()
+	configuration := DemoLeagueConfiguration()
+	configuration.ID = "custom"
+	configuration.Rules.Name = "Custom League"
+	configuration.Recommendation.RecommendationLimit = 2
+	service, err := NewDraftService(store, draft.DemoCatalog(), configuration)
+	if err != nil {
+		t.Fatalf("create service: %v", err)
+	}
+	snapshot, err := service.Snapshot(context.Background(), "custom")
+	if err != nil {
+		t.Fatalf("load snapshot: %v", err)
+	}
+	if snapshot.LeagueName != "Custom League" || len(snapshot.Recommendations) != 2 {
+		t.Fatalf("configuration was not applied: %#v", snapshot)
+	}
+}
+
+func TestMockDraftAdvancesToNextUserTurn(t *testing.T) {
+	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	service := newTestDraftService(t, store)
+	if _, err = service.Record(t.Context(), "demo", "p001", draft.ActionDraft); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := service.MockToNextTurn(t.Context(), "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.PickNumber != 24 || len(snapshot.History) != 23 {
+		t.Fatalf("mock stopped at pick %d with %d events", snapshot.PickNumber, len(snapshot.History))
+	}
+}
+
+func TestSleeperSyncImportsKnownPlayersWithoutSubmittingPicks(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet {
+			t.Fatalf("unexpected method %s", request.Method)
+		}
+		_, _ = response.Write([]byte(`[{"pick_no":1,"roster_id":7,"metadata":{"first_name":"Alex","last_name":"Rivers","position":"RB","team":"ATL"}}]`))
+	}))
+	defer server.Close()
+	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	service := newTestDraftService(t, store)
+	service.sleeperBaseURL, service.sleeperClient = server.URL, server.Client()
+	result, err := service.SyncSleeper(t.Context(), "demo", "draft-1", 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Snapshot.MyTeam) != 1 || result.Snapshot.MyTeam[0].ID != "p001" {
+		t.Fatalf("Sleeper pick was not assigned to my team: %#v", result.Snapshot.MyTeam)
+	}
+}
+
+func TestSleeperSyncReconcilesChangedAndDeletedPicks(t *testing.T) {
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
+		requestCount++
+		if requestCount == 1 {
+			_, _ = response.Write([]byte(`[{"pick_no":1,"roster_id":7,"metadata":{"first_name":"Alex","last_name":"Rivers","position":"RB","team":"ATL"}}]`))
+			return
+		}
+		_, _ = response.Write([]byte(`[{"pick_no":1,"roster_id":2,"metadata":{"first_name":"Jordan","last_name":"Hale","position":"WR","team":"MIN"}},{"pick_no":2,"roster_id":2,"metadata":{"first_name":"Unknown","last_name":"Player","position":"WR","team":"MIN"}}]`))
+	}))
+	defer server.Close()
+	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	service := newTestDraftService(t, store)
+	service.ConfigureSleeperClient(server.Client(), server.URL)
+	if _, err = service.SyncSleeper(t.Context(), "demo", "draft-1", 7); err != nil {
+		t.Fatal(err)
+	}
+	result, err := service.SyncSleeper(t.Context(), "demo", "draft-1", 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Added != 1 || result.Removed != 1 || result.Unmatched != 1 || len(result.Snapshot.History) != 1 || result.Snapshot.History[0].Player.ID != "p002" {
+		t.Fatalf("unexpected reconciliation result: %#v", result)
+	}
+}
+
+func TestAuctionActionsTrackBudget(t *testing.T) {
+	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	configuration := DemoLeagueConfiguration()
+	configuration.Rules.DraftType = "auction"
+	service, err := NewDraftService(store, draft.DemoCatalog(), configuration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := service.Record(t.Context(), "demo", "p001", draft.ActionDraft, 37)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.BudgetRemaining != 163 || snapshot.History[0].Cost != 37 {
+		t.Fatalf("auction budget not tracked: %#v", snapshot)
+	}
+}
+
+func newTestDraftService(t *testing.T, repository DraftEventRepository) *DraftService {
+	t.Helper()
+	service, err := NewDraftService(repository, draft.DemoCatalog(), DemoLeagueConfiguration())
+	if err != nil {
+		t.Fatalf("create draft service: %v", err)
+	}
+	return service
 }
 
 func containsPlayer(players []draft.Player, playerID string) bool {

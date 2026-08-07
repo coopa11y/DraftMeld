@@ -4,11 +4,11 @@
 
 DraftMeld is an open-source fantasy football draft command center. It combines rankings, projections, average draft position, league rules, roster construction, and live draft state into one explainable board.
 
-Current development version: **0.2.0**
+Current development version: **0.3.0**
 
 ## Project status
 
-DraftMeld is in its foundation phase. The product model and architecture are being established before the first application milestone.
+DraftMeld is in active `0.3.0` development. It includes an accessible live board powered by normalized multi-source consensus, mapped projection imports, roster-aware VOR and tiers, targets and avoids, mock opponents, keeper-aware auction tracking, canonical alias review, and read-only reconciled Sleeper synchronization. Five downloadable feeds and two user-supplied ESPN PDF formats are currently supported.
 
 ## Product goals
 
@@ -52,6 +52,8 @@ scripts/        Native build entrypoints
 
 See the [product brief](docs/product-brief.md) and [architecture overview](docs/architecture.md) for the initial direction.
 
+The formulas, projection CSV schema, draft-day integrations, and current limitations are documented in [draft intelligence](docs/draft-intelligence.md).
+
 Accessibility requirements and current limitations are documented in [docs/accessibility.md](docs/accessibility.md).
 
 ## Development
@@ -60,9 +62,11 @@ Run the frontend development server:
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
+
+DraftMeld targets Node.js 24 and Go 1.26. The repository root pins the supported Node major and npm package-manager line; CI and Docker use the same runtime families.
 
 Run the backend after installing Go:
 
@@ -72,6 +76,18 @@ go run ./cmd/draftmeld
 ```
 
 The frontend proxies `/api` requests to `http://localhost:8080`. A production build compiles the frontend into the Go executable.
+
+On first launch, DraftMeld creates a customizable demo league. Use **Manage leagues** to create, edit, duplicate, or delete leagues and switch the active draft board.
+
+The **Export and backup center** under Manage leagues downloads versioned league backups, consensus ranking CSVs, and draft results. Restores always create a new league rather than overwriting existing data. See [data portability](docs/data-portability.md) for formats and compatibility guarantees.
+
+Use **Ranking sources** to review each feed's method, license, weight, freshness, and project link before refreshing the local data or privately importing a supported PDF. See [docs/ranking-sources.md](docs/ranking-sources.md) for the source set, supported PDF formats, and current matching limitations.
+
+Run the same contract, type, unit-test, vet, and production-build checks used for pull requests:
+
+```bash
+npm run verify
+```
 
 Run the complete application with Docker:
 

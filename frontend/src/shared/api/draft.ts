@@ -1,36 +1,51 @@
-import type { DraftAction, DraftSnapshot } from "./types";
+import type { DraftAction, DraftSnapshot, SleeperSyncResult } from "./types";
+import { apiClient, unwrap } from "./client";
 
-const leagueId = "demo";
-
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
-  });
-  const body: unknown = await response.json();
-  if (!response.ok) {
-    const message = typeof body === "object" && body !== null && "error" in body && typeof body.error === "string"
-      ? body.error
-      : `Request failed with ${response.status}`;
-    throw new Error(message);
-  }
-  return body as T;
+export async function getDraft(leagueId: string): Promise<DraftSnapshot> {
+  const { data, error, response } = await apiClient.GET("/draft", { params: { query: { leagueId } } });
+  return unwrap(data, error, response);
 }
 
-export function getDraft(): Promise<DraftSnapshot> {
-  return request(`/api/v1/draft?leagueId=${leagueId}`);
+export async function recordDraftAction(
+  leagueId: string,
+  playerId: string,
+  action: DraftAction,
+  cost = 0,
+): Promise<DraftSnapshot> {
+  const { data, error, response } = await apiClient.POST("/draft/actions", {
+    body: { leagueId, playerId, action, cost },
+  });
+  return unwrap(data, error, response);
 }
 
-export function recordDraftAction(playerId: string, action: DraftAction): Promise<DraftSnapshot> {
-  return request("/api/v1/draft/actions", {
-    method: "POST",
-    body: JSON.stringify({ leagueId, playerId, action }),
+export async function setPlayerPreference(
+  leagueId: string,
+  playerId: string,
+  preference: "target" | "avoid" | "",
+): Promise<DraftSnapshot> {
+  const { data, error, response } = await apiClient.PUT("/draft/preferences", {
+    body: { leagueId, playerId, preference },
   });
+  return unwrap(data, error, response);
 }
 
-export function undoDraftAction(): Promise<DraftSnapshot> {
-  return request("/api/v1/draft/undo", {
-    method: "POST",
-    body: JSON.stringify({ leagueId }),
+export async function simulateToNextTurn(leagueId: string): Promise<DraftSnapshot> {
+  const { data, error, response } = await apiClient.POST("/draft/mock", { body: { leagueId } });
+  return unwrap(data, error, response);
+}
+
+export async function syncSleeperDraft(
+  leagueId: string,
+  sleeperDraftId: string,
+  rosterId: number,
+): Promise<SleeperSyncResult> {
+  const { data, error, response } = await apiClient.POST("/draft/sync/sleeper", {
+    body: { leagueId, sleeperDraftId, rosterId },
   });
+  return unwrap(data, error, response);
+}
+
+export async function undoDraftAction(leagueId: string): Promise<DraftSnapshot> {
+  const { data, error, response } = await apiClient.POST("/draft/undo", { body: { leagueId } });
+  return unwrap(data, error, response);
 }
