@@ -62,9 +62,11 @@ Run the frontend development server:
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
+
+DraftMeld targets Node.js 24 and Go 1.26. The repository root pins the supported Node major and npm package-manager line; CI and Docker use the same runtime families.
 
 Run the backend after installing Go:
 

@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { leagueToRules } from "../shared/api/leagues";
 import type { League, LeagueRules, RosterSlot } from "../shared/api/types";
+import { Button } from "../shared/ui/Button";
+import { FormField } from "../shared/ui/FormField";
 
 const playerPositions = ["QB", "RB", "WR", "TE", "K", "DST"] as const;
 const scoringFields = [
@@ -74,23 +76,76 @@ interface LeagueFormProps {
   onSave: (rules: LeagueRules) => Promise<void>;
 }
 
-function AuctionSettings({ rules, onChange }: { rules: LeagueRules; onChange: (update: Partial<LeagueRules>) => void }) {
-  return <>
-    <label>Team auction budget<input type="number" min="1" step="1" required value={rules.auctionBudget} onChange={(event) => onChange({ auctionBudget: Number(event.target.value) })} /></label>
-    <label>Minimum bid<input type="number" min="1" max={rules.auctionBudget} step="1" required value={rules.auctionMinimumBid} onChange={(event) => onChange({ auctionMinimumBid: Number(event.target.value) })} /></label>
-    <label>My keeper spend<input type="number" min="0" max={rules.auctionBudget} step="1" value={rules.myKeeperSpend} onChange={(event) => onChange({ myKeeperSpend: Number(event.target.value) })} /><span className="field-help">Dollars already committed by your team.</span></label>
-    <label>League-wide keeper spend<input type="number" min={rules.myKeeperSpend} max={rules.auctionBudget * rules.teamCount} step="1" value={rules.keeperBudgetSpent} onChange={(event) => onChange({ keeperBudgetSpent: Number(event.target.value) })} /><span className="field-help">Total dollars already committed to keepers across every team.</span></label>
-    <label>Keeper value removed<input type="number" min="0" step="1" value={rules.keeperValueRemoved} onChange={(event) => onChange({ keeperValueRemoved: Number(event.target.value) })} /><span className="field-help">DraftMeld baseline dollar value of players already kept.</span></label>
-  </>;
+function AuctionSettings({
+  rules,
+  onChange,
+}: {
+  rules: LeagueRules;
+  onChange: (update: Partial<LeagueRules>) => void;
+}) {
+  return (
+    <>
+      <FormField label="Team auction budget">
+        <input
+          type="number"
+          min="1"
+          step="1"
+          required
+          value={rules.auctionBudget}
+          onChange={(event) => onChange({ auctionBudget: Number(event.target.value) })}
+        />
+      </FormField>
+      <FormField label="Minimum bid">
+        <input
+          type="number"
+          min="1"
+          max={rules.auctionBudget}
+          step="1"
+          required
+          value={rules.auctionMinimumBid}
+          onChange={(event) => onChange({ auctionMinimumBid: Number(event.target.value) })}
+        />
+      </FormField>
+      <FormField label="My keeper spend" help="Dollars already committed by your team.">
+        <input
+          type="number"
+          min="0"
+          max={rules.auctionBudget}
+          step="1"
+          value={rules.myKeeperSpend}
+          onChange={(event) => onChange({ myKeeperSpend: Number(event.target.value) })}
+        />
+      </FormField>
+      <FormField label="League-wide keeper spend" help="Total dollars already committed to keepers across every team.">
+        <input
+          type="number"
+          min={rules.myKeeperSpend}
+          max={rules.auctionBudget * rules.teamCount}
+          step="1"
+          value={rules.keeperBudgetSpent}
+          onChange={(event) => onChange({ keeperBudgetSpent: Number(event.target.value) })}
+        />
+      </FormField>
+      <FormField label="Keeper value removed" help="DraftMeld baseline dollar value of players already kept.">
+        <input
+          type="number"
+          min="0"
+          step="1"
+          value={rules.keeperValueRemoved}
+          onChange={(event) => onChange({ keeperValueRemoved: Number(event.target.value) })}
+        />
+      </FormField>
+    </>
+  );
 }
 
 export function LeagueForm({ league, busy, onCancel, onSave }: LeagueFormProps) {
-  const [rules, setRules] = useState<LeagueRules>(() => league ? leagueToRules(league) : defaultRules());
+  const [rules, setRules] = useState<LeagueRules>(() => (league ? leagueToRules(league) : defaultRules()));
 
   function updateSlot(index: number, update: Partial<RosterSlot>) {
     setRules((current) => ({
       ...current,
-      rosterSlots: current.rosterSlots.map((slot, slotIndex) => slotIndex === index ? { ...slot, ...update } : slot),
+      rosterSlots: current.rosterSlots.map((slot, slotIndex) => (slotIndex === index ? { ...slot, ...update } : slot)),
     }));
   }
 
@@ -114,31 +169,84 @@ export function LeagueForm({ league, busy, onCancel, onSave }: LeagueFormProps) 
           <p className="eyebrow">League setup</p>
           <h2>{league ? `Edit ${league.name}` : "Create a league"}</h2>
         </div>
-        <button type="button" className="secondary-button" onClick={onCancel} disabled={busy}>Cancel</button>
+        <Button onClick={onCancel} disabled={busy}>
+          Cancel
+        </Button>
       </div>
 
       <fieldset disabled={busy}>
         <legend>Basic information</legend>
         <div className="form-grid">
-          <label>League name<input required maxLength={80} value={rules.name} onChange={(event) => setRules({ ...rules, name: event.target.value })} /></label>
-          <label>Draft format<select value={rules.draftType} onChange={(event) => setRules({ ...rules, draftType: event.target.value as LeagueRules["draftType"] })}>
-            <option value="snake">Snake</option><option value="linear">Linear</option><option value="auction">Auction</option>
-          </select></label>
-          <label>Number of teams<input type="number" min="2" max="32" required value={rules.teamCount} onChange={(event) => {
-            const teamCount = Number(event.target.value);
-            setRules({ ...rules, teamCount, draftPosition: Math.min(rules.draftPosition, teamCount) });
-          }} /></label>
-          <label>Your draft position<input type="number" min="1" max={rules.teamCount} required value={rules.draftPosition} onChange={(event) => setRules({ ...rules, draftPosition: Number(event.target.value) })} /></label>
-          <label>Scoring preset<select value={scoringPreset(rules.scoringRules.reception)} onChange={(event) => {
-            if (event.target.value === "custom") return;
-            setRules({ ...rules, scoringRules: { ...rules.scoringRules, reception: Number(event.target.value) } });
-          }}>
-            <option value="0">Standard</option><option value="0.5">Half PPR</option><option value="1">PPR</option><option value="custom">Custom</option>
-          </select></label>
-          <label>Consensus method<select value={rules.consensusMethod} onChange={(event) => setRules({ ...rules, consensusMethod: event.target.value as LeagueRules["consensusMethod"] })}>
-            <option value="weighted-median">Weighted median</option><option value="trimmed-mean">Trimmed mean</option><option value="weighted-average">Weighted average</option>
-          </select></label>
-          {rules.draftType === "auction" ? <AuctionSettings rules={rules} onChange={(update) => setRules((current) => ({ ...current, ...update }))} /> : null}
+          <FormField label="League name">
+            <input
+              required
+              maxLength={80}
+              value={rules.name}
+              onChange={(event) => setRules({ ...rules, name: event.target.value })}
+            />
+          </FormField>
+          <FormField label="Draft format">
+            <select
+              value={rules.draftType}
+              onChange={(event) => setRules({ ...rules, draftType: event.target.value as LeagueRules["draftType"] })}
+            >
+              <option value="snake">Snake</option>
+              <option value="linear">Linear</option>
+              <option value="auction">Auction</option>
+            </select>
+          </FormField>
+          <FormField label="Number of teams">
+            <input
+              type="number"
+              min="2"
+              max="32"
+              required
+              value={rules.teamCount}
+              onChange={(event) => {
+                const teamCount = Number(event.target.value);
+                setRules({ ...rules, teamCount, draftPosition: Math.min(rules.draftPosition, teamCount) });
+              }}
+            />
+          </FormField>
+          <FormField label="Your draft position">
+            <input
+              type="number"
+              min="1"
+              max={rules.teamCount}
+              required
+              value={rules.draftPosition}
+              onChange={(event) => setRules({ ...rules, draftPosition: Number(event.target.value) })}
+            />
+          </FormField>
+          <FormField label="Scoring preset">
+            <select
+              value={scoringPreset(rules.scoringRules.reception)}
+              onChange={(event) => {
+                if (event.target.value === "custom") return;
+                setRules({ ...rules, scoringRules: { ...rules.scoringRules, reception: Number(event.target.value) } });
+              }}
+            >
+              <option value="0">Standard</option>
+              <option value="0.5">Half PPR</option>
+              <option value="1">PPR</option>
+              <option value="custom">Custom</option>
+            </select>
+          </FormField>
+          <FormField label="Consensus method">
+            <select
+              value={rules.consensusMethod}
+              onChange={(event) =>
+                setRules({ ...rules, consensusMethod: event.target.value as LeagueRules["consensusMethod"] })
+              }
+            >
+              <option value="weighted-median">Weighted median</option>
+              <option value="trimmed-mean">Trimmed mean</option>
+              <option value="weighted-average">Weighted average</option>
+            </select>
+          </FormField>
+          {rules.draftType === "auction" ? (
+            <AuctionSettings rules={rules} onChange={(update) => setRules((current) => ({ ...current, ...update }))} />
+          ) : null}
         </div>
       </fieldset>
 
@@ -149,30 +257,96 @@ export function LeagueForm({ league, busy, onCancel, onSave }: LeagueFormProps) 
           {rules.rosterSlots.map((slot, index) => (
             <fieldset className="roster-slot" key={index}>
               <legend>Roster slot {index + 1}</legend>
-              <label>Slot name<input required value={slot.name} onChange={(event) => updateSlot(index, { name: event.target.value })} /></label>
-              <label>Count<input type="number" min="1" max="30" required value={slot.count} onChange={(event) => updateSlot(index, { count: Number(event.target.value) })} /></label>
+              <FormField label="Slot name">
+                <input
+                  required
+                  value={slot.name}
+                  onChange={(event) => updateSlot(index, { name: event.target.value })}
+                />
+              </FormField>
+              <FormField label="Count">
+                <input
+                  type="number"
+                  min="1"
+                  max="30"
+                  required
+                  value={slot.count}
+                  onChange={(event) => updateSlot(index, { count: Number(event.target.value) })}
+                />
+              </FormField>
               <fieldset className="position-options">
                 <legend>Eligible positions</legend>
-                {playerPositions.map((position) => <label key={position}><input type="checkbox" checked={slot.positions.includes(position)} onChange={() => togglePosition(index, position)} />{position}</label>)}
+                {playerPositions.map((position) => (
+                  <label key={position}>
+                    <input
+                      type="checkbox"
+                      checked={slot.positions.includes(position)}
+                      onChange={() => togglePosition(index, position)}
+                    />
+                    {position}
+                  </label>
+                ))}
               </fieldset>
-              <label className="checkbox-label"><input type="checkbox" checked={slot.isStarting} onChange={(event) => updateSlot(index, { isStarting: event.target.checked })} />Starting lineup slot</label>
-              <button type="button" className="danger-text-button" onClick={() => setRules({ ...rules, rosterSlots: rules.rosterSlots.filter((_, slotIndex) => slotIndex !== index) })} disabled={rules.rosterSlots.length === 1}>Remove slot</button>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={slot.isStarting}
+                  onChange={(event) => updateSlot(index, { isStarting: event.target.checked })}
+                />
+                Starting lineup slot
+              </label>
+              <Button
+                variant="dangerText"
+                onClick={() =>
+                  setRules({ ...rules, rosterSlots: rules.rosterSlots.filter((_, slotIndex) => slotIndex !== index) })
+                }
+                disabled={rules.rosterSlots.length === 1}
+              >
+                Remove slot
+              </Button>
             </fieldset>
           ))}
         </div>
-        <button type="button" className="secondary-button" onClick={() => setRules({ ...rules, rosterSlots: [...rules.rosterSlots, { name: "FLEX", count: 1, positions: ["RB", "WR", "TE"], isStarting: true }] })}>Add roster slot</button>
+        <Button
+          onClick={() =>
+            setRules({
+              ...rules,
+              rosterSlots: [
+                ...rules.rosterSlots,
+                { name: "FLEX", count: 1, positions: ["RB", "WR", "TE"], isStarting: true },
+              ],
+            })
+          }
+        >
+          Add roster slot
+        </Button>
       </fieldset>
 
       <fieldset disabled={busy}>
         <legend>Scoring values</legend>
         <div className="form-grid scoring-grid">
-          {scoringFields.map(([name, label, step]) => <label key={name}>{label}<input type="number" step={step} value={rules.scoringRules[name] ?? 0} onChange={(event) => setRules({ ...rules, scoringRules: { ...rules.scoringRules, [name]: Number(event.target.value) } })} /></label>)}
+          {scoringFields.map(([name, label, step]) => (
+            <FormField key={name} label={label}>
+              <input
+                type="number"
+                step={step}
+                value={rules.scoringRules[name] ?? 0}
+                onChange={(event) =>
+                  setRules({ ...rules, scoringRules: { ...rules.scoringRules, [name]: Number(event.target.value) } })
+                }
+              />
+            </FormField>
+          ))}
         </div>
       </fieldset>
 
       <div className="form-actions">
-        <button type="submit" className="primary-button" disabled={busy}>{busy ? "Saving…" : "Save league"}</button>
-        <button type="button" className="secondary-button" onClick={onCancel} disabled={busy}>Cancel</button>
+        <Button type="submit" variant="primary" disabled={busy}>
+          {busy ? "Saving…" : "Save league"}
+        </Button>
+        <Button onClick={onCancel} disabled={busy}>
+          Cancel
+        </Button>
       </div>
     </form>
   );

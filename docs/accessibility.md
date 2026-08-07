@@ -6,9 +6,11 @@ DraftMeld treats screen-reader and keyboard access as release requirements, not 
 
 - A logical heading and landmark structure identifies the board, recommendations, team, and history.
 - Skip links provide direct access to the board, recommendations, and team.
+- Client-side view changes move focus to the new view's primary heading.
 - Player rankings use a semantic table with a caption, column headers, and player row headers.
 - Every Draft and Taken control includes the player name and position in its accessible name.
 - Draft, Taken, and Undo results are announced through a polite live region.
+- Discrete status messages use one live-region semantic without redundant ARIA declarations.
 - When an action removes the focused player, focus moves to the next available player action.
 - Undo restores the player and returns focus to that player's Draft control.
 - Status and value are never communicated by color alone.

@@ -127,102 +127,16 @@ func (service *RankingService) Consensus(ctx context.Context, preferences map[st
 	if err != nil {
 		return nil, err
 	}
-	definitions := make(map[string]ranking.SourceDefinition, len(service.sources))
-	for _, source := range service.sources {
-		definitions[source.ID] = source
+	if err = validateRankingSourcePreferences(service.sources, preferences); err != nil {
+		return nil, err
 	}
-	enabledSources := 0
-	for _, definition := range service.sources {
-		preference := effectiveSourcePreference(definition, preferences)
-		if preference.Weight <= 0 || preference.Weight > 10 {
-			return nil, fmt.Errorf("ranking source %s requires a weight greater than 0 and no more than 10", definition.ID)
-		}
-		if preference.Enabled {
-			enabledSources++
-		}
-	}
-	if enabledSources == 0 {
-		return nil, fmt.Errorf("at least one ranking source must be enabled")
-	}
-	// The current redraft consensus defines the eligible draft pool. Historical
-	// opportunity and dynasty feeds enrich those players without introducing
-	// retired or otherwise undraftable players on their own.
-	eligible := make(map[string]struct{})
-	for _, record := range records {
-		record = canonicalizeRankingRecord(record)
-		record.PlayerKey = resolveIdentityAlias(record.PlayerKey, aliases)
-		if record.SourceID == "redraft-ecr" || record.SourceID == "espn-ppr-pdf" {
-			eligible[record.PlayerKey] = struct{}{}
-		}
-	}
-	sources := make(map[string]ranking.Source)
-	metadata := make(map[string]ranking.Record)
-	metadataPriority := make(map[string]int)
-	sourceRanks := make(map[string]map[string]int)
-	for _, record := range records {
-		record = canonicalizeRankingRecord(record)
-		originalPlayerKey := record.PlayerKey
-		record.PlayerKey = resolveIdentityAlias(record.PlayerKey, aliases)
-		if _, exists := eligible[record.PlayerKey]; !exists {
-			continue
-		}
-		definition, exists := definitions[record.SourceID]
-		if !exists {
-			continue
-		}
-		preference := effectiveSourcePreference(definition, preferences)
-		if !preference.Enabled {
-			continue
-		}
-		source := sources[record.SourceID]
-		source.ID, source.Role, source.Weight = record.SourceID, definition.Role, preference.Weight
-		if source.Ranks == nil {
-			source.Ranks = make(map[string]int)
-		}
-		if currentRank, ranked := source.Ranks[record.PlayerKey]; !ranked || record.Rank < currentRank {
-			source.Ranks[record.PlayerKey] = record.Rank
-		}
-		sources[record.SourceID] = source
-		priority := 0
-		if record.SourceID == "espn-ppr-pdf" || record.SourceID == "redraft-ecr" {
-			priority += 2
-		}
-		if originalPlayerKey == record.PlayerKey {
-			priority += 4
-		}
-		if _, exists = metadata[record.PlayerKey]; !exists || priority > metadataPriority[record.PlayerKey] {
-			metadata[record.PlayerKey] = record
-			metadataPriority[record.PlayerKey] = priority
-		}
-		if sourceRanks[record.PlayerKey] == nil {
-			sourceRanks[record.PlayerKey] = make(map[string]int)
-		}
-		if currentRank, ranked := sourceRanks[record.PlayerKey][record.SourceID]; !ranked || record.Rank < currentRank {
-			sourceRanks[record.PlayerKey][record.SourceID] = record.Rank
-		}
-	}
-	weighted := make([]ranking.Source, 0, len(sources))
-	for _, source := range sources {
-		weighted = append(weighted, source)
-	}
-	eligiblePlayers := make([]string, 0, len(eligible))
-	for playerID := range eligible {
-		eligiblePlayers = append(eligiblePlayers, playerID)
-	}
-	method := ranking.MethodWeightedAverage
-	if len(methods) > 0 && methods[0] != "" {
-		method = methods[0]
-	}
-	entries, err := ranking.Combine(weighted, eligiblePlayers, method)
+	inputs := buildConsensusInputs(service.sources, resolveRankingRecords(records, aliases), preferences)
+	method := requestedConsensusMethod(methods)
+	entries, err := ranking.Combine(inputs.sources, inputs.players, method)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]ranking.PlayerRanking, 0, len(entries))
-	for index, entry := range entries {
-		player := metadata[entry.PlayerID]
-		result = append(result, ranking.PlayerRanking{PlayerKey: entry.PlayerID, Name: player.Name, Position: player.Position, Team: player.Team, Rank: index + 1, Score: entry.Score, SourceCount: entry.SourceCount, SourceRanks: sourceRanks[entry.PlayerID], Coverage: entry.Coverage, RankRange: entry.RankRange, Confidence: entry.Confidence, Method: method})
-	}
-	return result, nil
+	return playerRankings(entries, inputs, method), nil
 }
 
 func effectiveSourcePreference(definition ranking.SourceDefinition, preferences map[string]league.RankingSourcePreference) league.RankingSourcePreference {

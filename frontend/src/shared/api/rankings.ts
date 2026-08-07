@@ -1,5 +1,13 @@
-import { apiClient, unwrap } from "./client";
-import type { ConsensusRanking, ErrorResponse, IdentityIssue, ProjectionSource, RankingPDFImport, RankingSource, WatchlistPlayer } from "./types";
+import { apiClient, postMultipart, unwrap } from "./client";
+import type {
+  ConsensusRanking,
+  ErrorResponse,
+  IdentityIssue,
+  ProjectionSource,
+  RankingPDFImport,
+  RankingSource,
+  WatchlistPlayer,
+} from "./types";
 
 export async function listRankingSources(): Promise<RankingSource[]> {
   const { data, error, response } = await apiClient.GET("/ranking-sources");
@@ -28,12 +36,7 @@ export async function getRankingWatchlist(leagueId: string): Promise<WatchlistPl
 export async function importRankingPDF(file: File): Promise<RankingPDFImport> {
   const form = new FormData();
   form.append("file", file);
-  const response = await globalThis.fetch(new URL("/api/v1/ranking-sources/import-pdf", window.location.origin), { method: "POST", body: form });
-  const body = await response.json() as RankingPDFImport | ErrorResponse;
-  if (!response.ok) {
-    throw new Error("error" in body ? body.error : `Request failed with ${response.status}`);
-  }
-  return body as RankingPDFImport;
+  return postMultipart<RankingPDFImport>("ranking-sources/import-pdf", form);
 }
 
 export async function listProjectionSources(): Promise<ProjectionSource[]> {
@@ -41,15 +44,16 @@ export async function listProjectionSources(): Promise<ProjectionSource[]> {
   return unwrap(data, error, response);
 }
 
-export async function importProjectionCSV(name: string, file: File, mapping: Record<string, string>): Promise<ProjectionSource> {
+export async function importProjectionCSV(
+  name: string,
+  file: File,
+  mapping: Record<string, string>,
+): Promise<ProjectionSource> {
   const form = new FormData();
   form.append("name", name);
   form.append("file", file);
   form.append("mapping", JSON.stringify(mapping));
-  const response = await globalThis.fetch(new URL("/api/v1/projection-sources/import-csv", window.location.origin), { method: "POST", body: form });
-  const body = await response.json() as ProjectionSource | ErrorResponse;
-  if (!response.ok) throw new Error("error" in body ? body.error : `Request failed with ${response.status}`);
-  return body as ProjectionSource;
+  return postMultipart<ProjectionSource>("projection-sources/import-csv", form);
 }
 
 export async function listIdentityIssues(): Promise<IdentityIssue[]> {
@@ -57,7 +61,14 @@ export async function listIdentityIssues(): Promise<IdentityIssue[]> {
   return unwrap(data, error, response);
 }
 
-export async function reviewIdentity(issueKey: string, resolution: "confirmed-separate" | "acknowledged" | "merged", canonicalPlayerKey = ""): Promise<void> {
-  const { error, response } = await apiClient.POST("/ranking-identities/review", { body: { issueKey, resolution, canonicalPlayerKey } });
-  if (!response.ok) throw new Error((error as ErrorResponse | undefined)?.error ?? `Request failed with ${response.status}`);
+export async function reviewIdentity(
+  issueKey: string,
+  resolution: "confirmed-separate" | "acknowledged" | "merged",
+  canonicalPlayerKey = "",
+): Promise<void> {
+  const { error, response } = await apiClient.POST("/ranking-identities/review", {
+    body: { issueKey, resolution, canonicalPlayerKey },
+  });
+  if (!response.ok)
+    throw new Error((error as ErrorResponse | undefined)?.error ?? `Request failed with ${response.status}`);
 }

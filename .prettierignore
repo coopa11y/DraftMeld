@@ -1,0 +1,6 @@
+node_modules/
+frontend/src/shared/api/generated.ts
+frontend/coverage/
+frontend/dist/
+backend/internal/webui/dist/
+**/*.tsbuildinfo
