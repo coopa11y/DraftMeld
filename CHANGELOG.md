@@ -21,6 +21,9 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 - Sleeper reconciliation counts, remote deletion/change handling, and optional 15-second polling
 - Configurable minimum bids, keeper spend/value calibration, and maximum legal bid protection
 - Golden intelligence scenarios and an API-level draft workflow test backed by temporary SQLite
+- Versioned league configuration backups with non-destructive restore
+- Consensus ranking CSV exports with source weights, evidence, and spreadsheet-formula protection
+- Current draft result exports in CSV and versioned JSON formats
 
 ### Changed
 

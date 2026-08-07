@@ -112,6 +112,91 @@ paths:
                 $ref: "#/components/schemas/League"
         "404":
           $ref: "#/components/responses/NotFound"
+  /leagues/import:
+    post:
+      operationId: importLeagueBackup
+      summary: Restore a versioned league backup as a new league
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeagueBackup"
+      responses:
+        "201":
+          description: Backup restored as a new league without overwriting the original.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/League"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          description: The backup exceeds the 256 KiB limit.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /leagues/{leagueId}/backup:
+    parameters:
+      - $ref: "#/components/parameters/LeagueIdPath"
+    get:
+      operationId: exportLeagueBackup
+      summary: Download a versioned league configuration backup
+      responses:
+        "200":
+          description: Portable league backup.
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeagueBackup"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /leagues/{leagueId}/exports/rankings.csv:
+    parameters:
+      - $ref: "#/components/parameters/LeagueIdPath"
+    get:
+      operationId: exportConsensusRankingsCSV
+      summary: Download league-weighted consensus rankings as CSV
+      responses:
+        "200":
+          description: Consensus rankings with source evidence and weights.
+          content:
+            text/csv:
+              schema: { type: string }
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /leagues/{leagueId}/exports/draft.csv:
+    parameters:
+      - $ref: "#/components/parameters/LeagueIdPath"
+    get:
+      operationId: exportDraftResultsCSV
+      summary: Download current draft results as CSV
+      responses:
+        "200":
+          description: Active draft picks in pick order.
+          content:
+            text/csv:
+              schema: { type: string }
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /leagues/{leagueId}/exports/draft.json:
+    parameters:
+      - $ref: "#/components/parameters/LeagueIdPath"
+    get:
+      operationId: exportDraftResultsJSON
+      summary: Download versioned draft results as JSON
+      responses:
+        "200":
+          description: Versioned draft result export.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DraftExport"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /ranking-sources:
     get:
       operationId: listRankingSources
@@ -541,6 +626,34 @@ components:
             id:
               type: string
         - $ref: "#/components/schemas/LeagueRules"
+    LeagueBackup:
+      type: object
+      additionalProperties: false
+      required: [formatVersion, exportedAt, originalLeagueId, rules, recommendationPolicy]
+      properties:
+        formatVersion:
+          type: integer
+          const: 1
+        exportedAt:
+          type: string
+          format: date-time
+        originalLeagueId:
+          type: string
+        rules:
+          $ref: "#/components/schemas/LeagueRules"
+        recommendationPolicy:
+          $ref: "#/components/schemas/RecommendationPolicy"
+    RecommendationPolicy:
+      type: object
+      additionalProperties: false
+      required: [baseScore, startingNeedBonus, adpValueThreshold, scarcityBonus, scarcityDropOff, recommendationLimit]
+      properties:
+        baseScore: { type: number, exclusiveMinimum: 0 }
+        startingNeedBonus: { type: number, minimum: 0 }
+        adpValueThreshold: { type: number, minimum: 0 }
+        scarcityBonus: { type: number, minimum: 0 }
+        scarcityDropOff: { type: integer, minimum: 1 }
+        recommendationLimit: { type: integer, minimum: 1 }
     RosterSlot:
       type: object
       additionalProperties: false
@@ -783,6 +896,26 @@ components:
         auctionMinimumBid: { type: number, minimum: 0 }
         maximumBid: { type: number, minimum: 0 }
         isUserTurn: { type: boolean }
+    DraftExport:
+      type: object
+      additionalProperties: false
+      required: [formatVersion, exportedAt, leagueId, leagueName, draftType, picks, myTeam]
+      properties:
+        formatVersion:
+          type: integer
+          const: 1
+        exportedAt:
+          type: string
+          format: date-time
+        leagueId: { type: string }
+        leagueName: { type: string }
+        draftType: { type: string, enum: [snake, linear, auction] }
+        picks:
+          type: array
+          items: { $ref: "#/components/schemas/Pick" }
+        myTeam:
+          type: array
+          items: { $ref: "#/components/schemas/Player" }
     SleeperSyncResult:
       type: object
       additionalProperties: false

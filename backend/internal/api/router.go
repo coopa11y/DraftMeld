@@ -169,6 +169,7 @@ func NewRouter(
 		writeJSON(response, http.StatusOK, snapshot)
 	})
 	registerLeagueRoutes(mux, leagueService)
+	registerExportRoutes(mux, application.NewExportService(leagueService, draftService, rankingService))
 	registerRankingRoutes(mux, rankingService, leagueService)
 	if len(projectionServices) > 0 && projectionServices[0] != nil {
 		registerProjectionRoutes(mux, projectionServices[0])
