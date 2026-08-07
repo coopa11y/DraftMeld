@@ -1,4 +1,4 @@
-import type { League, LeagueRules } from "./types";
+import type { League, LeagueBackup, LeagueRules } from "./types";
 import { apiClient, ensureSuccess, unwrap } from "./client";
 
 export async function listLeagues(): Promise<League[]> {
@@ -31,6 +31,43 @@ export async function deleteLeague(id: string): Promise<void> {
     params: { path: { leagueId: id } },
   });
   ensureSuccess(error, response);
+}
+
+export async function importLeagueBackup(backup: LeagueBackup): Promise<League> {
+  const { data, error, response } = await apiClient.POST("/leagues/import", { body: backup });
+  return unwrap(data, error, response);
+}
+
+export type LeagueExportKind = "backup" | "rankings.csv" | "draft.csv" | "draft.json";
+
+export async function downloadLeagueExport(id: string, kind: LeagueExportKind): Promise<string> {
+  const path =
+    kind === "backup"
+      ? `/leagues/${encodeURIComponent(id)}/backup`
+      : `/leagues/${encodeURIComponent(id)}/exports/${kind}`;
+  const response = await fetch(`/api/v1${path}`, {
+    headers: { Accept: kind.endsWith(".csv") ? "text/csv" : "application/json" },
+  });
+  if (!response.ok) {
+    let message = `Download failed with status ${response.status}.`;
+    try {
+      const payload = (await response.json()) as { error?: string };
+      if (payload.error) message = payload.error;
+    } catch {
+      // Keep the status-based fallback when an intermediary returns a non-JSON error page.
+    }
+    throw new Error(message);
+  }
+  const blob = await response.blob();
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const filename = disposition.match(/filename="([^"]+)"/i)?.[1] ?? `draftmeld-${id}-${kind}`;
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  return filename;
 }
 
 export function leagueToRules(league: League): LeagueRules {

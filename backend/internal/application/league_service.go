@@ -70,12 +70,20 @@ func (service *LeagueService) Get(ctx context.Context, id string) (LeagueConfigu
 }
 
 func (service *LeagueService) Create(ctx context.Context, rules league.Rules) (LeagueConfiguration, error) {
+	return service.create(ctx, rules, DefaultRecommendationPolicy())
+}
+
+func (service *LeagueService) Restore(ctx context.Context, rules league.Rules, recommendation league.RecommendationPolicy) (LeagueConfiguration, error) {
+	return service.create(ctx, rules, recommendation)
+}
+
+func (service *LeagueService) create(ctx context.Context, rules league.Rules, recommendation league.RecommendationPolicy) (LeagueConfiguration, error) {
 	service.mu.Lock()
 	defer service.mu.Unlock()
 
 	rules = withDefaultSourcePreferences(rules)
 	configuration := LeagueConfiguration{
-		ID: slugify(rules.Name), Rules: rules, Recommendation: DefaultRecommendationPolicy(),
+		ID: slugify(rules.Name), Rules: rules, Recommendation: recommendation,
 	}
 	if err := configuration.Validate(); err != nil {
 		return LeagueConfiguration{}, fmt.Errorf("%w: %v", ErrInvalidLeague, err)

@@ -278,6 +278,57 @@ func TestDraftWorkflowEndToEnd(t *testing.T) {
 	}
 }
 
+func TestExportAndRestoreWorkflow(t *testing.T) {
+	router, closeStore := testRouter(t)
+	defer closeStore()
+
+	backupResponse := httptest.NewRecorder()
+	router.ServeHTTP(backupResponse, httptest.NewRequest(http.MethodGet, "/api/v1/leagues/demo/backup", nil))
+	if backupResponse.Code != http.StatusOK || !strings.Contains(backupResponse.Header().Get("Content-Disposition"), "backup.json") {
+		t.Fatalf("backup export failed: %d %s", backupResponse.Code, backupResponse.Body.String())
+	}
+	var backup application.LeagueBackup
+	if err := json.NewDecoder(backupResponse.Body).Decode(&backup); err != nil {
+		t.Fatal(err)
+	}
+	backupBytes, err := json.Marshal(backup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restoreResponse := httptest.NewRecorder()
+	router.ServeHTTP(restoreResponse, httptest.NewRequest(http.MethodPost, "/api/v1/leagues/import", bytes.NewReader(backupBytes)))
+	if restoreResponse.Code != http.StatusCreated || !strings.Contains(restoreResponse.Body.String(), `"id":"demo-league"`) {
+		t.Fatalf("backup restore failed: %d %s", restoreResponse.Code, restoreResponse.Body.String())
+	}
+
+	actionResponse := httptest.NewRecorder()
+	router.ServeHTTP(actionResponse, httptest.NewRequest(http.MethodPost, "/api/v1/draft/actions", bytes.NewBufferString(`{"leagueId":"demo","playerId":"p001","action":"draft"}`)))
+	if actionResponse.Code != http.StatusOK {
+		t.Fatalf("draft action failed: %d %s", actionResponse.Code, actionResponse.Body.String())
+	}
+	for _, export := range []struct {
+		path        string
+		contentType string
+		contains    string
+	}{
+		{"/api/v1/leagues/demo/exports/rankings.csv", "text/csv", "enabled_source_weights"},
+		{"/api/v1/leagues/demo/exports/draft.csv", "text/csv", "Alex Rivers"},
+		{"/api/v1/leagues/demo/exports/draft.json", "application/json", `"picks"`},
+	} {
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, export.path, nil))
+		if response.Code != http.StatusOK || !strings.HasPrefix(response.Header().Get("Content-Type"), export.contentType) || !strings.Contains(response.Body.String(), export.contains) {
+			t.Fatalf("export %s failed: %d %s", export.path, response.Code, response.Body.String())
+		}
+	}
+
+	invalidResponse := httptest.NewRecorder()
+	router.ServeHTTP(invalidResponse, httptest.NewRequest(http.MethodPost, "/api/v1/leagues/import", bytes.NewBufferString(`{"formatVersion":99,"exportedAt":"2026-08-07T12:00:00Z","originalLeagueId":"demo","rules":{}}`)))
+	if invalidResponse.Code != http.StatusBadRequest {
+		t.Fatalf("expected unsupported backup status %d, got %d", http.StatusBadRequest, invalidResponse.Code)
+	}
+}
+
 func testRouterWithDraftService(t *testing.T) (http.Handler, func(), *application.DraftService) {
 	t.Helper()
 	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")

@@ -1,5 +1,5 @@
 import { axe } from "jest-axe";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -308,6 +308,61 @@ describe("accessible draft board", () => {
 
     expect(await screen.findByRole("heading", { name: "Family League" })).toBeInTheDocument();
     expect(screen.getByText("Family League was saved.")).toBeInTheDocument();
+  });
+
+  it("restores a versioned league backup without overwriting existing leagues", async () => {
+    let configuredLeagues = [demoLeague];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const path = new URL(request.url).pathname;
+        if (path.endsWith("/leagues") && request.method === "GET") return jsonResponse(configuredLeagues);
+        if (path.endsWith("/leagues/import") && request.method === "POST") {
+          const backup = (await request.clone().json()) as { rules: Omit<League, "id"> };
+          const restored = { id: "demo-league", ...backup.rules };
+          configuredLeagues = [...configuredLeagues, restored];
+          return jsonResponse(restored, 201);
+        }
+        return jsonResponse(snapshot());
+      }),
+    );
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Manage leagues" }));
+    expect(screen.getByRole("heading", { name: "Export and backup center" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Consensus rankings (CSV)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Draft results (JSON)" })).toBeInTheDocument();
+
+    const { id: originalLeagueId, ...rules } = demoLeague;
+    const backup = new File(
+      [
+        JSON.stringify({
+          formatVersion: 1,
+          exportedAt: "2026-08-07T12:00:00Z",
+          originalLeagueId,
+          rules,
+          recommendationPolicy: {
+            baseScore: 200,
+            startingNeedBonus: 24,
+            adpValueThreshold: 5,
+            scarcityBonus: 8,
+            scarcityDropOff: 5,
+            recommendationLimit: 5,
+          },
+        }),
+      ],
+      "demo-backup.json",
+      { type: "application/json" },
+    );
+    await user.upload(screen.getByLabelText("DraftMeld backup file"), backup);
+    fireEvent.submit(screen.getByRole("button", { name: "Restore as new league" }).closest("form")!);
+
+    await waitFor(() => expect(screen.getAllByRole("heading", { name: "Demo League", level: 2 })).toHaveLength(2));
+    expect(screen.getByText("Demo League was restored as a new league.")).toBeInTheDocument();
+    expect(screen.getAllByText("Demo League").length).toBeGreaterThan(1);
+    expect((await axe(container)).violations).toHaveLength(0);
   });
 
   it("loads the league selected by the application shell", async () => {

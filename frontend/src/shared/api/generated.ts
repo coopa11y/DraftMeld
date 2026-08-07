@@ -79,6 +79,99 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/leagues/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore a versioned league backup as a new league */
+        post: operations["importLeagueBackup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leagues/{leagueId}/backup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: components["parameters"]["LeagueIdPath"];
+            };
+            cookie?: never;
+        };
+        /** Download a versioned league configuration backup */
+        get: operations["exportLeagueBackup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leagues/{leagueId}/exports/rankings.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: components["parameters"]["LeagueIdPath"];
+            };
+            cookie?: never;
+        };
+        /** Download league-weighted consensus rankings as CSV */
+        get: operations["exportConsensusRankingsCSV"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leagues/{leagueId}/exports/draft.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: components["parameters"]["LeagueIdPath"];
+            };
+            cookie?: never;
+        };
+        /** Download current draft results as CSV */
+        get: operations["exportDraftResultsCSV"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leagues/{leagueId}/exports/draft.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: components["parameters"]["LeagueIdPath"];
+            };
+            cookie?: never;
+        };
+        /** Download versioned draft results as JSON */
+        get: operations["exportDraftResultsJSON"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ranking-sources": {
         parameters: {
             query?: never;
@@ -377,6 +470,23 @@ export interface components {
         League: {
             id: string;
         } & components["schemas"]["LeagueRules"];
+        LeagueBackup: {
+            /** @constant */
+            formatVersion: 1;
+            /** Format: date-time */
+            exportedAt: string;
+            originalLeagueId: string;
+            rules: components["schemas"]["LeagueRules"];
+            recommendationPolicy: components["schemas"]["RecommendationPolicy"];
+        };
+        RecommendationPolicy: {
+            baseScore: number;
+            startingNeedBonus: number;
+            adpValueThreshold: number;
+            scarcityBonus: number;
+            scarcityDropOff: number;
+            recommendationLimit: number;
+        };
         RosterSlot: {
             name: string;
             count: number;
@@ -520,6 +630,18 @@ export interface components {
             auctionMinimumBid: number;
             maximumBid: number;
             isUserTurn: boolean;
+        };
+        DraftExport: {
+            /** @constant */
+            formatVersion: 1;
+            /** Format: date-time */
+            exportedAt: string;
+            leagueId: string;
+            leagueName: string;
+            /** @enum {string} */
+            draftType: "snake" | "linear" | "auction";
+            picks: components["schemas"]["Pick"][];
+            myTeam: components["schemas"]["Player"][];
         };
         SleeperSyncResult: {
             snapshot: components["schemas"]["DraftSnapshot"];
@@ -731,6 +853,133 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["League"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    importLeagueBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeagueBackup"];
+            };
+        };
+        responses: {
+            /** @description Backup restored as a new league without overwriting the original. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["League"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description The backup exceeds the 256 KiB limit. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    exportLeagueBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: components["parameters"]["LeagueIdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Portable league backup. */
+            200: {
+                headers: {
+                    "Content-Disposition"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueBackup"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    exportConsensusRankingsCSV: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: components["parameters"]["LeagueIdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Consensus rankings with source evidence and weights. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    exportDraftResultsCSV: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: components["parameters"]["LeagueIdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Active draft picks in pick order. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    exportDraftResultsJSON: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: components["parameters"]["LeagueIdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Versioned draft result export. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftExport"];
                 };
             };
             404: components["responses"]["NotFound"];

@@ -79,6 +79,8 @@ The frontend proxies `/api` requests to `http://localhost:8080`. A production bu
 
 On first launch, DraftMeld creates a customizable demo league. Use **Manage leagues** to create, edit, duplicate, or delete leagues and switch the active draft board.
 
+The **Export and backup center** under Manage leagues downloads versioned league backups, consensus ranking CSVs, and draft results. Restores always create a new league rather than overwriting existing data. See [data portability](docs/data-portability.md) for formats and compatibility guarantees.
+
 Use **Ranking sources** to review each feed's method, license, weight, freshness, and project link before refreshing the local data or privately importing a supported PDF. See [docs/ranking-sources.md](docs/ranking-sources.md) for the source set, supported PDF formats, and current matching limitations.
 
 Run the same contract, type, unit-test, vet, and production-build checks used for pull requests:

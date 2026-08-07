@@ -6,6 +6,7 @@ import { Button } from "../shared/ui/Button";
 import { Dialog } from "../shared/ui/Dialog";
 import { Panel } from "../shared/ui/Panel";
 import { StatusMessage } from "../shared/ui/StatusMessage";
+import { LeagueDataTools } from "./LeagueDataTools";
 import { LeagueForm } from "./LeagueForm";
 
 interface LeagueManagerProps {
@@ -76,7 +77,7 @@ export function LeagueManager({ leagues, activeLeagueId, onLeaguesChange, onOpen
           </Button>
         </div>
 
-        <StatusMessage visuallyHidden>{message}</StatusMessage>
+        {message ? <StatusMessage tone="success">{message}</StatusMessage> : null}
         {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
         {leagues.length === 0 ? (
           <div className="empty-leagues">
@@ -153,6 +154,15 @@ export function LeagueManager({ leagues, activeLeagueId, onLeaguesChange, onOpen
           ))}
         </ul>
       </Panel>
+      <LeagueDataTools
+        activeLeagueId={activeLeagueId}
+        busy={busy}
+        leagues={leagues}
+        onBusyChange={setBusy}
+        onError={setError}
+        onImported={async (league) => refresh(league.id)}
+        onMessage={setMessage}
+      />
     </main>
   );
 }

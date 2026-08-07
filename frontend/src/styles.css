@@ -568,8 +568,46 @@ tbody tr:focus-within {
 }
 
 .league-setup-layout {
+  display: grid;
+  gap: 1.25rem;
   width: min(1120px, calc(100% - 2rem));
   margin: 1.25rem auto 3rem;
+}
+.league-data-tools {
+  padding: clamp(1rem, 3vw, 2rem);
+}
+.league-data-tools .section-heading {
+  padding: 0 0 1.4rem;
+}
+.data-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.data-tools-grid > div,
+.data-tools-grid > form {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+  padding: 1.2rem;
+  background: var(--color-surface-deep);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.75rem;
+}
+.data-tools-grid select,
+.data-tools-grid input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.65rem 0.75rem;
+  color: var(--color-text);
+  background: var(--color-background);
+  border: 1px solid var(--color-border-input);
+  border-radius: 0.5rem;
+}
+.export-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
 }
 .league-manager,
 .league-form {
@@ -1208,6 +1246,10 @@ tbody tr:focus-within {
   .source-card dl div {
     grid-template-columns: 1fr;
     gap: 0.15rem;
+  }
+  .data-tools-grid,
+  .export-actions {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
