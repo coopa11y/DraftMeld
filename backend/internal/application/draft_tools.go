@@ -31,7 +31,11 @@ func (service *DraftService) MockToNextTurn(ctx context.Context, leagueID string
 	if err != nil {
 		return draft.Snapshot{}, err
 	}
-	currentPick := len(replay(events).activeEvents) + 1
+	activeEvents := replay(events).activeEvents
+	if err = service.requireDraftStarted(ctx, leagueID, configuration.Rules.Season, len(activeEvents), totalDraftPicks(configuration.Rules)); err != nil {
+		return draft.Snapshot{}, err
+	}
+	currentPick := len(activeEvents) + 1
 	trades, err := service.pickTrades(ctx, leagueID)
 	if err != nil {
 		return draft.Snapshot{}, err
@@ -158,6 +162,9 @@ func (service *DraftService) SyncSleeper(ctx context.Context, leagueID, sleeperD
 		return SleeperSyncResult{}, err
 	}
 	state := replay(events)
+	if err = service.requireDraftStarted(ctx, leagueID, configuration.Rules.Season, len(state.activeEvents), totalDraftPicks(configuration.Rules)); err != nil {
+		return SleeperSyncResult{}, err
+	}
 	previous := make(map[string]draft.Action, len(state.playerActions))
 	for playerID, action := range state.playerActions {
 		previous[playerID] = action

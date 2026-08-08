@@ -2,6 +2,14 @@
 
 DraftMeld treats a franchise as permanent and its draft position as season-specific. Changing the draft order swaps franchise assignments without renaming teams or changing which franchise belongs to the user.
 
+## Draft sessions
+
+Every league season has an explicit not-started, in-progress, or complete state. Before starting, the draft room reviews the season, format, league size, total selections, and the user's draft position. Player selections, opponent simulation, undo, and Sleeper synchronization remain unavailable until the user starts the draft.
+
+A reset requires both an acknowledgment and the exact league name. It clears only active current-season selections. League settings, franchises, draft order, trades, prior dynasty rosters and seasons, and future assets remain intact. The cleared selections can be restored until the user starts the reset draft again.
+
+Structural settings such as league size, draft format, draft order, roster construction, scoring, and auction rules are locked while a draft is in progress or complete. Names, source weights, consensus method, and player target or avoid preferences remain editable during the draft.
+
 ## Trade rules
 
 - Redraft leagues can trade any unused pick in the active draft.

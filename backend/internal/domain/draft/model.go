@@ -3,11 +3,18 @@ package draft
 import "time"
 
 type Action string
+type SessionStatus string
 
 const (
 	ActionDraft Action = "draft"
 	ActionTaken Action = "taken"
 	ActionUndo  Action = "undo"
+)
+
+const (
+	SessionNotStarted SessionStatus = "not-started"
+	SessionInProgress SessionStatus = "in-progress"
+	SessionComplete   SessionStatus = "complete"
 )
 
 type Player struct {
@@ -38,6 +45,16 @@ type Event struct {
 	CreatedAt     time.Time `json:"createdAt"`
 	Cost          float64   `json:"cost"`
 	TeamNumber    int       `json:"teamNumber"`
+}
+
+type Session struct {
+	LeagueID    string        `json:"leagueId"`
+	Season      int           `json:"season"`
+	Status      SessionStatus `json:"status"`
+	StartedAt   time.Time     `json:"startedAt,omitempty"`
+	UpdatedAt   time.Time     `json:"updatedAt"`
+	ResetEvents []Event       `json:"resetEvents,omitempty"`
+	ResetStatus SessionStatus `json:"resetStatus,omitempty"`
 }
 
 type Pick struct {
@@ -152,4 +169,7 @@ type Snapshot struct {
 	BudgetBalances      []BudgetBalance  `json:"budgetBalances"`
 	DraftOrder          []int            `json:"draftOrder"`
 	UserTeamNumber      int              `json:"userTeamNumber"`
+	SessionStatus       SessionStatus    `json:"sessionStatus"`
+	CanReset            bool             `json:"canReset"`
+	CanUndoReset        bool             `json:"canUndoReset"`
 }

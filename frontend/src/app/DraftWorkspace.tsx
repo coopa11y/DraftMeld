@@ -6,10 +6,13 @@ import {
   getDraft,
   recordDraftAction,
   resolveTradeCondition,
+  resetDraftSession,
   setPlayerPreference,
   simulateToNextTurn,
+  startDraftSession,
   syncSleeperDraft,
   undoDraftAction,
+  undoDraftSessionReset,
 } from "../shared/api/draft";
 import type {
   BudgetAsset,
@@ -160,6 +163,55 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
     }
   }
 
+  async function handleStartDraft() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const updated = await startDraftSession(leagueId);
+      setSnapshot(updated);
+      setSelectedTeamNumber(defaultSelectedTeam(updated));
+      setAnnouncement(`Draft started. ${teamName(updated, updated.onClockTeamNumber)} is on the clock.`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to start the draft.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleResetDraft(confirmation: string) {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const updated = await resetDraftSession(leagueId, confirmation);
+      setSnapshot(updated);
+      setSelectedTeamNumber(defaultSelectedTeam(updated));
+      setAnnouncement("Current-season draft selections were cleared. The reset can still be undone.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to reset the draft.");
+      throw reason;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUndoReset() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const updated = await undoDraftSessionReset(leagueId);
+      setSnapshot(updated);
+      setSelectedTeamNumber(defaultSelectedTeam(updated));
+      setAnnouncement(`${updated.history.length} draft selections were restored.`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to restore the draft.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleCreateTrade(
     teamOne: number,
     teamTwo: number,
@@ -272,6 +324,7 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
 
   const onClockTeam = snapshot.teams.find((team) => team.number === selectedTeamNumber);
   const selectedTeamIsUser = onClockTeam?.isUser ?? false;
+  const draftActive = snapshot.sessionStatus === "in-progress";
 
   return (
     <>
@@ -296,11 +349,11 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
         ) : null}
         <section
           className="workspace-status"
-          aria-label={`Draft status. Pick ${snapshot.pickNumber}. ${snapshot.available.length} players available.`}
+          aria-label={`Draft status. ${sessionStatusLabel(snapshot)}. ${snapshot.available.length} players available.`}
         >
           <span>{snapshot.leagueName}</span>
-          <strong>{snapshot.isComplete ? "Draft complete" : `Pick ${snapshot.pickNumber}`}</strong>
-          {onClockTeam ? <span>{onClockTeam.name} on the clock</span> : null}
+          <strong>{sessionStatusLabel(snapshot)}</strong>
+          {draftActive && onClockTeam ? <span>{onClockTeam.name} on the clock</span> : null}
           <span>{snapshot.available.length} available</span>
           <span>
             {snapshot.dataMode}
@@ -310,7 +363,7 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
         <div className="draft-layout" aria-busy={busy}>
           <PlayerBoard
             snapshot={snapshot}
-            busy={busy}
+            busy={busy || !draftActive}
             headingRef={boardHeading}
             selectedTeamNumber={selectedTeamNumber}
             selectedTeamIsUser={selectedTeamIsUser}
@@ -320,7 +373,7 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
           />
           <DraftSidebar
             snapshot={snapshot}
-            busy={busy}
+            busy={busy || !draftActive}
             selectedTeamNumber={selectedTeamNumber}
             selectedTeamIsUser={selectedTeamIsUser}
             onSelectedTeamChange={setSelectedTeamNumber}
@@ -336,10 +389,19 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
           onDeleteTrade={handleDeleteTrade}
           onResolveTrade={handleResolveTrade}
           onAdvanceSeason={handleAdvanceSeason}
+          onStartDraft={handleStartDraft}
+          onResetDraft={handleResetDraft}
+          onUndoReset={handleUndoReset}
         />
       </main>
     </>
   );
+}
+
+function sessionStatusLabel(snapshot: DraftSnapshot) {
+  if (snapshot.sessionStatus === "not-started") return "Draft not started";
+  if (snapshot.sessionStatus === "complete") return "Draft complete";
+  return `Pick ${snapshot.pickNumber}`;
 }
 
 function defaultSelectedTeam(snapshot: DraftSnapshot): number {

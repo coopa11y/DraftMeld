@@ -432,6 +432,62 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /draft/session/start:
+    post:
+      operationId: startDraftSession
+      summary: Start the current league season's draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DraftSessionRequest" }
+      responses:
+        "200":
+          description: Started draft state.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DraftSnapshot" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /draft/session/reset:
+    post:
+      operationId: resetDraftSession
+      summary: Clear current-season selections while preserving league assets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DraftResetRequest" }
+      responses:
+        "200":
+          description: Reset draft state.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DraftSnapshot" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /draft/session/undo-reset:
+    post:
+      operationId: undoDraftSessionReset
+      summary: Restore the selections removed by the most recent reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DraftSessionRequest" }
+      responses:
+        "200":
+          description: Restored draft state.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DraftSnapshot" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
   /draft/trades:
     post:
       operationId: createDraftTrade
@@ -621,6 +677,12 @@ components:
             $ref: "#/components/schemas/ErrorResponse"
     NotFound:
       description: The requested resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: The request conflicts with the current draft state.
       content:
         application/json:
           schema:
@@ -1064,6 +1126,9 @@ components:
           budgetBalances,
           draftOrder,
           userTeamNumber,
+          sessionStatus,
+          canReset,
+          canUndoReset,
         ]
       properties:
         leagueId: { type: string }
@@ -1115,6 +1180,9 @@ components:
           type: array
           items: { type: integer, minimum: 1 }
         userTeamNumber: { type: integer, minimum: 1 }
+        sessionStatus: { type: string, enum: [not-started, in-progress, complete] }
+        canReset: { type: boolean }
+        canUndoReset: { type: boolean }
     DraftPickSlot:
       type: object
       required:
@@ -1338,3 +1406,16 @@ components:
         action: { type: string, enum: [draft, taken] }
         cost: { type: number, minimum: 0 }
         teamNumber: { type: integer, minimum: 0 }
+    DraftSessionRequest:
+      type: object
+      additionalProperties: false
+      required: [leagueId]
+      properties:
+        leagueId: { type: string }
+    DraftResetRequest:
+      type: object
+      additionalProperties: false
+      required: [leagueId, confirmation]
+      properties:
+        leagueId: { type: string }
+        confirmation: { type: string }

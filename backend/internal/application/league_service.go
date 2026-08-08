@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/draft"
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/league"
 )
 
@@ -111,7 +113,15 @@ func (service *LeagueService) Update(ctx context.Context, id string, rules leagu
 	if configuration.Rules.LeagueFormat == league.LeagueFormatDynasty && rules.Season != configuration.Rules.Season {
 		return LeagueConfiguration{}, fmt.Errorf("%w: use the guided season rollover to change a dynasty league's season", ErrInvalidLeague)
 	}
-	configuration.Rules = withDefaultSourcePreferences(rules)
+	updatedRules := withDefaultSourcePreferences(rules)
+	locked, lockErr := service.draftStructureLocked(ctx, id, configuration.Rules.Season)
+	if lockErr != nil {
+		return LeagueConfiguration{}, lockErr
+	}
+	if locked && draftStructureChanged(configuration.Rules, updatedRules) {
+		return LeagueConfiguration{}, fmt.Errorf("%w: reset the current draft before changing its structure", ErrInvalidLeague)
+	}
+	configuration.Rules = updatedRules
 	if err = configuration.Validate(); err != nil {
 		return LeagueConfiguration{}, fmt.Errorf("%w: %v", ErrInvalidLeague, err)
 	}
@@ -119,6 +129,35 @@ func (service *LeagueService) Update(ctx context.Context, id string, rules leagu
 		return LeagueConfiguration{}, err
 	}
 	return configuration, nil
+}
+
+func (service *LeagueService) draftStructureLocked(ctx context.Context, leagueID string, season int) (bool, error) {
+	if sessions, ok := service.repository.(DraftSessionRepository); ok {
+		session, found, err := sessions.GetDraftSession(ctx, leagueID, season)
+		if err != nil {
+			return false, err
+		}
+		if found && (session.Status == draft.SessionInProgress || session.Status == draft.SessionComplete) {
+			return true, nil
+		}
+	}
+	if events, ok := service.repository.(seasonDraftEventRepository); ok {
+		seasonEvents, err := events.ListSeason(ctx, leagueID, season)
+		if err != nil {
+			return false, err
+		}
+		return len(replay(seasonEvents).activeEvents) > 0, nil
+	}
+	return false, nil
+}
+
+func draftStructureChanged(current, updated league.Rules) bool {
+	updated.Name = current.Name
+	updated.TeamNames = current.TeamNames
+	updated.SourcePreferences = current.SourcePreferences
+	updated.ConsensusMethod = current.ConsensusMethod
+	updated.PlayerPreferences = current.PlayerPreferences
+	return !reflect.DeepEqual(current, updated)
 }
 
 func (service *LeagueService) Duplicate(ctx context.Context, id string) (LeagueConfiguration, error) {

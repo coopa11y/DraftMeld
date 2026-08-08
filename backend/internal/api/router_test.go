@@ -191,6 +191,35 @@ func TestDraftActionAndUndoEndpoints(t *testing.T) {
 	}
 }
 
+func TestDraftSessionEndpoints(t *testing.T) {
+	router, closeStore, _ := testRouterWithDraftService(t)
+	defer closeStore()
+
+	resetResponse := httptest.NewRecorder()
+	router.ServeHTTP(resetResponse, httptest.NewRequest(http.MethodPost, "/api/v1/draft/session/reset", bytes.NewBufferString(`{"leagueId":"demo","confirmation":"Demo League"}`)))
+	if resetResponse.Code != http.StatusOK {
+		t.Fatalf("reset draft status = %d: %s", resetResponse.Code, resetResponse.Body.String())
+	}
+	var reset draft.Snapshot
+	if err := json.NewDecoder(resetResponse.Body).Decode(&reset); err != nil || reset.SessionStatus != draft.SessionNotStarted || !reset.CanUndoReset {
+		t.Fatalf("unexpected reset response: snapshot=%#v error=%v", reset, err)
+	}
+
+	undoResponse := httptest.NewRecorder()
+	router.ServeHTTP(undoResponse, httptest.NewRequest(http.MethodPost, "/api/v1/draft/session/undo-reset", bytes.NewBufferString(`{"leagueId":"demo"}`)))
+	if undoResponse.Code != http.StatusOK {
+		t.Fatalf("undo reset status = %d: %s", undoResponse.Code, undoResponse.Body.String())
+	}
+
+	resetAgain := httptest.NewRecorder()
+	router.ServeHTTP(resetAgain, httptest.NewRequest(http.MethodPost, "/api/v1/draft/session/reset", bytes.NewBufferString(`{"leagueId":"demo","confirmation":"Demo League"}`)))
+	startResponse := httptest.NewRecorder()
+	router.ServeHTTP(startResponse, httptest.NewRequest(http.MethodPost, "/api/v1/draft/session/start", bytes.NewBufferString(`{"leagueId":"demo"}`)))
+	if startResponse.Code != http.StatusOK {
+		t.Fatalf("start draft status = %d: %s", startResponse.Code, startResponse.Body.String())
+	}
+}
+
 func TestDraftPickTradeEndpointHandlesPickPackages(t *testing.T) {
 	router, closeStore := testRouter(t)
 	defer closeStore()
@@ -408,6 +437,9 @@ func testRouterWithDraftService(t *testing.T) (http.Handler, func(), *applicatio
 	service, err := application.NewDraftServiceWithLeagues(store, store, draft.DemoCatalog())
 	if err != nil {
 		t.Fatalf("create persisted draft service: %v", err)
+	}
+	if _, err = service.StartDraft(t.Context(), "demo"); err != nil {
+		t.Fatalf("start test draft: %v", err)
 	}
 	rankingService := application.NewRankingService(store)
 	projectionService := application.NewProjectionService(store)

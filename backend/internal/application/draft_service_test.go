@@ -72,6 +72,7 @@ func TestDraftEnforcesPickOwnershipAndCompletion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	startTestDraft(t, service, "demo")
 	if _, err = service.RecordForTeam(t.Context(), "demo", "p001", draft.ActionDraft, 0, 2); err == nil {
 		t.Fatal("expected a user draft action to be rejected when the pick is assigned to an opponent")
 	}
@@ -106,6 +107,7 @@ func TestDraftSupportsTradedPickOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	startTestDraft(t, service, "demo")
 
 	afterTrade, err := service.RecordForTeam(t.Context(), "demo", "p001", draft.ActionDraft, 0, 2)
 	if err != nil {
@@ -130,6 +132,7 @@ func TestDraftPickTradeUpdatesAnyUnusedRoundAndPersists(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	startTestDraft(t, service, "demo")
 
 	afterTrade, err := service.CreatePickTrade(t.Context(), "demo", 12, 1, []int{1}, []int{12, 13}, nil, nil, 0, 0)
 	if err != nil {
@@ -183,6 +186,7 @@ func TestDynastyFuturePickTradeSurvivesSeasonChange(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	startTestDraft(t, service, "demo")
 	future := draft.FuturePick{Season: 2027, Round: 1, OriginalTeamNumber: 2}
 	afterTrade, err := service.CreatePickTrade(t.Context(), "demo", 1, 2, nil, []int{1}, []draft.FuturePick{future}, nil, 0, 0)
 	if err != nil {
@@ -295,6 +299,7 @@ func TestDynastyFranchisesPlayersAndDraftOrderPersistAcrossRollover(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
+	startTestDraft(t, service, "demo")
 	if _, err = service.RecordForTeam(t.Context(), "demo", "p002", draft.ActionTaken, 0, 2); err != nil {
 		t.Fatalf("record Rival pick from first draft slot: %v", err)
 	}
@@ -313,7 +318,7 @@ func TestDynastyFranchisesPlayersAndDraftOrderPersistAcrossRollover(t *testing.T
 	if err != nil {
 		t.Fatalf("advance dynasty season: %v", err)
 	}
-	if next.Season != 2027 || next.OnClockTeamNumber != 1 || next.TotalPicks != 4 || len(next.History) != 0 {
+	if next.Season != 2027 || next.OnClockTeamNumber != 0 || next.SessionStatus != draft.SessionNotStarted || next.TotalPicks != 4 || len(next.History) != 0 {
 		t.Fatalf("unexpected next-season draft: %#v", next)
 	}
 	if len(next.Teams[0].Roster) != 1 || next.Teams[0].Roster[0].ID != "p002" || containsPlayer(next.Available, "p001") || containsPlayer(next.Available, "p002") {
@@ -518,6 +523,7 @@ func TestAuctionActionsTrackBudget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	startTestDraft(t, service, "demo")
 	snapshot, err := service.Record(t.Context(), "demo", "p001", draft.ActionDraft, 37)
 	if err != nil {
 		t.Fatal(err)
@@ -527,13 +533,108 @@ func TestAuctionActionsTrackBudget(t *testing.T) {
 	}
 }
 
+func TestDraftSessionStartResetAndRestore(t *testing.T) {
+	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	configuration := DemoLeagueConfiguration()
+	configuration.Rules.TeamCount = 2
+	configuration.Rules.TeamNames = []string{"Marcus", "Opponent"}
+	configuration.Rules.DraftOrder = []int{1, 2}
+	configuration.Rules.RosterSlots = []league.RosterSlot{{Name: "FLEX", Count: 1, Positions: []string{"RB", "WR"}, IsStarting: true}}
+	service, err := NewDraftService(store, draft.DemoCatalog(), configuration)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	initial, err := service.Snapshot(t.Context(), "demo")
+	if err != nil || initial.SessionStatus != draft.SessionNotStarted || initial.CanReset {
+		t.Fatalf("unexpected initial session: snapshot=%#v error=%v", initial, err)
+	}
+	if _, err = service.RecordForTeam(t.Context(), "demo", "p001", draft.ActionDraft, 0, 1); !errors.Is(err, ErrDraftNotStarted) {
+		t.Fatalf("record before start error = %v", err)
+	}
+	started, err := service.StartDraft(t.Context(), "demo")
+	if err != nil || started.SessionStatus != draft.SessionInProgress || !started.CanReset {
+		t.Fatalf("unexpected started session: snapshot=%#v error=%v", started, err)
+	}
+	if _, err = service.RecordForTeam(t.Context(), "demo", "p001", draft.ActionDraft, 0, 1); err != nil {
+		t.Fatal(err)
+	}
+	complete, err := service.RecordForTeam(t.Context(), "demo", "p002", draft.ActionTaken, 0, 2)
+	if err != nil || complete.SessionStatus != draft.SessionComplete {
+		t.Fatalf("unexpected completed session: snapshot=%#v error=%v", complete, err)
+	}
+	if _, err = service.ResetDraft(t.Context(), "demo", "wrong name"); err == nil {
+		t.Fatal("expected an exact-name reset confirmation")
+	}
+	reset, err := service.ResetDraft(t.Context(), "demo", configuration.Rules.Name)
+	if err != nil || reset.SessionStatus != draft.SessionNotStarted || len(reset.History) != 0 || !reset.CanUndoReset {
+		t.Fatalf("unexpected reset session: snapshot=%#v error=%v", reset, err)
+	}
+	restored, err := service.UndoDraftReset(t.Context(), "demo")
+	if err != nil || restored.SessionStatus != draft.SessionComplete || len(restored.History) != 2 || restored.CanUndoReset {
+		t.Fatalf("unexpected restored session: snapshot=%#v error=%v", restored, err)
+	}
+	if _, err = service.ResetDraft(t.Context(), "demo", configuration.Rules.Name); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.StartDraft(t.Context(), "demo"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.UndoDraftReset(t.Context(), "demo"); !errors.Is(err, ErrNoResetToUndo) {
+		t.Fatalf("undo after restart error = %v", err)
+	}
+}
+
+func TestLeagueDraftStructureLocksAfterStart(t *testing.T) {
+	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	configuration := DemoLeagueConfiguration()
+	if err = store.SaveLeague(t.Context(), configuration); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewDraftServiceWithLeagues(store, store, draft.DemoCatalog())
+	if err != nil {
+		t.Fatal(err)
+	}
+	startTestDraft(t, service, "demo")
+	leagues := NewLeagueService(store)
+
+	structural := configuration.Rules
+	structural.DraftType = league.DraftTypeLinear
+	if _, err = leagues.Update(t.Context(), "demo", structural); !errors.Is(err, ErrInvalidLeague) {
+		t.Fatalf("structural update error = %v", err)
+	}
+	safe := configuration.Rules
+	safe.Name = "Renamed League"
+	if _, err = leagues.Update(t.Context(), "demo", safe); err != nil {
+		t.Fatalf("safe live update failed: %v", err)
+	}
+}
+
 func newTestDraftService(t *testing.T, repository DraftEventRepository) *DraftService {
 	t.Helper()
 	service, err := NewDraftService(repository, draft.DemoCatalog(), DemoLeagueConfiguration())
 	if err != nil {
 		t.Fatalf("create draft service: %v", err)
 	}
+	if _, ok := repository.(DraftSessionRepository); ok {
+		startTestDraft(t, service, "demo")
+	}
 	return service
+}
+
+func startTestDraft(t *testing.T, service *DraftService, leagueID string) {
+	t.Helper()
+	if _, err := service.StartDraft(t.Context(), leagueID); err != nil {
+		t.Fatalf("start draft: %v", err)
+	}
 }
 
 func containsPlayer(players []draft.Player, playerID string) bool {

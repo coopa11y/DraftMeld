@@ -110,6 +110,11 @@ func (service *DraftService) Snapshot(ctx context.Context, leagueID string) (dra
 	if err != nil {
 		return draft.Snapshot{}, err
 	}
+	activeEventCount := len(replay(events).activeEvents)
+	session, err := service.draftSession(ctx, leagueID, configuration.Rules.Season, activeEventCount, totalDraftPicks(configuration.Rules))
+	if err != nil {
+		return draft.Snapshot{}, err
+	}
 	players, playerByID, dataMode, projectionCount, err := service.playersForLeague(ctx, configuration)
 	if err != nil {
 		return draft.Snapshot{}, err
@@ -129,7 +134,7 @@ func (service *DraftService) Snapshot(ctx context.Context, leagueID string) (dra
 			return draft.Snapshot{}, err
 		}
 	}
-	return service.buildSnapshot(configuration, events, allEvents, trades, players, playerByID, dataMode, projectionCount), nil
+	return service.buildSnapshot(configuration, events, allEvents, trades, players, playerByID, dataMode, projectionCount, session), nil
 }
 
 func (service *DraftService) Record(ctx context.Context, leagueID, playerID string, action draft.Action, costs ...float64) (draft.Snapshot, error) {
@@ -170,6 +175,9 @@ func (service *DraftService) RecordForTeam(ctx context.Context, leagueID, player
 		return draft.Snapshot{}, err
 	}
 	state := replay(events)
+	if err = service.requireDraftStarted(ctx, leagueID, configuration.Rules.Season, len(state.activeEvents), totalDraftPicks(configuration.Rules)); err != nil {
+		return draft.Snapshot{}, err
+	}
 	pickNumber := len(state.activeEvents) + 1
 	if pickNumber > totalDraftPicks(configuration.Rules) {
 		return draft.Snapshot{}, ErrDraftComplete
@@ -251,6 +259,9 @@ func (service *DraftService) Undo(ctx context.Context, leagueID string) (draft.S
 		return draft.Snapshot{}, err
 	}
 	state := replay(events)
+	if err = service.requireDraftStarted(ctx, leagueID, configuration.Rules.Season, len(state.activeEvents), totalDraftPicks(configuration.Rules)); err != nil {
+		return draft.Snapshot{}, err
+	}
 	if len(state.activeEvents) == 0 {
 		return draft.Snapshot{}, ErrNothingToUndo
 	}
@@ -282,7 +293,7 @@ func (service *DraftService) configuration(ctx context.Context, leagueID string)
 	return configuration, nil
 }
 
-func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, events, allEvents []draft.Event, trades []draft.PickTrade, players []draft.Player, playerByID map[string]draft.Player, dataMode string, projectionCount int) draft.Snapshot {
+func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, events, allEvents []draft.Event, trades []draft.PickTrade, players []draft.Player, playerByID map[string]draft.Player, dataMode string, projectionCount int, session draft.Session) draft.Snapshot {
 	state := replay(events)
 	dynastyOwners := map[string]int{}
 	if configuration.Rules.LeagueFormat == league.LeagueFormatDynasty {
@@ -321,20 +332,21 @@ func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, ev
 	pickNumber := len(state.activeEvents) + 1
 	totalPicks := totalDraftPicks(configuration.Rules)
 	complete := len(state.activeEvents) >= totalPicks
+	sessionStatus := draftStatus(len(state.activeEvents), totalPicks, session.Status)
 	nextPick := nextUserPickWithTrades(pickNumber-1, configuration.Rules, trades)
 	auctionRules := configuration.Rules
 	auctionRules.AuctionBudget += auctionBudgetAdjustments(trades, configuration.Rules.Season)[userTeamNumber(configuration.Rules)]
 	budgetRemaining, inflation, maximumBid := auctionState(auctionRules, history, available, len(myTeam))
 	teams := draftTeams(configuration.Rules, history, trades, dynastyOwners, playerByID)
 	onClock := 0
-	if !complete && configuration.Rules.DraftType != league.DraftTypeAuction {
+	if sessionStatus == draft.SessionInProgress && !complete && configuration.Rules.DraftType != league.DraftTypeAuction {
 		onClock = ownerForPick(pickNumber, configuration.Rules, trades)
 	}
 	return draft.Snapshot{
 		LeagueID: configuration.ID, LeagueName: configuration.Rules.Name, PickNumber: pickNumber,
 		Available: available, MyTeam: myTeam, Teams: teams, History: history,
 		Recommendations:     recommend(available, myTeam, configuration.Rules, configuration.Recommendation, recommendationContext{NextUserPick: nextPick, RecentPicks: history}),
-		CanUndo:             len(state.activeEvents) > 0,
+		CanUndo:             sessionStatus != draft.SessionNotStarted && len(state.activeEvents) > 0,
 		DataMode:            dataMode,
 		ProjectionCount:     projectionCount,
 		DraftType:           string(configuration.Rules.DraftType),
@@ -344,7 +356,7 @@ func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, ev
 		AuctionInflation:    inflation,
 		AuctionMinimumBid:   configuration.Rules.AuctionMinimumBid,
 		MaximumBid:          maximumBid,
-		IsUserTurn:          !complete && onClock == userTeamNumber(configuration.Rules),
+		IsUserTurn:          sessionStatus == draft.SessionInProgress && !complete && onClock == userTeamNumber(configuration.Rules),
 		TotalPicks:          totalPicks,
 		IsComplete:          complete,
 		OnClockTeamNumber:   onClock,
@@ -357,6 +369,9 @@ func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, ev
 		BudgetBalances:      draftBudgetBalances(configuration.Rules, events, trades),
 		DraftOrder:          append([]int(nil), configuration.Rules.DraftOrder...),
 		UserTeamNumber:      userTeamNumber(configuration.Rules),
+		SessionStatus:       sessionStatus,
+		CanReset:            sessionStatus != draft.SessionNotStarted,
+		CanUndoReset:        sessionStatus == draft.SessionNotStarted && session.ResetStatus != "",
 	}
 }
 
