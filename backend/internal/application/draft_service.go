@@ -15,6 +15,7 @@ import (
 var (
 	ErrPlayerUnavailable = errors.New("player is no longer available")
 	ErrNothingToUndo     = errors.New("there is no draft action to undo")
+	ErrDraftComplete     = errors.New("the draft is complete")
 )
 
 type DraftEventRepository interface {
@@ -110,6 +111,14 @@ func (service *DraftService) Snapshot(ctx context.Context, leagueID string) (dra
 }
 
 func (service *DraftService) Record(ctx context.Context, leagueID, playerID string, action draft.Action, costs ...float64) (draft.Snapshot, error) {
+	cost := 0.0
+	if len(costs) > 0 {
+		cost = costs[0]
+	}
+	return service.RecordForTeam(ctx, leagueID, playerID, action, cost, 0)
+}
+
+func (service *DraftService) RecordForTeam(ctx context.Context, leagueID, playerID string, action draft.Action, cost float64, requestedTeam int) (draft.Snapshot, error) {
 	service.mu.Lock()
 	defer service.mu.Unlock()
 
@@ -119,10 +128,6 @@ func (service *DraftService) Record(ctx context.Context, leagueID, playerID stri
 	}
 	if action != draft.ActionDraft && action != draft.ActionTaken {
 		return draft.Snapshot{}, fmt.Errorf("unsupported draft action: %q", action)
-	}
-	cost := 0.0
-	if len(costs) > 0 {
-		cost = costs[0]
 	}
 	if cost < 0 || (configuration.Rules.DraftType == league.DraftTypeAuction && cost <= 0) {
 		return draft.Snapshot{}, errors.New("auction draft actions require a positive cost")
@@ -143,6 +148,14 @@ func (service *DraftService) Record(ctx context.Context, leagueID, playerID stri
 		return draft.Snapshot{}, err
 	}
 	state := replay(events)
+	pickNumber := len(state.activeEvents) + 1
+	if pickNumber > totalDraftPicks(configuration.Rules) {
+		return draft.Snapshot{}, ErrDraftComplete
+	}
+	teamNumber, err := teamForDraftAction(configuration.Rules, pickNumber, action, requestedTeam)
+	if err != nil {
+		return draft.Snapshot{}, err
+	}
 	if _, unavailable := state.playerActions[playerID]; unavailable {
 		return draft.Snapshot{}, ErrPlayerUnavailable
 	}
@@ -157,21 +170,25 @@ func (service *DraftService) Record(ctx context.Context, leagueID, playerID stri
 				myRosterSize++
 			}
 		}
-		_, _, maximumBid := auctionState(configuration.Rules, service.history(state.activeEvents, playerByID), available, myRosterSize)
+		_, _, maximumBid := auctionState(configuration.Rules, service.history(state.activeEvents, playerByID, configuration.Rules), available, myRosterSize)
 		if cost > maximumBid {
 			return draft.Snapshot{}, fmt.Errorf("bid exceeds your maximum available bid of $%.0f", maximumBid)
 		}
 	}
-	if _, err = service.repository.Append(ctx, draft.Event{LeagueID: leagueID, PlayerID: playerID, Action: action, Cost: cost}); err != nil {
+	if _, err = service.repository.Append(ctx, draft.Event{LeagueID: leagueID, PlayerID: playerID, Action: action, Cost: cost, TeamNumber: teamNumber}); err != nil {
 		return draft.Snapshot{}, err
 	}
 	return service.Snapshot(ctx, leagueID)
 }
 
-func (service *DraftService) history(events []draft.Event, playerByID map[string]draft.Player) []draft.Pick {
+func (service *DraftService) history(events []draft.Event, playerByID map[string]draft.Player, rules league.Rules) []draft.Pick {
 	history := make([]draft.Pick, 0, len(events))
 	for index, event := range events {
-		history = append(history, draft.Pick{EventID: event.ID, Number: index + 1, Action: event.Action, Player: playerByID[event.PlayerID], CreatedAt: event.CreatedAt, Cost: event.Cost})
+		teamNumber := event.TeamNumber
+		if teamNumber == 0 && rules.DraftType != league.DraftTypeAuction {
+			teamNumber = pickOwner(index+1, rules)
+		}
+		history = append(history, draft.Pick{EventID: event.ID, Number: index + 1, Action: event.Action, Player: playerByID[event.PlayerID], CreatedAt: event.CreatedAt, Cost: event.Cost, TeamNumber: teamNumber, TeamName: teamName(rules, teamNumber)})
 	}
 	return history
 }
@@ -231,17 +248,30 @@ func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, ev
 		}
 	}
 	for index, event := range state.activeEvents {
+		teamNumber := event.TeamNumber
+		if teamNumber == 0 && configuration.Rules.DraftType != league.DraftTypeAuction {
+			teamNumber = pickOwner(index+1, configuration.Rules)
+		}
 		history = append(history, draft.Pick{
 			EventID: event.ID, Number: index + 1, Action: event.Action,
 			Player: playerByID[event.PlayerID], CreatedAt: event.CreatedAt, Cost: event.Cost,
+			TeamNumber: teamNumber, TeamName: teamName(configuration.Rules, teamNumber),
 		})
 	}
 
-	nextPick := nextUserPick(len(state.activeEvents)+1, configuration.Rules)
+	pickNumber := len(state.activeEvents) + 1
+	totalPicks := totalDraftPicks(configuration.Rules)
+	complete := len(state.activeEvents) >= totalPicks
+	nextPick := nextUserPick(pickNumber, configuration.Rules)
 	budgetRemaining, inflation, maximumBid := auctionState(configuration.Rules, history, available, len(myTeam))
+	teams := draftTeams(configuration.Rules, history)
+	onClock := 0
+	if !complete && configuration.Rules.DraftType != league.DraftTypeAuction {
+		onClock = pickOwner(pickNumber, configuration.Rules)
+	}
 	return draft.Snapshot{
-		LeagueID: configuration.ID, LeagueName: configuration.Rules.Name, PickNumber: len(state.activeEvents) + 1,
-		Available: available, MyTeam: myTeam, History: history,
+		LeagueID: configuration.ID, LeagueName: configuration.Rules.Name, PickNumber: pickNumber,
+		Available: available, MyTeam: myTeam, Teams: teams, History: history,
 		Recommendations:   recommend(available, myTeam, configuration.Rules, configuration.Recommendation, recommendationContext{NextUserPick: nextPick, RecentPicks: history}),
 		CanUndo:           len(state.activeEvents) > 0,
 		DataMode:          dataMode,
@@ -253,6 +283,72 @@ func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, ev
 		AuctionInflation:  inflation,
 		AuctionMinimumBid: configuration.Rules.AuctionMinimumBid,
 		MaximumBid:        maximumBid,
-		IsUserTurn:        isUserTurn(len(state.activeEvents)+1, configuration.Rules),
+		IsUserTurn:        !complete && isUserTurn(pickNumber, configuration.Rules),
+		TotalPicks:        totalPicks,
+		IsComplete:        complete,
+		OnClockTeamNumber: onClock,
 	}
+}
+
+func totalDraftPicks(rules league.Rules) int {
+	rosterSize := 0
+	for _, slot := range rules.RosterSlots {
+		rosterSize += slot.Count
+	}
+	return rosterSize * rules.TeamCount
+}
+
+func pickOwner(pick int, rules league.Rules) int {
+	if pick < 1 || rules.TeamCount < 1 || rules.DraftType == league.DraftTypeAuction {
+		return 0
+	}
+	round := (pick - 1) / rules.TeamCount
+	slot := (pick-1)%rules.TeamCount + 1
+	if rules.DraftType == league.DraftTypeSnake && round%2 == 1 {
+		return rules.TeamCount - slot + 1
+	}
+	return slot
+}
+
+func teamName(rules league.Rules, number int) string {
+	if number >= 1 && number <= len(rules.TeamNames) {
+		return rules.TeamNames[number-1]
+	}
+	return "Unassigned"
+}
+
+func teamForDraftAction(rules league.Rules, pick int, action draft.Action, requested int) (int, error) {
+	if rules.DraftType == league.DraftTypeAuction {
+		if action == draft.ActionDraft {
+			return rules.DraftPosition, nil
+		}
+		if requested < 1 || requested > rules.TeamCount || requested == rules.DraftPosition {
+			return 0, errors.New("choose the opponent team that won this player")
+		}
+		return requested, nil
+	}
+	owner := pickOwner(pick, rules)
+	if action == draft.ActionDraft && owner != rules.DraftPosition {
+		return 0, fmt.Errorf("pick %d belongs to %s", pick, teamName(rules, owner))
+	}
+	if action == draft.ActionTaken && owner == rules.DraftPosition {
+		return 0, errors.New("it is your turn; use Draft to add a player to your team")
+	}
+	if requested != 0 && requested != owner {
+		return 0, fmt.Errorf("pick %d belongs to %s", pick, teamName(rules, owner))
+	}
+	return owner, nil
+}
+
+func draftTeams(rules league.Rules, history []draft.Pick) []draft.Team {
+	teams := make([]draft.Team, rules.TeamCount)
+	for index := range teams {
+		teams[index] = draft.Team{Number: index + 1, Name: teamName(rules, index+1), IsUser: index+1 == rules.DraftPosition, Roster: []draft.Player{}}
+	}
+	for _, pick := range history {
+		if pick.TeamNumber >= 1 && pick.TeamNumber <= len(teams) {
+			teams[pick.TeamNumber-1].Roster = append(teams[pick.TeamNumber-1].Roster, pick.Player)
+		}
+	}
+	return teams
 }

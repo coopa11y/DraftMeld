@@ -2,11 +2,13 @@ package application
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/draft"
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/league"
 	draftsqlite "github.com/coopa11y/DraftMeld/backend/internal/persistence/sqlite"
 )
 
@@ -26,6 +28,9 @@ func TestDraftTakenAndUndo(t *testing.T) {
 	if len(afterDraft.MyTeam) != 1 || afterDraft.MyTeam[0].ID != "p001" {
 		t.Fatalf("player was not added to team: %#v", afterDraft.MyTeam)
 	}
+	if afterDraft.History[0].TeamNumber != 1 || afterDraft.History[0].TeamName != "My Team" || len(afterDraft.Teams[0].Roster) != 1 {
+		t.Fatalf("first pick was not assigned to the named user team: %#v", afterDraft)
+	}
 	if len(afterDraft.Available) != len(draft.DemoCatalog())-1 {
 		t.Fatalf("drafted player remained available")
 	}
@@ -37,6 +42,9 @@ func TestDraftTakenAndUndo(t *testing.T) {
 	if len(afterTaken.MyTeam) != 1 || len(afterTaken.History) != 2 {
 		t.Fatalf("unexpected state after taken action: %#v", afterTaken)
 	}
+	if afterTaken.History[1].TeamNumber != 2 || afterTaken.History[1].TeamName != "Team 2" || len(afterTaken.Teams[1].Roster) != 1 {
+		t.Fatalf("opponent pick was not assigned to Team 2: %#v", afterTaken)
+	}
 
 	afterUndo, err := service.Undo(ctx, "demo")
 	if err != nil {
@@ -44,6 +52,39 @@ func TestDraftTakenAndUndo(t *testing.T) {
 	}
 	if len(afterUndo.History) != 1 || !containsPlayer(afterUndo.Available, "p002") {
 		t.Fatalf("undo did not restore player: %#v", afterUndo)
+	}
+}
+
+func TestDraftEnforcesPickOwnershipAndCompletion(t *testing.T) {
+	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	configuration := DemoLeagueConfiguration()
+	configuration.Rules.TeamCount = 2
+	configuration.Rules.DraftPosition = 1
+	configuration.Rules.TeamNames = []string{"Marcus", "Opponent"}
+	configuration.Rules.RosterSlots = []league.RosterSlot{{Name: "FLEX", Count: 1, Positions: []string{"RB", "WR"}, IsStarting: true}}
+	service, err := NewDraftService(store, draft.DemoCatalog(), configuration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.RecordForTeam(t.Context(), "demo", "p001", draft.ActionTaken, 0, 2); err == nil {
+		t.Fatal("expected an opponent action to be rejected on the user's pick")
+	}
+	if _, err = service.RecordForTeam(t.Context(), "demo", "p001", draft.ActionDraft, 0, 1); err != nil {
+		t.Fatal(err)
+	}
+	complete, err := service.RecordForTeam(t.Context(), "demo", "p002", draft.ActionTaken, 0, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !complete.IsComplete || complete.TotalPicks != 2 || len(complete.Teams[0].Roster) != 1 || len(complete.Teams[1].Roster) != 1 {
+		t.Fatalf("draft did not complete with owned rosters: %#v", complete)
+	}
+	if _, err = service.RecordForTeam(t.Context(), "demo", "p003", draft.ActionDraft, 0, 1); !errors.Is(err, ErrDraftComplete) {
+		t.Fatalf("expected completed draft error, got %v", err)
 	}
 }
 
@@ -61,9 +102,9 @@ func TestRecommendationsReactToRosterNeed(t *testing.T) {
 	if len(before.Recommendations) != 5 {
 		t.Fatalf("expected five recommendations, got %d", len(before.Recommendations))
 	}
-	after, err := service.Record(context.Background(), "demo", before.Recommendations[0].Player.ID, draft.ActionTaken)
+	after, err := service.Record(context.Background(), "demo", before.Recommendations[0].Player.ID, draft.ActionDraft)
 	if err != nil {
-		t.Fatalf("mark recommendation taken: %v", err)
+		t.Fatalf("draft recommendation: %v", err)
 	}
 	if after.Recommendations[0].Player.ID == before.Recommendations[0].Player.ID {
 		t.Fatalf("taken player remained recommended")

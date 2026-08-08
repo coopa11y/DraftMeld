@@ -11,9 +11,10 @@ export async function recordDraftAction(
   playerId: string,
   action: DraftAction,
   cost = 0,
+  teamNumber = 0,
 ): Promise<DraftSnapshot> {
   const { data, error, response } = await apiClient.POST("/draft/actions", {
-    body: { leagueId, playerId, action, cost },
+    body: { leagueId, playerId, action, cost, teamNumber },
   });
   return unwrap(data, error, response);
 }

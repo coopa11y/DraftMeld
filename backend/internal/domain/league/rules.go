@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 )
 
 type DraftType string
@@ -30,6 +31,7 @@ type Rules struct {
 	Name               string                             `json:"name"`
 	TeamCount          int                                `json:"teamCount"`
 	DraftPosition      int                                `json:"draftPosition"`
+	TeamNames          []string                           `json:"teamNames"`
 	DraftType          DraftType                          `json:"draftType"`
 	RosterSlots        []RosterSlot                       `json:"rosterSlots"`
 	ScoringRules       map[string]float64                 `json:"scoringRules"`
@@ -82,6 +84,20 @@ func (rules Rules) Validate() error {
 	}
 	if rules.DraftPosition < 1 || rules.DraftPosition > rules.TeamCount {
 		return fmt.Errorf("draft position must be between 1 and %d: %d", rules.TeamCount, rules.DraftPosition)
+	}
+	if len(rules.TeamNames) != 0 && len(rules.TeamNames) != rules.TeamCount {
+		return fmt.Errorf("team names must contain exactly %d entries", rules.TeamCount)
+	}
+	seenTeamNames := make(map[string]bool, len(rules.TeamNames))
+	for _, name := range rules.TeamNames {
+		normalized := strings.ToLower(strings.TrimSpace(name))
+		if normalized == "" || len(name) > 80 {
+			return errors.New("team names must be between 1 and 80 characters")
+		}
+		if seenTeamNames[normalized] {
+			return fmt.Errorf("team names must be unique: %q", name)
+		}
+		seenTeamNames[normalized] = true
 	}
 	switch rules.DraftType {
 	case DraftTypeSnake, DraftTypeLinear, DraftTypeAuction:

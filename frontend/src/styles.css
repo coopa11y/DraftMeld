@@ -39,6 +39,7 @@
 }
 html {
   scroll-behavior: smooth;
+  overflow-x: clip;
 }
 body {
   margin: 0;
@@ -329,6 +330,7 @@ legend,
   max-width: 100%;
   overflow-x: auto;
   overscroll-behavior-inline: contain;
+  contain: inline-size paint;
 }
 table {
   width: 100%;
@@ -1282,6 +1284,51 @@ tbody tr:focus-within {
   .export-actions {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.draft-overview {
+  margin: 1.25rem;
+}
+
+.draft-overview > .section-heading {
+  margin-bottom: 1rem;
+}
+
+.draft-grid {
+  min-width: max(56rem, 100%);
+}
+
+.draft-grid td {
+  min-width: 9rem;
+  vertical-align: top;
+}
+
+.draft-grid td strong,
+.draft-grid td span {
+  display: block;
+}
+
+.draft-grid td span {
+  margin-top: 0.2rem;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.draft-grid .empty-pick {
+  color: var(--border-strong);
+}
+
+.team-roster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.auction-team-select {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
 }
 
 @media (prefers-reduced-motion: reduce) {

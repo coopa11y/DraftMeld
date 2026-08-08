@@ -166,6 +166,7 @@ VALUES (?, ?, ?, ?, ?, ?)`, configuration.ID, index, slot.Name, slot.Count, stri
 }
 
 type leagueDraftSettings struct {
+	TeamNames          []string          `json:"teamNames"`
 	ConsensusMethod    string            `json:"consensusMethod"`
 	PlayerPreferences  map[string]string `json:"playerPreferences"`
 	AuctionBudget      float64           `json:"auctionBudget"`
@@ -177,6 +178,7 @@ type leagueDraftSettings struct {
 
 func newLeagueDraftSettings(rules league.Rules) leagueDraftSettings {
 	return leagueDraftSettings{
+		TeamNames:       rules.TeamNames,
 		ConsensusMethod: rules.ConsensusMethod, PlayerPreferences: rules.PlayerPreferences,
 		AuctionBudget: rules.AuctionBudget, AuctionMinimumBid: rules.AuctionMinimumBid,
 		KeeperBudgetSpent: rules.KeeperBudgetSpent, MyKeeperSpend: rules.MyKeeperSpend, KeeperValueRemoved: rules.KeeperValueRemoved,
@@ -184,6 +186,7 @@ func newLeagueDraftSettings(rules league.Rules) leagueDraftSettings {
 }
 
 func (settings leagueDraftSettings) apply(rules *league.Rules) {
+	rules.TeamNames = settings.TeamNames
 	rules.ConsensusMethod, rules.PlayerPreferences = settings.ConsensusMethod, settings.PlayerPreferences
 	rules.AuctionBudget, rules.AuctionMinimumBid = settings.AuctionBudget, settings.AuctionMinimumBid
 	rules.KeeperBudgetSpent, rules.MyKeeperSpend, rules.KeeperValueRemoved = settings.KeeperBudgetSpent, settings.MyKeeperSpend, settings.KeeperValueRemoved

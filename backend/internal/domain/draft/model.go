@@ -36,15 +36,25 @@ type Event struct {
 	TargetEventID *int64    `json:"targetEventId,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`
 	Cost          float64   `json:"cost"`
+	TeamNumber    int       `json:"teamNumber"`
 }
 
 type Pick struct {
-	EventID   int64     `json:"eventId"`
-	Number    int       `json:"number"`
-	Action    Action    `json:"action"`
-	Player    Player    `json:"player"`
-	CreatedAt time.Time `json:"createdAt"`
-	Cost      float64   `json:"cost"`
+	EventID    int64     `json:"eventId"`
+	Number     int       `json:"number"`
+	Action     Action    `json:"action"`
+	Player     Player    `json:"player"`
+	CreatedAt  time.Time `json:"createdAt"`
+	Cost       float64   `json:"cost"`
+	TeamNumber int       `json:"teamNumber"`
+	TeamName   string    `json:"teamName"`
+}
+
+type Team struct {
+	Number int      `json:"number"`
+	Name   string   `json:"name"`
+	IsUser bool     `json:"isUser"`
+	Roster []Player `json:"roster"`
 }
 
 type Recommendation struct {
@@ -59,6 +69,7 @@ type Snapshot struct {
 	PickNumber        int              `json:"pickNumber"`
 	Available         []Player         `json:"available"`
 	MyTeam            []Player         `json:"myTeam"`
+	Teams             []Team           `json:"teams"`
 	History           []Pick           `json:"history"`
 	Recommendations   []Recommendation `json:"recommendations"`
 	CanUndo           bool             `json:"canUndo"`
@@ -72,4 +83,7 @@ type Snapshot struct {
 	AuctionMinimumBid float64          `json:"auctionMinimumBid"`
 	MaximumBid        float64          `json:"maximumBid"`
 	IsUserTurn        bool             `json:"isUserTurn"`
+	TotalPicks        int              `json:"totalPicks"`
+	IsComplete        bool             `json:"isComplete"`
+	OnClockTeamNumber int              `json:"onClockTeamNumber"`
 }

@@ -588,6 +588,7 @@ components:
           name,
           teamCount,
           draftPosition,
+          teamNames,
           draftType,
           rosterSlots,
           scoringRules,
@@ -612,6 +613,14 @@ components:
           type: integer
           minimum: 1
           maximum: 32
+        teamNames:
+          type: array
+          minItems: 2
+          maxItems: 32
+          items:
+            type: string
+            minLength: 1
+            maxLength: 80
         draftType:
           type: string
           enum: [snake, linear, auction]
@@ -898,7 +907,7 @@ components:
           items: { type: string }
     Pick:
       type: object
-      required: [eventId, number, action, player, createdAt, cost]
+      required: [eventId, number, action, player, createdAt, cost, teamNumber, teamName]
       properties:
         eventId: { type: integer }
         number: { type: integer, minimum: 1 }
@@ -906,6 +915,18 @@ components:
         player: { $ref: "#/components/schemas/Player" }
         createdAt: { type: string, format: date-time }
         cost: { type: number, minimum: 0 }
+        teamNumber: { type: integer, minimum: 0 }
+        teamName: { type: string }
+    DraftTeam:
+      type: object
+      required: [number, name, isUser, roster]
+      properties:
+        number: { type: integer, minimum: 1 }
+        name: { type: string }
+        isUser: { type: boolean }
+        roster:
+          type: array
+          items: { $ref: "#/components/schemas/Player" }
     DraftSnapshot:
       type: object
       required:
@@ -915,6 +936,7 @@ components:
           pickNumber,
           available,
           myTeam,
+          teams,
           history,
           recommendations,
           canUndo,
@@ -928,6 +950,9 @@ components:
           auctionMinimumBid,
           maximumBid,
           isUserTurn,
+          totalPicks,
+          isComplete,
+          onClockTeamNumber,
         ]
       properties:
         leagueId: { type: string }
@@ -939,6 +964,9 @@ components:
         myTeam:
           type: array
           items: { $ref: "#/components/schemas/Player" }
+        teams:
+          type: array
+          items: { $ref: "#/components/schemas/DraftTeam" }
         history:
           type: array
           items: { $ref: "#/components/schemas/Pick" }
@@ -956,6 +984,9 @@ components:
         auctionMinimumBid: { type: number, minimum: 0 }
         maximumBid: { type: number, minimum: 0 }
         isUserTurn: { type: boolean }
+        totalPicks: { type: integer, minimum: 1 }
+        isComplete: { type: boolean }
+        onClockTeamNumber: { type: integer, minimum: 0 }
     DraftExport:
       type: object
       additionalProperties: false
@@ -994,3 +1025,4 @@ components:
         playerId: { type: string }
         action: { type: string, enum: [draft, taken] }
         cost: { type: number, minimum: 0 }
+        teamNumber: { type: integer, minimum: 0 }

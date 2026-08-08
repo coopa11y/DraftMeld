@@ -13,7 +13,8 @@ interface PlayerBoardProps {
   snapshot: DraftSnapshot;
   busy: boolean;
   headingRef: RefObject<HTMLHeadingElement | null>;
-  onAction: (player: Player, action: DraftAction, cost?: number) => void;
+  opponentTeamNumber: number;
+  onAction: (player: Player, action: DraftAction, cost?: number, teamNumber?: number) => void;
   onUndo: () => void;
   onPreference: (player: Player, preference: "target" | "avoid" | "") => void;
 }
@@ -25,7 +26,15 @@ function valueLabel(player: Player) {
   return "Even";
 }
 
-export function PlayerBoard({ snapshot, busy, headingRef, onAction, onUndo, onPreference }: PlayerBoardProps) {
+export function PlayerBoard({
+  snapshot,
+  busy,
+  headingRef,
+  opponentTeamNumber,
+  onAction,
+  onUndo,
+  onPreference,
+}: PlayerBoardProps) {
   const [position, setPosition] = useState<PositionFilter>("Overall");
   const [search, setSearch] = useState("");
   const visiblePlayers = useMemo(() => {
@@ -183,6 +192,9 @@ export function PlayerBoard({ snapshot, busy, headingRef, onAction, onUndo, onPr
                     inflation={snapshot.auctionInflation}
                     minimumBid={snapshot.auctionMinimumBid}
                     maximumBid={snapshot.maximumBid}
+                    opponentTeamNumber={opponentTeamNumber}
+                    isUserTurn={snapshot.isUserTurn}
+                    isComplete={snapshot.isComplete}
                     onAction={onAction}
                   />
                 </td>

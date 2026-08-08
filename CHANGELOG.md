@@ -27,6 +27,7 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 - Automated Windows and Linux release archives, checksums, provenance attestations, GHCR images, and smoke tests
 - Reusable private ranking CSV imports with interactive column mapping, optional ADP and tiers, and persistent source metadata
 - Persistent canonical player directory with stable DraftMeld IDs, source aliases, and provider-specific player IDs
+- Named league teams, enforced pick ownership, opponent rosters, and accessible snake, linear, and auction draft-room views
 - Accessible manual draft board with overall and position rankings
 - Draft and Taken actions with descriptive screen-reader labels
 - My Team, recommendations, and draft-history panels

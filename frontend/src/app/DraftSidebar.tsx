@@ -6,12 +6,22 @@ import { DraftTools } from "./DraftTools";
 interface DraftSidebarProps {
   snapshot: DraftSnapshot;
   busy: boolean;
-  onAction: (player: Player, action: DraftAction, cost?: number) => void;
+  opponentTeamNumber: number;
+  onOpponentTeamChange: (teamNumber: number) => void;
+  onAction: (player: Player, action: DraftAction, cost?: number, teamNumber?: number) => void;
   onMock: () => void;
   onSleeperSync: (draftId: string, rosterId: number) => Promise<void>;
 }
 
-export function DraftSidebar({ snapshot, busy, onAction, onMock, onSleeperSync }: DraftSidebarProps) {
+export function DraftSidebar({
+  snapshot,
+  busy,
+  opponentTeamNumber,
+  onOpponentTeamChange,
+  onAction,
+  onMock,
+  onSleeperSync,
+}: DraftSidebarProps) {
   return (
     <aside className="sidebar" aria-label="Draft assistant">
       <Panel variant="side" id="recommendations" aria-labelledby="recommendations-title">
@@ -40,6 +50,9 @@ export function DraftSidebar({ snapshot, busy, onAction, onMock, onSleeperSync }
                   inflation={snapshot.auctionInflation}
                   minimumBid={snapshot.auctionMinimumBid}
                   maximumBid={snapshot.maximumBid}
+                  opponentTeamNumber={opponentTeamNumber}
+                  isUserTurn={snapshot.isUserTurn}
+                  isComplete={snapshot.isComplete}
                   onAction={onAction}
                 />
               </article>
@@ -48,7 +61,14 @@ export function DraftSidebar({ snapshot, busy, onAction, onMock, onSleeperSync }
         </ol>
       </Panel>
 
-      <DraftTools snapshot={snapshot} busy={busy} onMock={onMock} onSleeperSync={onSleeperSync} />
+      <DraftTools
+        snapshot={snapshot}
+        busy={busy}
+        opponentTeamNumber={opponentTeamNumber}
+        onOpponentTeamChange={onOpponentTeamChange}
+        onMock={onMock}
+        onSleeperSync={onSleeperSync}
+      />
 
       <Panel variant="side" id="my-team" aria-labelledby="my-team-title">
         <p className="eyebrow">{snapshot.myTeam.length} players</p>
@@ -78,8 +98,7 @@ export function DraftSidebar({ snapshot, busy, onAction, onMock, onSleeperSync }
               .slice(0, 8)
               .map((pick) => (
                 <li key={pick.eventId}>
-                  <strong>Pick {pick.number}:</strong> {pick.player.name}{" "}
-                  {pick.action === "draft" ? "to my team" : "taken"}
+                  <strong>Pick {pick.number}:</strong> {pick.player.name} {`to ${pick.teamName}`}
                   {snapshot.draftType === "auction" ? ` for $${pick.cost.toFixed(0)}` : ""}
                 </li>
               ))}

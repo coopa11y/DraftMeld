@@ -480,6 +480,7 @@ export interface components {
             name: string;
             teamCount: number;
             draftPosition: number;
+            teamNames: string[];
             /** @enum {string} */
             draftType: "snake" | "linear" | "auction";
             rosterSlots: components["schemas"]["RosterSlot"][];
@@ -649,6 +650,14 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
             cost: number;
+            teamNumber: number;
+            teamName: string;
+        };
+        DraftTeam: {
+            number: number;
+            name: string;
+            isUser: boolean;
+            roster: components["schemas"]["Player"][];
         };
         DraftSnapshot: {
             leagueId: string;
@@ -656,6 +665,7 @@ export interface components {
             pickNumber: number;
             available: components["schemas"]["Player"][];
             myTeam: components["schemas"]["Player"][];
+            teams: components["schemas"]["DraftTeam"][];
             history: components["schemas"]["Pick"][];
             recommendations: components["schemas"]["Recommendation"][];
             canUndo: boolean;
@@ -670,6 +680,9 @@ export interface components {
             auctionMinimumBid: number;
             maximumBid: number;
             isUserTurn: boolean;
+            totalPicks: number;
+            isComplete: boolean;
+            onClockTeamNumber: number;
         };
         DraftExport: {
             /** @constant */
@@ -696,6 +709,7 @@ export interface components {
             /** @enum {string} */
             action: "draft" | "taken";
             cost?: number;
+            teamNumber?: number;
         };
     };
     responses: {

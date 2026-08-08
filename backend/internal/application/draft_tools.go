@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/draft"
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/league"
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/player"
 )
 
@@ -52,7 +53,7 @@ func (service *DraftService) MockToNextTurn(ctx context.Context, leagueID string
 	for pick := currentPick; pick < targetPick && len(available) > 0; pick++ {
 		index := mockSelection(available, pick)
 		selected := available[index]
-		if _, err = service.repository.Append(ctx, draft.Event{LeagueID: leagueID, PlayerID: selected.ID, Action: draft.ActionTaken}); err != nil {
+		if _, err = service.repository.Append(ctx, draft.Event{LeagueID: leagueID, PlayerID: selected.ID, Action: draft.ActionTaken, TeamNumber: pickOwner(pick, configuration.Rules)}); err != nil {
 			return draft.Snapshot{}, err
 		}
 		available = append(available[:index], available[index+1:]...)
@@ -155,6 +156,7 @@ func (service *DraftService) SyncSleeper(ctx context.Context, leagueID, sleeperD
 	}
 	result := SleeperSyncResult{}
 	reconciled := make([]draft.Event, 0, len(picks))
+	teamNumbers := sleeperTeamNumbers(picks, myRosterID, configuration.Rules)
 	current := make(map[string]draft.Action)
 	sort.Slice(picks, func(left, right int) bool { return picks[left].PickNumber < picks[right].PickNumber })
 	for _, pick := range picks {
@@ -193,7 +195,7 @@ func (service *DraftService) SyncSleeper(ctx context.Context, leagueID, sleeperD
 			action = draft.ActionDraft
 		}
 		current[playerID] = action
-		reconciled = append(reconciled, draft.Event{LeagueID: leagueID, PlayerID: playerID, Action: action})
+		reconciled = append(reconciled, draft.Event{LeagueID: leagueID, PlayerID: playerID, Action: action, TeamNumber: teamNumbers[pick.RosterID]})
 		if prior, exists := previous[playerID]; !exists {
 			result.Added++
 		} else if prior != action {
@@ -224,4 +226,28 @@ func (service *DraftService) SyncSleeper(ctx context.Context, leagueID, sleeperD
 	}
 	result.Snapshot, err = service.Snapshot(ctx, leagueID)
 	return result, err
+}
+
+func sleeperTeamNumbers(picks []sleeperPick, myRosterID int, rules league.Rules) map[int]int {
+	result := map[int]int{myRosterID: rules.DraftPosition}
+	rosterIDs := make([]int, 0)
+	seen := map[int]bool{myRosterID: true}
+	for _, pick := range picks {
+		if !seen[pick.RosterID] {
+			seen[pick.RosterID] = true
+			rosterIDs = append(rosterIDs, pick.RosterID)
+		}
+	}
+	sort.Ints(rosterIDs)
+	next := 1
+	for _, rosterID := range rosterIDs {
+		for next == rules.DraftPosition {
+			next++
+		}
+		if next <= rules.TeamCount {
+			result[rosterID] = next
+			next++
+		}
+	}
+	return result
 }

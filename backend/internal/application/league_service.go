@@ -237,6 +237,7 @@ func clonePlayerPreferences(preferences map[string]string) map[string]string {
 }
 
 func withDefaultSourcePreferences(rules league.Rules) league.Rules {
+	rules.TeamNames = normalizedTeamNames(rules.TeamNames, rules.TeamCount, rules.DraftPosition)
 	defaults := DefaultRankingSourcePreferences()
 	rules.SourcePreferences = cloneSourcePreferences(rules.SourcePreferences)
 	for sourceID, preference := range defaults {
@@ -257,4 +258,20 @@ func withDefaultSourcePreferences(rules league.Rules) league.Rules {
 		rules.AuctionMinimumBid = 1
 	}
 	return rules
+}
+
+func normalizedTeamNames(names []string, teamCount, userPosition int) []string {
+	result := make([]string, teamCount)
+	for index := range result {
+		if index < len(names) {
+			result[index] = strings.TrimSpace(names[index])
+		}
+		if result[index] == "" {
+			result[index] = fmt.Sprintf("Team %d", index+1)
+		}
+	}
+	if userPosition >= 1 && userPosition <= teamCount && (len(names) < userPosition || strings.TrimSpace(names[userPosition-1]) == "") {
+		result[userPosition-1] = "My Team"
+	}
+	return result
 }

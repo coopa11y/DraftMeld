@@ -7,16 +7,30 @@ interface DraftToolsProps {
   snapshot: DraftSnapshot;
   busy: boolean;
   onMock: () => void;
+  opponentTeamNumber: number;
+  onOpponentTeamChange: (teamNumber: number) => void;
   onSleeperSync: (draftId: string, rosterId: number) => Promise<void>;
 }
 
-export function DraftTools({ snapshot, busy, onMock, onSleeperSync }: DraftToolsProps) {
+export function DraftTools({
+  snapshot,
+  busy,
+  opponentTeamNumber,
+  onOpponentTeamChange,
+  onMock,
+  onSleeperSync,
+}: DraftToolsProps) {
   return (
     <Panel variant="side" aria-labelledby="draft-tools-title">
       <p className="eyebrow">Optional automation</p>
       <h2 id="draft-tools-title">Draft tools</h2>
       {snapshot.draftType === "auction" ? (
-        <AuctionSummary snapshot={snapshot} />
+        <AuctionSummary
+          snapshot={snapshot}
+          busy={busy}
+          opponentTeamNumber={opponentTeamNumber}
+          onOpponentTeamChange={onOpponentTeamChange}
+        />
       ) : (
         <MockDraftControl snapshot={snapshot} busy={busy} onMock={onMock} />
       )}
@@ -36,23 +50,46 @@ function MockDraftControl({ snapshot, busy, onMock }: Pick<DraftToolsProps, "sna
   );
 }
 
-function AuctionSummary({ snapshot }: Pick<DraftToolsProps, "snapshot">) {
+function AuctionSummary({
+  snapshot,
+  busy,
+  opponentTeamNumber,
+  onOpponentTeamChange,
+}: Pick<DraftToolsProps, "snapshot" | "busy" | "opponentTeamNumber" | "onOpponentTeamChange">) {
   return (
-    <dl className="auction-summary">
-      <div>
-        <dt>My budget</dt>
-        <dd>
-          ${snapshot.budgetRemaining.toFixed(0)} of ${snapshot.auctionBudget.toFixed(0)}
-        </dd>
-      </div>
-      <div>
-        <dt>Maximum bid</dt>
-        <dd>${snapshot.maximumBid.toFixed(0)}</dd>
-      </div>
-      <div>
-        <dt>Market inflation</dt>
-        <dd>{snapshot.auctionInflation.toFixed(2)}×</dd>
-      </div>
-    </dl>
+    <>
+      <label className="auction-team-select">
+        <span>Opponent winning the next player</span>
+        <select
+          value={opponentTeamNumber}
+          disabled={busy}
+          onChange={(event) => onOpponentTeamChange(Number(event.target.value))}
+        >
+          {snapshot.teams
+            .filter((team) => !team.isUser)
+            .map((team) => (
+              <option key={team.number} value={team.number}>
+                {team.name}
+              </option>
+            ))}
+        </select>
+      </label>
+      <dl className="auction-summary">
+        <div>
+          <dt>My budget</dt>
+          <dd>
+            ${snapshot.budgetRemaining.toFixed(0)} of ${snapshot.auctionBudget.toFixed(0)}
+          </dd>
+        </div>
+        <div>
+          <dt>Maximum bid</dt>
+          <dd>${snapshot.maximumBid.toFixed(0)}</dd>
+        </div>
+        <div>
+          <dt>Market inflation</dt>
+          <dd>{snapshot.auctionInflation.toFixed(2)}×</dd>
+        </div>
+      </dl>
+    </>
   );
 }

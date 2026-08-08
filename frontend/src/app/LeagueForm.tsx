@@ -39,6 +39,7 @@ function defaultRules(): LeagueRules {
     name: "My League",
     teamCount: 12,
     draftPosition: 1,
+    teamNames: ["My Team", ...Array.from({ length: 11 }, (_, index) => `Team ${index + 2}`)],
     draftType: "snake",
     rosterSlots: defaultRoster.map((slot) => ({ ...slot, positions: [...slot.positions] })),
     scoringRules: {
@@ -67,6 +68,10 @@ function defaultRules(): LeagueRules {
     myKeeperSpend: 0,
     keeperValueRemoved: 0,
   };
+}
+
+function resizeTeamNames(names: string[], teamCount: number): string[] {
+  return Array.from({ length: teamCount }, (_, index) => names[index] ?? `Team ${index + 1}`);
 }
 
 interface LeagueFormProps {
@@ -204,7 +209,12 @@ export function LeagueForm({ league, busy, onCancel, onSave }: LeagueFormProps) 
               value={rules.teamCount}
               onChange={(event) => {
                 const teamCount = Number(event.target.value);
-                setRules({ ...rules, teamCount, draftPosition: Math.min(rules.draftPosition, teamCount) });
+                setRules({
+                  ...rules,
+                  teamCount,
+                  draftPosition: Math.min(rules.draftPosition, teamCount),
+                  teamNames: resizeTeamNames(rules.teamNames, teamCount),
+                });
               }}
             />
           </FormField>
@@ -247,6 +257,35 @@ export function LeagueForm({ league, busy, onCancel, onSave }: LeagueFormProps) 
           {rules.draftType === "auction" ? (
             <AuctionSettings rules={rules} onChange={(update) => setRules((current) => ({ ...current, ...update }))} />
           ) : null}
+        </div>
+      </fieldset>
+
+      <fieldset disabled={busy}>
+        <legend>Team names</legend>
+        <p className="field-help">
+          Names appear on the draft grid and opponent rosters. Your team is draft position {rules.draftPosition}.
+        </p>
+        <div className="form-grid team-name-grid">
+          {rules.teamNames.map((name, index) => (
+            <FormField
+              key={index}
+              label={`Team ${index + 1}${index + 1 === rules.draftPosition ? " (your team)" : ""}`}
+            >
+              <input
+                required
+                maxLength={80}
+                value={name}
+                onChange={(event) =>
+                  setRules((current) => ({
+                    ...current,
+                    teamNames: current.teamNames.map((teamName, teamIndex) =>
+                      teamIndex === index ? event.target.value : teamName,
+                    ),
+                  }))
+                }
+              />
+            </FormField>
+          ))}
         </div>
       </fieldset>
 

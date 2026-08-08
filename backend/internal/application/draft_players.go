@@ -198,14 +198,12 @@ func nextUserPick(current int, rules league.Rules) int {
 	if rules.DraftType == league.DraftTypeAuction {
 		return 0
 	}
-	for pick := current + 1; pick <= current+rules.TeamCount*2; pick++ {
-		round := (pick - 1) / rules.TeamCount
-		slot := (pick-1)%rules.TeamCount + 1
-		owner := slot
-		if rules.DraftType == league.DraftTypeSnake && round%2 == 1 {
-			owner = rules.TeamCount - slot + 1
-		}
-		if owner == rules.DraftPosition {
+	lastPick := totalDraftPicks(rules)
+	if lastPick == 0 {
+		lastPick = current + rules.TeamCount*2
+	}
+	for pick := current + 1; pick <= min(current+rules.TeamCount*2, lastPick); pick++ {
+		if pickOwner(pick, rules) == rules.DraftPosition {
 			return pick
 		}
 	}
@@ -216,13 +214,7 @@ func isUserTurn(pick int, rules league.Rules) bool {
 	if rules.DraftType == league.DraftTypeAuction {
 		return true
 	}
-	round := (pick - 1) / rules.TeamCount
-	slot := (pick-1)%rules.TeamCount + 1
-	owner := slot
-	if rules.DraftType == league.DraftTypeSnake && round%2 == 1 {
-		owner = rules.TeamCount - slot + 1
-	}
-	return owner == rules.DraftPosition
+	return pickOwner(pick, rules) == rules.DraftPosition
 }
 
 func auctionState(rules league.Rules, history []draft.Pick, available []draft.Player, myRosterSize int) (float64, float64, float64) {

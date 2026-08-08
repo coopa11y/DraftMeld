@@ -11,6 +11,7 @@ import type { DraftAction, DraftSnapshot, Player } from "../shared/api/types";
 import { useViewHeadingFocus } from "../shared/hooks/useViewHeadingFocus";
 import { StatusMessage } from "../shared/ui/StatusMessage";
 import { DraftSidebar } from "./DraftSidebar";
+import { DraftOverview } from "./DraftOverview";
 import { PlayerBoard } from "./PlayerBoard";
 
 interface DraftWorkspaceProps {
@@ -22,6 +23,7 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
   const [busy, setBusy] = useState(false);
   const [announcement, setAnnouncement] = useState("Draft board loading.");
   const [error, setError] = useState("");
+  const [opponentTeamNumber, setOpponentTeamNumber] = useState(0);
   const pendingFocus = useRef<string | null>(null);
   const boardHeading = useViewHeadingFocus<HTMLHeadingElement>(snapshot !== null);
   const errorAlert = useRef<HTMLDivElement>(null);
@@ -32,6 +34,7 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
       .then((data) => {
         if (!active) return;
         setSnapshot(data);
+        setOpponentTeamNumber(data.teams.find((team) => !team.isUser)?.number ?? 0);
         setAnnouncement(`Draft board loaded. ${data.available.length} players are available.`);
       })
       .catch((reason: Error) => {
@@ -54,14 +57,14 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
     if (error) errorAlert.current?.focus();
   }, [error]);
 
-  async function handleAction(player: Player, action: DraftAction, cost = 0) {
+  async function handleAction(player: Player, action: DraftAction, cost = 0, teamNumber = 0) {
     if (!snapshot || busy) return;
     const index = snapshot.available.findIndex((candidate) => candidate.id === player.id);
     pendingFocus.current = snapshot.available[index + 1]?.id ?? snapshot.available[index - 1]?.id ?? "board";
     setBusy(true);
     setError("");
     try {
-      const updated = await recordDraftAction(leagueId, player.id, action, cost);
+      const updated = await recordDraftAction(leagueId, player.id, action, cost, teamNumber);
       setSnapshot(updated);
       setAnnouncement(
         action === "draft"
@@ -156,6 +159,8 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
     );
   }
 
+  const onClockTeam = snapshot.teams.find((team) => team.number === snapshot.onClockTeamNumber);
+
   return (
     <>
       <a className="skip-link" href="#player-board">
@@ -182,7 +187,8 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
           aria-label={`Draft status. Pick ${snapshot.pickNumber}. ${snapshot.available.length} players available.`}
         >
           <span>{snapshot.leagueName}</span>
-          <strong>Pick {snapshot.pickNumber}</strong>
+          <strong>{snapshot.isComplete ? "Draft complete" : `Pick ${snapshot.pickNumber}`}</strong>
+          {onClockTeam ? <span>{onClockTeam.name} on the clock</span> : null}
           <span>{snapshot.available.length} available</span>
           <span>
             {snapshot.dataMode}
@@ -194,6 +200,7 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
             snapshot={snapshot}
             busy={busy}
             headingRef={boardHeading}
+            opponentTeamNumber={opponentTeamNumber}
             onAction={handleAction}
             onUndo={handleUndo}
             onPreference={handlePreference}
@@ -201,11 +208,14 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
           <DraftSidebar
             snapshot={snapshot}
             busy={busy}
+            opponentTeamNumber={opponentTeamNumber}
+            onOpponentTeamChange={setOpponentTeamNumber}
             onAction={handleAction}
             onMock={handleMock}
             onSleeperSync={handleSleeperSync}
           />
         </div>
+        <DraftOverview snapshot={snapshot} />
       </main>
     </>
   );

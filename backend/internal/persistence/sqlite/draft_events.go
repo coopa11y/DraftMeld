@@ -34,7 +34,7 @@ func (store *DraftEventStore) Close() error {
 
 func (store *DraftEventStore) List(ctx context.Context, leagueID string) ([]draft.Event, error) {
 	rows, err := store.database.QueryContext(ctx, `
-SELECT id, league_id, player_id, action, target_event_id, created_at, cost
+SELECT id, league_id, player_id, action, target_event_id, created_at, cost, team_number
 FROM draft_events
 WHERE league_id = ?
 ORDER BY id`, leagueID)
@@ -49,7 +49,7 @@ ORDER BY id`, leagueID)
 		var action string
 		var target sql.NullInt64
 		var created string
-		if err = rows.Scan(&event.ID, &event.LeagueID, &event.PlayerID, &action, &target, &created, &event.Cost); err != nil {
+		if err = rows.Scan(&event.ID, &event.LeagueID, &event.PlayerID, &action, &target, &created, &event.Cost, &event.TeamNumber); err != nil {
 			return nil, fmt.Errorf("scan draft event: %w", err)
 		}
 		event.Action = draft.Action(action)
@@ -68,8 +68,8 @@ ORDER BY id`, leagueID)
 func (store *DraftEventStore) Append(ctx context.Context, event draft.Event) (draft.Event, error) {
 	event.CreatedAt = time.Now().UTC()
 	result, err := store.database.ExecContext(ctx, `
-INSERT INTO draft_events (league_id, player_id, action, target_event_id, created_at, cost)
-VALUES (?, ?, ?, ?, ?, ?)`, event.LeagueID, event.PlayerID, event.Action, event.TargetEventID, event.CreatedAt.Format(time.RFC3339Nano), event.Cost)
+INSERT INTO draft_events (league_id, player_id, action, target_event_id, created_at, cost, team_number)
+VALUES (?, ?, ?, ?, ?, ?, ?)`, event.LeagueID, event.PlayerID, event.Action, event.TargetEventID, event.CreatedAt.Format(time.RFC3339Nano), event.Cost, event.TeamNumber)
 	if err != nil {
 		return draft.Event{}, fmt.Errorf("append draft event: %w", err)
 	}
@@ -91,7 +91,7 @@ func (store *DraftEventStore) ReplaceDraftEvents(ctx context.Context, leagueID s
 	}
 	createdAt := time.Now().UTC()
 	for index, event := range events {
-		if _, err = tx.ExecContext(ctx, `INSERT INTO draft_events (league_id, player_id, action, target_event_id, created_at, cost) VALUES (?, ?, ?, NULL, ?, ?)`, leagueID, event.PlayerID, event.Action, createdAt.Add(time.Duration(index)*time.Nanosecond).Format(time.RFC3339Nano), event.Cost); err != nil {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO draft_events (league_id, player_id, action, target_event_id, created_at, cost, team_number) VALUES (?, ?, ?, NULL, ?, ?, ?)`, leagueID, event.PlayerID, event.Action, createdAt.Add(time.Duration(index)*time.Nanosecond).Format(time.RFC3339Nano), event.Cost, event.TeamNumber); err != nil {
 			return fmt.Errorf("replace draft event: %w", err)
 		}
 	}

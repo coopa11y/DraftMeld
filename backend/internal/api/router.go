@@ -19,10 +19,11 @@ type healthResponse struct {
 }
 
 type actionRequest struct {
-	LeagueID string       `json:"leagueId"`
-	PlayerID string       `json:"playerId"`
-	Action   draft.Action `json:"action"`
-	Cost     float64      `json:"cost"`
+	LeagueID   string       `json:"leagueId"`
+	PlayerID   string       `json:"playerId"`
+	Action     draft.Action `json:"action"`
+	Cost       float64      `json:"cost"`
+	TeamNumber int          `json:"teamNumber"`
 }
 
 type undoRequest struct {
@@ -84,13 +85,17 @@ func NewRouter(
 			writeError(response, http.StatusBadRequest, "A league ID is required.")
 			return
 		}
-		snapshot, err := draftService.Record(request.Context(), input.LeagueID, input.PlayerID, input.Action, input.Cost)
+		snapshot, err := draftService.RecordForTeam(request.Context(), input.LeagueID, input.PlayerID, input.Action, input.Cost, input.TeamNumber)
 		if errors.Is(err, application.ErrLeagueNotFound) {
 			writeError(response, http.StatusNotFound, "That league was not found.")
 			return
 		}
 		if errors.Is(err, application.ErrPlayerUnavailable) {
 			writeError(response, http.StatusConflict, "That player is no longer available.")
+			return
+		}
+		if errors.Is(err, application.ErrDraftComplete) {
+			writeError(response, http.StatusConflict, "This draft is complete.")
 			return
 		}
 		if err != nil {

@@ -45,6 +45,7 @@ const jordan: Player = {
   tier: 1,
   ...playerIntelligence,
 };
+const teamNames = ["My Team", ...Array.from({ length: 11 }, (_, index) => `Team ${index + 2}`)];
 
 function snapshot(overrides: Partial<DraftSnapshot> = {}): DraftSnapshot {
   return {
@@ -53,6 +54,7 @@ function snapshot(overrides: Partial<DraftSnapshot> = {}): DraftSnapshot {
     pickNumber: 1,
     available: [alex, jordan],
     myTeam: [],
+    teams: teamNames.map((name, index) => ({ number: index + 1, name, isUser: index === 0, roster: [] })),
     history: [],
     recommendations: [
       { player: alex, score: 220, reasons: ["Fills an open starting roster need"] },
@@ -69,6 +71,9 @@ function snapshot(overrides: Partial<DraftSnapshot> = {}): DraftSnapshot {
     auctionMinimumBid: 1,
     maximumBid: 0,
     isUserTurn: false,
+    totalPicks: 24,
+    isComplete: false,
+    onClockTeamNumber: 2,
     ...overrides,
   };
 }
@@ -78,6 +83,7 @@ const demoLeague: League = {
   name: "Demo League",
   teamCount: 12,
   draftPosition: 1,
+  teamNames,
   draftType: "snake",
   rosterSlots: [{ name: "RB", count: 2, positions: ["RB"], isStarting: true }],
   scoringRules: { reception: 1 },
@@ -503,6 +509,8 @@ describe("accessible draft board", () => {
     });
     const simulated = snapshot({
       pickNumber: 24,
+      isUserTurn: true,
+      onClockTeamNumber: 1,
       available: [targetedAlex],
       recommendations: [{ player: targetedAlex, score: 250, reasons: ["Marked as one of your targets"] }],
     });
@@ -741,8 +749,26 @@ describe("accessible draft board", () => {
     const reconciled = snapshot({
       pickNumber: 3,
       history: [
-        { eventId: 1, number: 1, action: "draft", player: alex, createdAt: new Date().toISOString(), cost: 0 },
-        { eventId: 2, number: 2, action: "taken", player: jordan, createdAt: new Date().toISOString(), cost: 0 },
+        {
+          eventId: 1,
+          number: 1,
+          action: "draft",
+          player: alex,
+          createdAt: new Date().toISOString(),
+          cost: 0,
+          teamNumber: 1,
+          teamName: "My Team",
+        },
+        {
+          eventId: 2,
+          number: 2,
+          action: "taken",
+          player: jordan,
+          createdAt: new Date().toISOString(),
+          cost: 0,
+          teamNumber: 2,
+          teamName: "Team 2",
+        },
       ],
       myTeam: [alex],
       available: [],
@@ -773,14 +799,25 @@ describe("accessible draft board", () => {
       pickNumber: 2,
       available: [jordan],
       myTeam: [alex],
-      history: [{ eventId: 1, number: 1, action: "draft", player: alex, createdAt: new Date().toISOString(), cost: 0 }],
+      history: [
+        {
+          eventId: 1,
+          number: 1,
+          action: "draft",
+          player: alex,
+          createdAt: new Date().toISOString(),
+          cost: 0,
+          teamNumber: 1,
+          teamName: "My Team",
+        },
+      ],
       recommendations: [{ player: jordan, score: 219, reasons: ["Fills an open starting roster need"] }],
       canUndo: true,
     });
     const fetchMock = vi
       .fn()
       .mockImplementationOnce(() => jsonResponse([demoLeague]))
-      .mockImplementationOnce(() => jsonResponse(snapshot()))
+      .mockImplementationOnce(() => jsonResponse(snapshot({ isUserTurn: true, onClockTeamNumber: 1 })))
       .mockImplementationOnce(() => jsonResponse(drafted));
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
@@ -794,7 +831,9 @@ describe("accessible draft board", () => {
       screen.getByText("Alex Rivers was drafted to your team. Rankings and recommendations updated."),
     ).toBeInTheDocument();
     await waitFor(() =>
-      expect(screen.getAllByRole("button", { name: "Draft Jordan Hale, WR, to my team" })[0]).toHaveFocus(),
+      expect(
+        screen.getAllByRole("button", { name: "Mark Jordan Hale, WR, as taken by another team" })[0],
+      ).toHaveFocus(),
     );
   });
 
@@ -803,7 +842,18 @@ describe("accessible draft board", () => {
       pickNumber: 2,
       available: [jordan],
       myTeam: [alex],
-      history: [{ eventId: 1, number: 1, action: "draft", player: alex, createdAt: new Date().toISOString(), cost: 0 }],
+      history: [
+        {
+          eventId: 1,
+          number: 1,
+          action: "draft",
+          player: alex,
+          createdAt: new Date().toISOString(),
+          cost: 0,
+          teamNumber: 1,
+          teamName: "My Team",
+        },
+      ],
       recommendations: [{ player: jordan, score: 219, reasons: ["Fills an open starting roster need"] }],
       canUndo: true,
     });
@@ -811,7 +861,7 @@ describe("accessible draft board", () => {
       .fn()
       .mockImplementationOnce(() => jsonResponse([demoLeague]))
       .mockImplementationOnce(() => jsonResponse(drafted))
-      .mockImplementationOnce(() => jsonResponse(snapshot()));
+      .mockImplementationOnce(() => jsonResponse(snapshot({ isUserTurn: true, onClockTeamNumber: 1 })));
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     render(<App />);

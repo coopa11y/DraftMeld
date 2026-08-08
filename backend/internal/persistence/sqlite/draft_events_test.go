@@ -15,7 +15,7 @@ func TestDraftEventsPersist(t *testing.T) {
 	defer store.Close()
 
 	written, err := store.Append(context.Background(), draft.Event{
-		LeagueID: "league-a", PlayerID: "p001", Action: draft.ActionDraft,
+		LeagueID: "league-a", PlayerID: "p001", Action: draft.ActionDraft, TeamNumber: 4,
 	})
 	if err != nil {
 		t.Fatalf("append event: %v", err)
@@ -24,7 +24,7 @@ func TestDraftEventsPersist(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list events: %v", err)
 	}
-	if len(events) != 1 || events[0].ID != written.ID || events[0].PlayerID != "p001" {
+	if len(events) != 1 || events[0].ID != written.ID || events[0].PlayerID != "p001" || events[0].TeamNumber != 4 {
 		t.Fatalf("unexpected events: %#v", events)
 	}
 }
