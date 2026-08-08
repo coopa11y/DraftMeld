@@ -124,7 +124,7 @@ type LeagueRuleImportService struct {
 }
 
 func NewLeagueRuleImportService() *LeagueRuleImportService {
-	return &LeagueRuleImportService{pdfExtractor: document.NativePDFExtractor{}}
+	return &LeagueRuleImportService{pdfExtractor: document.NewPDFExtractor()}
 }
 
 func NewLeagueRuleImportServiceWithExtractor(extractor document.PDFExtractor) *LeagueRuleImportService {
@@ -142,7 +142,10 @@ func (service *LeagueRuleImportService) ImportPDF(contents []byte) (LeagueRuleIm
 		return LeagueRuleImportResult{}, ErrNoLeagueRulesFound
 	}
 	if extracted.PageCount > 1 {
-		result.Warnings = append(result.Warnings, fmt.Sprintf("Reviewed selectable text from %d PDF pages.", extracted.PageCount))
+		result.Warnings = append(result.Warnings, fmt.Sprintf("Reviewed text from %d PDF pages.", extracted.PageCount))
+	}
+	if extracted.OCRApplied {
+		result.Warnings = append(result.Warnings, "Scanned PDF text was recognized locally with OCR. Verify every imported value carefully.")
 	}
 	return result, nil
 }

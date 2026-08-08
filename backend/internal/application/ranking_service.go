@@ -29,7 +29,7 @@ type RankingService struct {
 }
 
 func NewRankingService(repository RankingRepository) *RankingService {
-	return &RankingService{repository: repository, client: &http.Client{Timeout: 60 * time.Second}, sources: BuiltInRankingSources(), pdfExtractor: document.NativePDFExtractor{}, pdfParsers: defaultPDFRankingParsers()}
+	return &RankingService{repository: repository, client: &http.Client{Timeout: 60 * time.Second}, sources: BuiltInRankingSources(), pdfExtractor: document.NewPDFExtractor(), pdfParsers: defaultPDFRankingParsers()}
 }
 
 func (service *RankingService) Sources(ctx context.Context) ([]ranking.SourceStatus, error) {

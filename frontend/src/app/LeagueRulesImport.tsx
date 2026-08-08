@@ -46,8 +46,8 @@ export function LeagueRulesImport({ rules, setRules, importReview, setImportRevi
     <section className="league-rules-import" aria-labelledby="league-rules-import-title">
       <h3 id="league-rules-import-title">Import league rules</h3>
       <p>
-        Start with a selectable-text PDF or CSV, or skip this and enter everything yourself. DraftMeld fills only
-        settings it recognizes and keeps your draft position and team names manual.
+        Start with a PDF or CSV, including a scanned PDF when local OCR is available, or skip this and enter everything
+        yourself. DraftMeld fills only settings it recognizes and keeps your draft position and team names manual.
       </p>
       <form className="rule-import" onSubmit={handleImport}>
         <fieldset disabled={busy}>
@@ -55,7 +55,10 @@ export function LeagueRulesImport({ rules, setRules, importReview, setImportRevi
           <p className="field-help">
             The file is discarded after extraction. Review every imported value before creating the league.
           </p>
-          <FormField label="League rules PDF or CSV" help="Maximum file size: 20 MiB. Scanned PDFs require OCR first.">
+          <FormField
+            label="League rules PDF or CSV"
+            help="Maximum file size: 20 MiB. Scanned PDFs use local OCR when it is available."
+          >
             <input
               type="file"
               accept=".pdf,.csv,application/pdf,text/csv"
@@ -63,7 +66,7 @@ export function LeagueRulesImport({ rules, setRules, importReview, setImportRevi
             />
           </FormField>
           <Button type="submit" disabled={!file || busy}>
-            {busy ? "Reading rules..." : "Import and apply recognized settings"}
+            {busy ? "Reading rules and scanned pages..." : "Import and apply recognized settings"}
           </Button>
         </fieldset>
       </form>

@@ -141,7 +141,7 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
     }
     setBusy(true);
     setError("");
-    setMessage("Reading the PDF locally and normalizing its player rankings.");
+    setMessage("Reading the PDF locally, recognizing scanned pages if needed, and normalizing its player rankings.");
     try {
       const result = await importRankingPDF(pdfFile);
       setSources((current) => current.map((source) => (source.id === result.source.id ? result.source : source)));
@@ -156,7 +156,11 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
       setIdentityIssues(identities);
       setDirectoryStatus(playerDirectory);
       setMessage(
-        `${result.source.name} imported: ${result.source.recordCount} players from ${result.pageCount} page${result.pageCount === 1 ? "" : "s"}.`,
+        `${result.source.name} imported: ${result.source.recordCount} players from ${result.pageCount} page${result.pageCount === 1 ? "" : "s"}.${
+          result.ocrApplied
+            ? " Scanned pages were recognized locally with OCR; review the imported rankings carefully."
+            : ""
+        }`,
       );
       setPDFFile(null);
       form.reset();
@@ -273,8 +277,8 @@ export function RankingSources({ league, onLeagueUpdated }: RankingSourcesProps)
               <strong>Import a ranking PDF</strong>
             </label>
             <p id="ranking-pdf-help">
-              DraftMeld detects supported ESPN PPR Top 300 and Dynasty cheat sheets. Files are processed in memory and
-              are not retained.
+              DraftMeld detects supported ESPN PPR Top 300 and Dynasty cheat sheets. Scanned pages use local OCR when
+              available. Files are processed locally and are not retained.
             </p>
           </div>
           <input

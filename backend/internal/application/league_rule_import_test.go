@@ -69,6 +69,17 @@ func TestLeagueRulePDFHandlesLabelsAndValuesOnAdjacentLines(t *testing.T) {
 	}
 }
 
+func TestLeagueRulePDFWarnsWhenOCRWasApplied(t *testing.T) {
+	extractor := leagueRulePDFExtractorStub{document: document.TextDocument{PageCount: 1, OCRApplied: true, Text: "Passing Touchdowns: 6"}}
+	result, err := NewLeagueRuleImportServiceWithExtractor(extractor).ImportPDF([]byte("pdf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(result.Warnings, " "), "recognized locally with OCR") {
+		t.Fatalf("expected OCR review warning: %#v", result.Warnings)
+	}
+}
+
 func TestLeagueRuleImportRejectsUnsupportedContent(t *testing.T) {
 	service := NewLeagueRuleImportService()
 	if _, err := service.ImportCSV(strings.NewReader("Name,Value\nWaiver period,2\n")); err == nil {
