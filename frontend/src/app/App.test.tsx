@@ -105,6 +105,9 @@ function snapshot(overrides: Partial<DraftSnapshot> = {}): DraftSnapshot {
     budgetBalances: [],
     draftOrder: Array.from({ length: 12 }, (_, index) => index + 1),
     userTeamNumber: 1,
+    sessionStatus: "in-progress",
+    canReset: true,
+    canUndoReset: false,
     ...overrides,
   };
 }
@@ -334,6 +337,55 @@ afterEach(() => {
 });
 
 describe("accessible draft board", () => {
+  it("starts, safely resets, and restores a draft session", async () => {
+    let draft = snapshot({ sessionStatus: "not-started", canReset: false, canUndoReset: false });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const request = input instanceof Request ? input : new Request(input);
+      const path = new URL(request.url).pathname;
+      if (path.endsWith("/leagues")) return jsonResponse([demoLeague]);
+      if (path.endsWith("/draft/session/start")) {
+        draft = snapshot({ sessionStatus: "in-progress", canReset: true, canUndoReset: false });
+      } else if (path.endsWith("/draft/session/reset")) {
+        draft = snapshot({ sessionStatus: "not-started", canReset: false, canUndoReset: true });
+      } else if (path.endsWith("/draft/session/undo-reset")) {
+        draft = snapshot({ sessionStatus: "in-progress", canReset: true, canUndoReset: false });
+      }
+      return jsonResponse(draft);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+
+    expect(await screen.findByText("Draft not started")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Mark Alex Rivers, RB, as taken by another team" })[0]).toBeDisabled();
+    expect(screen.getByText("12 teams · 24 selections")).toBeInTheDocument();
+    expect((await axe(container)).violations).toHaveLength(0);
+
+    await user.click(screen.getByRole("button", { name: "Start draft" }));
+    expect(await screen.findByText("In progress")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Mark Alex Rivers, RB, as taken by another team" })[0]).toBeEnabled();
+
+    await user.click(screen.getByRole("button", { name: "Reset current draft" }));
+    expect(screen.getByRole("heading", { name: "Reset the current draft?" })).toBeInTheDocument();
+    const confirmReset = screen.getByRole("button", { name: "Reset current draft" });
+    expect(confirmReset).toBeDisabled();
+    await user.click(screen.getByRole("checkbox", { name: /I understand/ }));
+    await user.type(screen.getByRole("textbox", { name: "Type Demo League to confirm" }), "Demo League");
+    expect(confirmReset).toBeEnabled();
+    expect((await axe(container)).violations).toHaveLength(0);
+    await user.click(confirmReset);
+
+    expect(await screen.findByRole("button", { name: "Undo last reset" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Undo last reset" }));
+    expect(await screen.findByText("In progress")).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([input]) => {
+        const request = input instanceof Request ? input : new Request(input);
+        return new URL(request.url).pathname.endsWith("/draft/session/reset");
+      }),
+    ).toBe(true);
+  });
+
   it("creates a customized league through an accessible setup form", async () => {
     let configuredLeagues = [demoLeague];
     let submittedRules: Omit<League, "id"> | undefined;

@@ -393,6 +393,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/draft/session/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start the current league season's draft */
+        post: operations["startDraftSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/draft/session/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clear current-season selections while preserving league assets */
+        post: operations["resetDraftSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/draft/session/undo-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore the selections removed by the most recent reset */
+        post: operations["undoDraftSessionReset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/draft/trades": {
         parameters: {
             query?: never;
@@ -773,6 +824,10 @@ export interface components {
             budgetBalances: components["schemas"]["BudgetBalance"][];
             draftOrder: number[];
             userTeamNumber: number;
+            /** @enum {string} */
+            sessionStatus: "not-started" | "in-progress" | "complete";
+            canReset: boolean;
+            canUndoReset: boolean;
         };
         DraftPickSlot: {
             season: number;
@@ -891,6 +946,13 @@ export interface components {
             cost?: number;
             teamNumber?: number;
         };
+        DraftSessionRequest: {
+            leagueId: string;
+        };
+        DraftResetRequest: {
+            leagueId: string;
+            confirmation: string;
+        };
     };
     responses: {
         /** @description The request was not valid. */
@@ -904,6 +966,15 @@ export interface components {
         };
         /** @description The requested resource was not found. */
         NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorResponse"];
+            };
+        };
+        /** @description The request conflicts with the current draft state. */
+        Conflict: {
             headers: {
                 [name: string]: unknown;
             };
@@ -1561,6 +1632,89 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+        };
+    };
+    startDraftSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftSessionRequest"];
+            };
+        };
+        responses: {
+            /** @description Started draft state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftSnapshot"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    resetDraftSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftResetRequest"];
+            };
+        };
+        responses: {
+            /** @description Reset draft state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftSnapshot"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    undoDraftSessionReset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftSessionRequest"];
+            };
+        };
+        responses: {
+            /** @description Restored draft state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftSnapshot"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["ServerError"];
         };
     };
     createDraftTrade: {

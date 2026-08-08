@@ -10,6 +10,7 @@ import type {
 import { Panel } from "../shared/ui/Panel";
 import { DraftPickTrades } from "./DraftPickTrades";
 import { DraftSeasonRollover } from "./DraftSeasonRollover";
+import { DraftSessionControls } from "./DraftSessionControls";
 
 interface DraftOverviewProps {
   snapshot: DraftSnapshot;
@@ -29,6 +30,9 @@ interface DraftOverviewProps {
   onDeleteTrade: (trade: DraftPickTrade) => Promise<void>;
   onResolveTrade: (trade: DraftPickTrade, pick: FutureDraftPick, status: "met" | "not-met") => Promise<void>;
   onAdvanceSeason: (season: number, draftType: DraftSnapshot["draftType"], draftOrder: number[]) => Promise<void>;
+  onStartDraft: () => Promise<void>;
+  onResetDraft: (confirmation: string) => Promise<void>;
+  onUndoReset: () => Promise<void>;
 }
 
 export function DraftOverview({
@@ -38,6 +42,9 @@ export function DraftOverview({
   onDeleteTrade,
   onResolveTrade,
   onAdvanceSeason,
+  onStartDraft,
+  onResetDraft,
+  onUndoReset,
 }: DraftOverviewProps) {
   return (
     <section className="draft-overview" aria-labelledby="draft-overview-title">
@@ -50,6 +57,14 @@ export function DraftOverview({
           {snapshot.isComplete ? "Draft complete" : `${snapshot.history.length} of ${snapshot.totalPicks} picks`}
         </span>
       </div>
+
+      <DraftSessionControls
+        snapshot={snapshot}
+        busy={busy}
+        onStart={onStartDraft}
+        onReset={onResetDraft}
+        onUndoReset={onUndoReset}
+      />
 
       {snapshot.leagueFormat === "dynasty" ? (
         <DraftSeasonRollover snapshot={snapshot} busy={busy} onAdvance={onAdvanceSeason} />

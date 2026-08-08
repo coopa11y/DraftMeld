@@ -1541,6 +1541,56 @@ tbody tr:focus-within {
   border-color: var(--color-danger-border);
 }
 
+.draft-session-controls {
+  margin-bottom: 1.25rem;
+}
+
+.draft-session-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.draft-session-summary div {
+  padding: 0.8rem;
+  background: var(--color-surface-deep);
+  border-radius: 0.6rem;
+}
+
+.draft-session-summary dt {
+  font-weight: 800;
+}
+
+.draft-session-summary dd {
+  margin: 0.3rem 0 0;
+  color: var(--color-text-muted);
+}
+
+.draft-reset-confirmation {
+  padding: 1rem;
+  border: 2px solid var(--color-danger-border);
+  border-radius: 0.7rem;
+}
+
+.draft-reset-confirmation h4 {
+  margin-top: 0;
+}
+
+.confirmation-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  min-height: 44px;
+  margin: 1rem 0;
+}
+
+.confirmation-check input {
+  flex: 0 0 auto;
+  width: 1.25rem;
+  min-height: 1.25rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

@@ -32,6 +32,11 @@ type undoRequest struct {
 	LeagueID string `json:"leagueId"`
 }
 
+type resetDraftRequest struct {
+	LeagueID     string `json:"leagueId"`
+	Confirmation string `json:"confirmation"`
+}
+
 type playerPreferenceRequest struct {
 	LeagueID   string `json:"leagueId"`
 	PlayerID   string `json:"playerId"`
@@ -131,8 +136,75 @@ func NewRouter(
 			writeError(response, http.StatusConflict, "This draft is complete.")
 			return
 		}
+		if errors.Is(err, application.ErrDraftNotStarted) {
+			writeError(response, http.StatusConflict, "Start the draft before recording selections.")
+			return
+		}
 		if err != nil {
 			writeError(response, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(response, http.StatusOK, snapshot)
+	})
+	mux.HandleFunc("POST /api/v1/draft/session/start", func(response http.ResponseWriter, request *http.Request) {
+		var input undoRequest
+		if json.NewDecoder(request.Body).Decode(&input) != nil || input.LeagueID == "" {
+			writeError(response, http.StatusBadRequest, "A league ID is required.")
+			return
+		}
+		snapshot, err := draftService.StartDraft(request.Context(), input.LeagueID)
+		if errors.Is(err, application.ErrLeagueNotFound) {
+			writeError(response, http.StatusNotFound, "That league was not found.")
+			return
+		}
+		if errors.Is(err, application.ErrDraftStarted) {
+			writeError(response, http.StatusConflict, "This draft has already started.")
+			return
+		}
+		if err != nil {
+			writeError(response, http.StatusInternalServerError, "Unable to start the draft.")
+			return
+		}
+		writeJSON(response, http.StatusOK, snapshot)
+	})
+	mux.HandleFunc("POST /api/v1/draft/session/reset", func(response http.ResponseWriter, request *http.Request) {
+		var input resetDraftRequest
+		if json.NewDecoder(request.Body).Decode(&input) != nil || input.LeagueID == "" {
+			writeError(response, http.StatusBadRequest, "The reset request was not valid.")
+			return
+		}
+		snapshot, err := draftService.ResetDraft(request.Context(), input.LeagueID, input.Confirmation)
+		if errors.Is(err, application.ErrLeagueNotFound) {
+			writeError(response, http.StatusNotFound, "That league was not found.")
+			return
+		}
+		if errors.Is(err, application.ErrDraftNotStarted) {
+			writeError(response, http.StatusConflict, "There is no active draft to reset.")
+			return
+		}
+		if err != nil {
+			writeError(response, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(response, http.StatusOK, snapshot)
+	})
+	mux.HandleFunc("POST /api/v1/draft/session/undo-reset", func(response http.ResponseWriter, request *http.Request) {
+		var input undoRequest
+		if json.NewDecoder(request.Body).Decode(&input) != nil || input.LeagueID == "" {
+			writeError(response, http.StatusBadRequest, "A league ID is required.")
+			return
+		}
+		snapshot, err := draftService.UndoDraftReset(request.Context(), input.LeagueID)
+		if errors.Is(err, application.ErrLeagueNotFound) {
+			writeError(response, http.StatusNotFound, "That league was not found.")
+			return
+		}
+		if errors.Is(err, application.ErrNoResetToUndo) {
+			writeError(response, http.StatusConflict, "There is no draft reset to undo.")
+			return
+		}
+		if err != nil {
+			writeError(response, http.StatusInternalServerError, "Unable to restore the draft.")
 			return
 		}
 		writeJSON(response, http.StatusOK, snapshot)
@@ -221,6 +293,10 @@ func NewRouter(
 			writeError(response, http.StatusConflict, "There is no draft action to undo.")
 			return
 		}
+		if errors.Is(err, application.ErrDraftNotStarted) {
+			writeError(response, http.StatusConflict, "Start the draft before undoing selections.")
+			return
+		}
 		if err != nil {
 			writeError(response, http.StatusInternalServerError, "Unable to undo the last action.")
 			return
@@ -234,6 +310,10 @@ func NewRouter(
 			return
 		}
 		snapshot, err := draftService.MockToNextTurn(request.Context(), input.LeagueID)
+		if errors.Is(err, application.ErrDraftNotStarted) {
+			writeError(response, http.StatusConflict, "Start the draft before simulating selections.")
+			return
+		}
 		if err != nil {
 			writeError(response, http.StatusBadRequest, err.Error())
 			return
@@ -247,6 +327,10 @@ func NewRouter(
 			return
 		}
 		result, err := draftService.SyncSleeper(request.Context(), input.LeagueID, input.SleeperDraftID, input.RosterID)
+		if errors.Is(err, application.ErrDraftNotStarted) {
+			writeError(response, http.StatusConflict, "Start the draft before syncing selections.")
+			return
+		}
 		if err != nil {
 			writeError(response, http.StatusBadGateway, err.Error())
 			return
