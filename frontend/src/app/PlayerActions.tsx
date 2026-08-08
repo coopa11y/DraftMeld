@@ -10,7 +10,7 @@ interface PlayerActionsProps {
   inflation?: number;
   minimumBid?: number;
   maximumBid?: number;
-  opponentTeamNumber?: number;
+  selectedTeamNumber?: number;
   isUserTurn?: boolean;
   isComplete?: boolean;
   onAction: (player: Player, action: DraftAction, cost?: number, teamNumber?: number) => void;
@@ -24,7 +24,7 @@ export function PlayerActions({
   inflation = 1,
   minimumBid = 1,
   maximumBid = Number.MAX_SAFE_INTEGER,
-  opponentTeamNumber = 0,
+  selectedTeamNumber = 0,
   isUserTurn = true,
   isComplete = false,
   onAction,
@@ -61,7 +61,7 @@ export function PlayerActions({
           isComplete || busy || (!auction && !isUserTurn) || (auction && (cost < minimumBid || cost > maximumBid))
         }
         aria-label={`Draft ${player.name}, ${player.position}, to my team${auction ? ` for ${cost} dollars` : ""}`}
-        onClick={() => onAction(player, "draft", auction ? cost : 0)}
+        onClick={() => onAction(player, "draft", auction ? cost : 0, auction ? 0 : selectedTeamNumber)}
       >
         Draft
       </Button>
@@ -70,10 +70,10 @@ export function PlayerActions({
         data-player-action={takenIsPrimary ? "primary" : undefined}
         id={takenIsPrimary ? `draft-${player.id}` : undefined}
         disabled={
-          isComplete || busy || (!auction && isUserTurn) || (auction && (cost < minimumBid || opponentTeamNumber === 0))
+          isComplete || busy || (!auction && isUserTurn) || (auction && (cost < minimumBid || selectedTeamNumber === 0))
         }
         aria-label={`Mark ${player.name}, ${player.position}, as taken by another team${auction ? ` for ${cost} dollars` : ""}`}
-        onClick={() => onAction(player, "taken", auction ? cost : 0, opponentTeamNumber)}
+        onClick={() => onAction(player, "taken", auction ? cost : 0, selectedTeamNumber)}
       >
         Taken
       </Button>

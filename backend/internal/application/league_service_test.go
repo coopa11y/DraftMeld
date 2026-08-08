@@ -54,3 +54,21 @@ func TestLeagueServiceEnsuresDefaultOnlyWhenEmpty(t *testing.T) {
 		t.Fatalf("unexpected default leagues: %#v err=%v", leagues, err)
 	}
 }
+
+func TestLeagueServiceDefaultsUnknownTeamNamesAroundUserDraftPosition(t *testing.T) {
+	repository := NewMemoryLeagueRepository()
+	service := NewLeagueService(repository)
+	rules := DemoLeagueConfiguration().Rules
+	rules.Name = "Unknown Opponents League"
+	rules.DraftPosition = 7
+	rules.TeamNames = make([]string, rules.TeamCount)
+	rules.TeamNames[6] = "Marcus"
+
+	created, err := service.Create(t.Context(), rules)
+	if err != nil {
+		t.Fatalf("create league with unknown opponent names: %v", err)
+	}
+	if created.Rules.TeamNames[0] != "Team 1" || created.Rules.TeamNames[6] != "Marcus" || created.Rules.TeamNames[11] != "Team 12" {
+		t.Fatalf("unexpected normalized team names: %#v", created.Rules.TeamNames)
+	}
+}

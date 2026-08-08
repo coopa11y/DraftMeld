@@ -7,16 +7,16 @@ interface DraftToolsProps {
   snapshot: DraftSnapshot;
   busy: boolean;
   onMock: () => void;
-  opponentTeamNumber: number;
-  onOpponentTeamChange: (teamNumber: number) => void;
+  selectedTeamNumber: number;
+  onSelectedTeamChange: (teamNumber: number) => void;
   onSleeperSync: (draftId: string, rosterId: number) => Promise<void>;
 }
 
 export function DraftTools({
   snapshot,
   busy,
-  opponentTeamNumber,
-  onOpponentTeamChange,
+  selectedTeamNumber,
+  onSelectedTeamChange,
   onMock,
   onSleeperSync,
 }: DraftToolsProps) {
@@ -28,14 +28,53 @@ export function DraftTools({
         <AuctionSummary
           snapshot={snapshot}
           busy={busy}
-          opponentTeamNumber={opponentTeamNumber}
-          onOpponentTeamChange={onOpponentTeamChange}
+          selectedTeamNumber={selectedTeamNumber}
+          onSelectedTeamChange={onSelectedTeamChange}
         />
       ) : (
-        <MockDraftControl snapshot={snapshot} busy={busy} onMock={onMock} />
+        <>
+          <PickOwnerControl
+            snapshot={snapshot}
+            busy={busy}
+            selectedTeamNumber={selectedTeamNumber}
+            onSelectedTeamChange={onSelectedTeamChange}
+          />
+          <MockDraftControl snapshot={snapshot} busy={busy} onMock={onMock} />
+        </>
       )}
       <SleeperSyncForm busy={busy} onSync={onSleeperSync} />
     </Panel>
+  );
+}
+
+function PickOwnerControl({
+  snapshot,
+  busy,
+  selectedTeamNumber,
+  onSelectedTeamChange,
+}: Pick<DraftToolsProps, "snapshot" | "busy" | "selectedTeamNumber" | "onSelectedTeamChange">) {
+  const scheduledTeam = snapshot.teams.find((team) => team.number === snapshot.onClockTeamNumber);
+  const selectedTeam = snapshot.teams.find((team) => team.number === selectedTeamNumber);
+  return (
+    <label className="auction-team-select">
+      <span>Owner of pick {snapshot.pickNumber}</span>
+      <select
+        value={selectedTeamNumber}
+        disabled={busy || snapshot.isComplete}
+        onChange={(event) => onSelectedTeamChange(Number(event.target.value))}
+      >
+        {snapshot.teams.map((team) => (
+          <option key={team.number} value={team.number}>
+            {team.name}
+          </option>
+        ))}
+      </select>
+      <small>
+        {selectedTeamNumber !== snapshot.onClockTeamNumber
+          ? `Traded from ${scheduledTeam?.name ?? "the scheduled team"} to ${selectedTeam?.name ?? "the selected team"}.`
+          : "Change this only when the current pick was traded."}
+      </small>
+    </label>
   );
 }
 
@@ -53,17 +92,17 @@ function MockDraftControl({ snapshot, busy, onMock }: Pick<DraftToolsProps, "sna
 function AuctionSummary({
   snapshot,
   busy,
-  opponentTeamNumber,
-  onOpponentTeamChange,
-}: Pick<DraftToolsProps, "snapshot" | "busy" | "opponentTeamNumber" | "onOpponentTeamChange">) {
+  selectedTeamNumber,
+  onSelectedTeamChange,
+}: Pick<DraftToolsProps, "snapshot" | "busy" | "selectedTeamNumber" | "onSelectedTeamChange">) {
   return (
     <>
       <label className="auction-team-select">
         <span>Opponent winning the next player</span>
         <select
-          value={opponentTeamNumber}
+          value={selectedTeamNumber}
           disabled={busy}
-          onChange={(event) => onOpponentTeamChange(Number(event.target.value))}
+          onChange={(event) => onSelectedTeamChange(Number(event.target.value))}
         >
           {snapshot.teams
             .filter((team) => !team.isUser)

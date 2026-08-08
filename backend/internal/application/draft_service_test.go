@@ -70,8 +70,8 @@ func TestDraftEnforcesPickOwnershipAndCompletion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.RecordForTeam(t.Context(), "demo", "p001", draft.ActionTaken, 0, 2); err == nil {
-		t.Fatal("expected an opponent action to be rejected on the user's pick")
+	if _, err = service.RecordForTeam(t.Context(), "demo", "p001", draft.ActionDraft, 0, 2); err == nil {
+		t.Fatal("expected a user draft action to be rejected when the pick is assigned to an opponent")
 	}
 	if _, err = service.RecordForTeam(t.Context(), "demo", "p001", draft.ActionDraft, 0, 1); err != nil {
 		t.Fatal(err)
@@ -85,6 +85,31 @@ func TestDraftEnforcesPickOwnershipAndCompletion(t *testing.T) {
 	}
 	if _, err = service.RecordForTeam(t.Context(), "demo", "p003", draft.ActionDraft, 0, 1); !errors.Is(err, ErrDraftComplete) {
 		t.Fatalf("expected completed draft error, got %v", err)
+	}
+}
+
+func TestDraftSupportsTradedPickOwnership(t *testing.T) {
+	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	configuration := DemoLeagueConfiguration()
+	configuration.Rules.TeamCount = 2
+	configuration.Rules.DraftPosition = 2
+	configuration.Rules.TeamNames = []string{"Team 1", "Marcus"}
+	configuration.Rules.RosterSlots = []league.RosterSlot{{Name: "FLEX", Count: 1, Positions: []string{"RB", "WR"}, IsStarting: true}}
+	service, err := NewDraftService(store, draft.DemoCatalog(), configuration)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	afterTrade, err := service.RecordForTeam(t.Context(), "demo", "p001", draft.ActionDraft, 0, 2)
+	if err != nil {
+		t.Fatalf("record pick traded to user: %v", err)
+	}
+	if afterTrade.History[0].TeamNumber != 2 || afterTrade.History[0].TeamName != "Marcus" || len(afterTrade.MyTeam) != 1 {
+		t.Fatalf("traded pick was not assigned to its new owner: %#v", afterTrade)
 	}
 }
 

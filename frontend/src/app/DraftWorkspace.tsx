@@ -23,7 +23,7 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
   const [busy, setBusy] = useState(false);
   const [announcement, setAnnouncement] = useState("Draft board loading.");
   const [error, setError] = useState("");
-  const [opponentTeamNumber, setOpponentTeamNumber] = useState(0);
+  const [selectedTeamNumber, setSelectedTeamNumber] = useState(0);
   const pendingFocus = useRef<string | null>(null);
   const boardHeading = useViewHeadingFocus<HTMLHeadingElement>(snapshot !== null);
   const errorAlert = useRef<HTMLDivElement>(null);
@@ -34,7 +34,7 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
       .then((data) => {
         if (!active) return;
         setSnapshot(data);
-        setOpponentTeamNumber(data.teams.find((team) => !team.isUser)?.number ?? 0);
+        setSelectedTeamNumber(defaultSelectedTeam(data));
         setAnnouncement(`Draft board loaded. ${data.available.length} players are available.`);
       })
       .catch((reason: Error) => {
@@ -66,6 +66,7 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
     try {
       const updated = await recordDraftAction(leagueId, player.id, action, cost, teamNumber);
       setSnapshot(updated);
+      setSelectedTeamNumber(defaultSelectedTeam(updated));
       setAnnouncement(
         action === "draft"
           ? `${player.name} was drafted to your team. Rankings and recommendations updated.`
@@ -103,6 +104,7 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
     try {
       const updated = await simulateToNextTurn(leagueId);
       setSnapshot(updated);
+      setSelectedTeamNumber(defaultSelectedTeam(updated));
       setAnnouncement(`Mock opponents completed. It is now pick ${updated.pickNumber}.`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to simulate opponent picks.");
@@ -118,6 +120,7 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
     try {
       const result = await syncSleeperDraft(leagueId, draftId, rosterId);
       setSnapshot(result.snapshot);
+      setSelectedTeamNumber(defaultSelectedTeam(result.snapshot));
       setAnnouncement(
         `Sleeper sync reconciled ${result.snapshot.history.length} picks: ${result.added} added, ${result.updated} changed, ${result.removed} removed${result.unmatched ? `, ${result.unmatched} unmatched` : ""}.`,
       );
@@ -137,6 +140,7 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
     try {
       const updated = await undoDraftAction(leagueId);
       setSnapshot(updated);
+      setSelectedTeamNumber(defaultSelectedTeam(updated));
       setAnnouncement(`${lastPick.player.name} was restored to the available-player list.`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Undo failed.");
@@ -159,7 +163,8 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
     );
   }
 
-  const onClockTeam = snapshot.teams.find((team) => team.number === snapshot.onClockTeamNumber);
+  const onClockTeam = snapshot.teams.find((team) => team.number === selectedTeamNumber);
+  const selectedTeamIsUser = onClockTeam?.isUser ?? false;
 
   return (
     <>
@@ -200,7 +205,8 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
             snapshot={snapshot}
             busy={busy}
             headingRef={boardHeading}
-            opponentTeamNumber={opponentTeamNumber}
+            selectedTeamNumber={selectedTeamNumber}
+            selectedTeamIsUser={selectedTeamIsUser}
             onAction={handleAction}
             onUndo={handleUndo}
             onPreference={handlePreference}
@@ -208,8 +214,9 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
           <DraftSidebar
             snapshot={snapshot}
             busy={busy}
-            opponentTeamNumber={opponentTeamNumber}
-            onOpponentTeamChange={setOpponentTeamNumber}
+            selectedTeamNumber={selectedTeamNumber}
+            selectedTeamIsUser={selectedTeamIsUser}
+            onSelectedTeamChange={setSelectedTeamNumber}
             onAction={handleAction}
             onMock={handleMock}
             onSleeperSync={handleSleeperSync}
@@ -219,4 +226,9 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
       </main>
     </>
   );
+}
+
+function defaultSelectedTeam(snapshot: DraftSnapshot): number {
+  if (snapshot.draftType !== "auction") return snapshot.onClockTeamNumber;
+  return snapshot.teams.find((team) => !team.isUser)?.number ?? 0;
 }

@@ -6,8 +6,9 @@ import { DraftTools } from "./DraftTools";
 interface DraftSidebarProps {
   snapshot: DraftSnapshot;
   busy: boolean;
-  opponentTeamNumber: number;
-  onOpponentTeamChange: (teamNumber: number) => void;
+  selectedTeamNumber: number;
+  selectedTeamIsUser: boolean;
+  onSelectedTeamChange: (teamNumber: number) => void;
   onAction: (player: Player, action: DraftAction, cost?: number, teamNumber?: number) => void;
   onMock: () => void;
   onSleeperSync: (draftId: string, rosterId: number) => Promise<void>;
@@ -16,8 +17,9 @@ interface DraftSidebarProps {
 export function DraftSidebar({
   snapshot,
   busy,
-  opponentTeamNumber,
-  onOpponentTeamChange,
+  selectedTeamNumber,
+  selectedTeamIsUser,
+  onSelectedTeamChange,
   onAction,
   onMock,
   onSleeperSync,
@@ -50,8 +52,8 @@ export function DraftSidebar({
                   inflation={snapshot.auctionInflation}
                   minimumBid={snapshot.auctionMinimumBid}
                   maximumBid={snapshot.maximumBid}
-                  opponentTeamNumber={opponentTeamNumber}
-                  isUserTurn={snapshot.isUserTurn}
+                  selectedTeamNumber={selectedTeamNumber}
+                  isUserTurn={selectedTeamIsUser}
                   isComplete={snapshot.isComplete}
                   onAction={onAction}
                 />
@@ -64,8 +66,8 @@ export function DraftSidebar({
       <DraftTools
         snapshot={snapshot}
         busy={busy}
-        opponentTeamNumber={opponentTeamNumber}
-        onOpponentTeamChange={onOpponentTeamChange}
+        selectedTeamNumber={selectedTeamNumber}
+        onSelectedTeamChange={onSelectedTeamChange}
         onMock={onMock}
         onSleeperSync={onSleeperSync}
       />

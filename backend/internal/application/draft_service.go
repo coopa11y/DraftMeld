@@ -328,14 +328,17 @@ func teamForDraftAction(rules league.Rules, pick int, action draft.Action, reque
 		return requested, nil
 	}
 	owner := pickOwner(pick, rules)
+	if requested != 0 {
+		if requested < 1 || requested > rules.TeamCount {
+			return 0, fmt.Errorf("pick owner must be between 1 and %d", rules.TeamCount)
+		}
+		owner = requested
+	}
 	if action == draft.ActionDraft && owner != rules.DraftPosition {
 		return 0, fmt.Errorf("pick %d belongs to %s", pick, teamName(rules, owner))
 	}
 	if action == draft.ActionTaken && owner == rules.DraftPosition {
 		return 0, errors.New("it is your turn; use Draft to add a player to your team")
-	}
-	if requested != 0 && requested != owner {
-		return 0, fmt.Errorf("pick %d belongs to %s", pick, teamName(rules, owner))
 	}
 	return owner, nil
 }

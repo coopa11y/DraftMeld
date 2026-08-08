@@ -295,6 +295,7 @@ afterEach(() => {
 describe("accessible draft board", () => {
   it("creates a customized league through an accessible setup form", async () => {
     let configuredLeagues = [demoLeague];
+    let submittedRules: Omit<League, "id"> | undefined;
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
@@ -303,6 +304,7 @@ describe("accessible draft board", () => {
         if (path.endsWith("/leagues") && request.method === "GET") return jsonResponse(configuredLeagues);
         if (path.endsWith("/leagues") && request.method === "POST") {
           const rules = (await request.clone().json()) as Omit<League, "id">;
+          submittedRules = rules;
           const created = { id: "family-league", ...rules };
           configuredLeagues = [...configuredLeagues, created];
           return jsonResponse(created, 201);
@@ -315,14 +317,23 @@ describe("accessible draft board", () => {
 
     await user.click(await screen.findByRole("button", { name: "Manage leagues" }));
     await user.click(screen.getByRole("button", { name: "Create league" }));
+    expect(screen.getByRole("group", { name: "League settings" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Draft settings" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Team settings" })).toBeInTheDocument();
     const name = screen.getByRole("textbox", { name: "League name" });
     await user.clear(name);
     await user.type(name, "Family League");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Your draft position" }), "7");
+    expect(screen.getByRole("textbox", { name: "Team 7 (your team)" })).toHaveValue("My Team");
+    expect(screen.getByRole("textbox", { name: "Team 1" })).toHaveValue("");
     expect((await axe(container)).violations).toHaveLength(0);
     await user.click(screen.getByRole("button", { name: "Save league" }));
 
     expect(await screen.findByRole("heading", { name: "Family League" })).toBeInTheDocument();
     expect(screen.getByText("Family League was saved.")).toBeInTheDocument();
+    expect(submittedRules?.draftPosition).toBe(7);
+    expect(submittedRules?.teamNames[6]).toBe("My Team");
+    expect(submittedRules?.teamNames[0]).toBe("");
   });
 
   it("restores a versioned league backup without overwriting existing leagues", async () => {
@@ -835,6 +846,25 @@ describe("accessible draft board", () => {
         screen.getAllByRole("button", { name: "Mark Jordan Hale, WR, as taken by another team" })[0],
       ).toHaveFocus(),
     );
+  });
+
+  it("assigns a traded pick to the selected team", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() => jsonResponse([demoLeague]))
+      .mockImplementationOnce(() => jsonResponse(snapshot()))
+      .mockImplementationOnce(() => jsonResponse(snapshot({ pickNumber: 3, onClockTeamNumber: 3 })));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    const pickOwner = await screen.findByRole("combobox", { name: /Owner of pick 1/ });
+    await user.selectOptions(pickOwner, "1");
+    expect(screen.getByText("Traded from Team 2 to My Team.")).toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: "Draft Alex Rivers, RB, to my team" })[0]);
+
+    const request = fetchMock.mock.calls[2][0] as Request;
+    expect(await request.clone().json()).toMatchObject({ action: "draft", playerId: "p001", teamNumber: 1 });
   });
 
   it("restores the last player when undo is selected", async () => {

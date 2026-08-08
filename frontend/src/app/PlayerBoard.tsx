@@ -13,7 +13,8 @@ interface PlayerBoardProps {
   snapshot: DraftSnapshot;
   busy: boolean;
   headingRef: RefObject<HTMLHeadingElement | null>;
-  opponentTeamNumber: number;
+  selectedTeamNumber: number;
+  selectedTeamIsUser: boolean;
   onAction: (player: Player, action: DraftAction, cost?: number, teamNumber?: number) => void;
   onUndo: () => void;
   onPreference: (player: Player, preference: "target" | "avoid" | "") => void;
@@ -30,7 +31,8 @@ export function PlayerBoard({
   snapshot,
   busy,
   headingRef,
-  opponentTeamNumber,
+  selectedTeamNumber,
+  selectedTeamIsUser,
   onAction,
   onUndo,
   onPreference,
@@ -192,8 +194,8 @@ export function PlayerBoard({
                     inflation={snapshot.auctionInflation}
                     minimumBid={snapshot.auctionMinimumBid}
                     maximumBid={snapshot.maximumBid}
-                    opponentTeamNumber={opponentTeamNumber}
-                    isUserTurn={snapshot.isUserTurn}
+                    selectedTeamNumber={selectedTeamNumber}
+                    isUserTurn={selectedTeamIsUser}
                     isComplete={snapshot.isComplete}
                     onAction={onAction}
                   />
