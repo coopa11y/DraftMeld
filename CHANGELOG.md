@@ -8,6 +8,7 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 
 - Resumable first-run setup with guided and full-manual paths, device-local progress, and clear next steps
 - Review-first league scoring imports from selectable-text PDF and flexible row- or column-oriented CSV files
+- League-wide PDF and CSV imports for format, draft, roster, dynasty, FAAB, auction, and scoring settings while preserving manual user-specific choices
 - Expandable league scoring for TE premium, two-point conversions, fumbles, yardage milestones, distance kicking, blocked kicks, defensive returns, and points-allowed tiers
 - Optional projection CSV mappings for every expanded scoring event while preserving simple and partial scoring setups
 - Explicit not-started, in-progress, and complete draft sessions with setup review, safe reset, and one-step reset recovery
