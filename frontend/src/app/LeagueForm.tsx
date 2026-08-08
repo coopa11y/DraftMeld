@@ -4,25 +4,10 @@ import type { League, LeagueRules, RosterSlot } from "../shared/api/types";
 import { Button } from "../shared/ui/Button";
 import { FormField } from "../shared/ui/FormField";
 import { DraftSettings, LeagueSettings, TeamSettings } from "./LeagueSetupSections";
+import { ScoringSettings } from "./ScoringSettings";
+import { defaultScoringRules } from "./scoring";
 
 const playerPositions = ["QB", "RB", "WR", "TE", "K", "DST"] as const;
-const scoringFields = [
-  ["reception", "Points per reception", 0.5],
-  ["passingYard", "Points per passing yard", 0.01],
-  ["passingTouchdown", "Points per passing touchdown", 1],
-  ["interception", "Points per interception", 0.5],
-  ["rushingYard", "Points per rushing yard", 0.01],
-  ["rushingTouchdown", "Points per rushing touchdown", 1],
-  ["receivingYard", "Points per receiving yard", 0.01],
-  ["receivingTouchdown", "Points per receiving touchdown", 1],
-  ["fieldGoalMade", "Points per field goal made", 0.5],
-  ["extraPointMade", "Points per extra point made", 0.5],
-  ["defenseSack", "Points per defensive sack", 0.5],
-  ["defenseInterception", "Points per defensive interception", 0.5],
-  ["defenseFumbleRecovery", "Points per defensive fumble recovery", 0.5],
-  ["defenseTouchdown", "Points per defensive touchdown", 1],
-  ["defenseSafety", "Points per defensive safety", 0.5],
-] as const;
 
 const defaultRoster: RosterSlot[] = [
   { name: "QB", count: 1, positions: ["QB"], isStarting: true },
@@ -53,23 +38,7 @@ function defaultRules(): LeagueRules {
     faabBudget: 100,
     faabTrades: false,
     rosterSlots: defaultRoster.map((slot) => ({ ...slot, positions: [...slot.positions] })),
-    scoringRules: {
-      reception: 1,
-      passingYard: 0.04,
-      passingTouchdown: 4,
-      interception: -2,
-      rushingYard: 0.1,
-      rushingTouchdown: 6,
-      receivingYard: 0.1,
-      receivingTouchdown: 6,
-      fieldGoalMade: 3,
-      extraPointMade: 1,
-      defenseSack: 1,
-      defenseInterception: 2,
-      defenseFumbleRecovery: 2,
-      defenseTouchdown: 6,
-      defenseSafety: 2,
-    },
+    scoringRules: defaultScoringRules(),
     sourcePreferences: {},
     consensusMethod: "weighted-median",
     playerPreferences: {},
@@ -206,23 +175,7 @@ export function LeagueForm({ league, busy, onCancel, onSave }: LeagueFormProps) 
         </Button>
       </fieldset>
 
-      <fieldset disabled={busy}>
-        <legend>Scoring values</legend>
-        <div className="form-grid scoring-grid">
-          {scoringFields.map(([name, label, step]) => (
-            <FormField key={name} label={label}>
-              <input
-                type="number"
-                step={step}
-                value={rules.scoringRules[name] ?? 0}
-                onChange={(event) =>
-                  setRules({ ...rules, scoringRules: { ...rules.scoringRules, [name]: Number(event.target.value) } })
-                }
-              />
-            </FormField>
-          ))}
-        </div>
-      </fieldset>
+      <ScoringSettings rules={rules} setRules={setRules} disabled={busy} />
 
       <div className="form-actions">
         <Button type="submit" variant="primary" disabled={busy}>

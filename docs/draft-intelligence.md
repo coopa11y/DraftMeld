@@ -14,11 +14,17 @@ Source ranks are normalized to the current eligible player-pool depth before com
 
 ## Projection CSV format
 
-Projection files are user-supplied CSVs. The import screen detects the source headers and lets the user map them to DraftMeld's player identity, metadata, and scoring fields. Required mappings are `name`, `position`, and `team`; `adp`, `byeWeek`, and statistic mappings are optional:
+Projection files are user-supplied CSVs. The import screen detects the source headers and lets the user map them to DraftMeld's player identity, metadata, and scoring fields. Required mappings are `name`, `position`, and `team`; `adp`, `byeWeek`, and every statistic mapping are optional. Missing statistics contribute zero, so a league and its projection source can be as simple or detailed as needed.
+
+Core statistics include:
 
 ```text
 reception,passingYard,passingTouchdown,interception,rushingYard,rushingTouchdown,receivingYard,receivingTouchdown,fieldGoalMade,extraPointMade,defenseSack,defenseInterception,defenseFumbleRecovery,defenseTouchdown,defenseSafety
 ```
+
+Expanded optional statistics include passing, rushing, and receiving two-point conversions; fumbles and fumbles lost; 300/400-yard passing games; 100/200-yard rushing and receiving games; field-goal distance bands and misses; blocked kicks and defensive two-point returns; and games in configurable points-allowed bands. TE premium does not require a separate projection column: DraftMeld applies the configured bonus to receptions by players at TE.
+
+Every scoring value can be positive, negative, or zero. Zero disables a category. Field goals can use one any-distance value or distance bands; setting the unused approach to zero prevents double scoring. Milestone columns are event counts and apply independently, allowing leagues to make higher thresholds cumulative or non-cumulative through their projection data.
 
 Multiple imported projection sources are averaged per player. DraftMeld then multiplies each projected statistic by the active league's scoring value. Projection data remains distinct from ordinal consensus ranks.
 

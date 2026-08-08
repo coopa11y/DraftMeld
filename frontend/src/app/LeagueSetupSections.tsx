@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { LeagueRules } from "../shared/api/types";
 import { FormField } from "../shared/ui/FormField";
+import { applyReceptionPreset, receptionPreset } from "./scoring";
 
 type SetRules = Dispatch<SetStateAction<LeagueRules>>;
 
@@ -105,17 +106,21 @@ export function LeagueSettings({
             onChange={(event) => setRules({ ...rules, season: Number(event.target.value) })}
           />
         </FormField>
-        <FormField label="Scoring preset">
+        <FormField
+          label="Reception scoring preset"
+          help="Choose a common format, then customize any scoring value below."
+        >
           <select
-            value={scoringPreset(rules.scoringRules.reception)}
+            value={receptionPreset(rules.scoringRules)}
             onChange={(event) => {
               if (event.target.value === "custom") return;
-              setRules({ ...rules, scoringRules: { ...rules.scoringRules, reception: Number(event.target.value) } });
+              setRules({ ...rules, scoringRules: applyReceptionPreset(rules.scoringRules, event.target.value) });
             }}
           >
             <option value="0">Standard</option>
             <option value="0.5">Half PPR</option>
             <option value="1">PPR</option>
+            <option value="te-premium">TE premium PPR (+0.5)</option>
             <option value="custom">Custom</option>
           </select>
         </FormField>
@@ -365,8 +370,4 @@ function AuctionSettings({ rules, setRules }: { rules: LeagueRules; setRules: Se
       </label>
     </>
   );
-}
-
-function scoringPreset(receptions: number): string {
-  return receptions === 0 || receptions === 0.5 || receptions === 1 ? String(receptions) : "custom";
 }

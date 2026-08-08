@@ -1545,6 +1545,29 @@ tbody tr:focus-within {
   margin-bottom: 1.25rem;
 }
 
+.scoring-groups {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.scoring-group {
+  padding: 0.85rem 1rem;
+  background: var(--color-surface-deep);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.7rem;
+}
+
+.scoring-group summary {
+  min-height: 44px;
+  padding: 0.55rem 0;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.scoring-group[open] summary {
+  margin-bottom: 0.35rem;
+}
+
 .draft-session-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));

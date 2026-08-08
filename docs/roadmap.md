@@ -4,8 +4,7 @@ DraftMeld is keeping the `v0.3.0` release unpublished while the remaining draft-
 
 ## Current priorities
 
-1. **Expanded scoring** — support TE premium, yardage and milestone bonuses, two-point conversions, fumbles, and additional defense rules.
-2. **Release readiness** — add first-run guidance and complete a manual NVDA walkthrough before publishing the prerelease.
+1. **Release readiness** — add first-run guidance and complete a manual NVDA walkthrough before publishing the prerelease.
 
 ## Completed initial-release capabilities
 
@@ -15,6 +14,7 @@ DraftMeld is keeping the `v0.3.0` release unpublished while the remaining draft-
 - Weighted, explainable multi-source consensus
 - Accessible manual drafting with position views, recommendations, persistence, and undo
 - Explicit draft start, completion, reset, and recoverable reset states with active-draft configuration safeguards
+- Simple-to-advanced scoring with optional TE premium, turnovers, bonuses, kicking bands, and defense tiers
 - Ranking, league backup, and draft-result exports
 - Generic private ranking CSV imports with reusable column mapping
 - Stable canonical player identities, aliases, and provider IDs

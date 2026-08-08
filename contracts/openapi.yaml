@@ -794,6 +794,7 @@ components:
             $ref: "#/components/schemas/RosterSlot"
         scoringRules:
           type: object
+          description: Custom points per projected event. Missing or zero-valued categories are disabled.
           additionalProperties:
             type: number
         sourcePreferences:

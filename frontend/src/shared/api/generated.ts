@@ -614,6 +614,7 @@ export interface components {
             faabBudget: number;
             faabTrades: boolean;
             rosterSlots: components["schemas"]["RosterSlot"][];
+            /** @description Custom points per projected event. Missing or zero-valued categories are disabled. */
             scoringRules: {
                 [key: string]: number;
             };
