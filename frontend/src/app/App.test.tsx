@@ -337,6 +337,28 @@ afterEach(() => {
 });
 
 describe("accessible draft board", () => {
+  it("offers non-blocking first-run guidance and a resumable setup entry point", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const request = input instanceof Request ? input : new Request(input);
+        return new URL(request.url).pathname.endsWith("/leagues")
+          ? jsonResponse([demoLeague])
+          : jsonResponse(snapshot({ sessionStatus: "not-started" }));
+      }),
+    );
+    const user = userEvent.setup();
+    render(<App />);
+    expect(await screen.findByText("Draft not started")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Set up your league" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Start setup" }));
+    expect(screen.getByRole("heading", { name: "Set up your draft workspace" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("button", { name: "Save and finish later" }));
+    expect(screen.getAllByRole("button", { name: "Resume setup" }).length).toBeGreaterThan(0);
+    expect(screen.getByText("Draft not started")).toBeInTheDocument();
+  });
+
   it("starts, safely resets, and restores a draft session", async () => {
     let draft = snapshot({ sessionStatus: "not-started", canReset: false, canUndoReset: false });
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {

@@ -39,6 +39,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/leagues/rules/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview scoring rules recognized from a user-supplied PDF or CSV */
+        post: operations["importLeagueRules"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/leagues/{leagueId}": {
         parameters: {
             query?: never;
@@ -636,6 +653,23 @@ export interface components {
         League: {
             id: string;
         } & components["schemas"]["LeagueRules"];
+        LeagueRuleImport: {
+            /** @enum {string} */
+            fileType: "pdf" | "csv";
+            rules: {
+                [key: string]: number;
+            };
+            matches: components["schemas"]["LeagueRuleMatch"][];
+            warnings: string[];
+        };
+        LeagueRuleMatch: {
+            key: string;
+            label: string;
+            value: number;
+            source: string;
+            /** @enum {string} */
+            confidence: "high" | "medium";
+        };
         LeagueBackup: {
             /** @constant */
             formatVersion: 1;
@@ -1067,6 +1101,52 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+        };
+    };
+    importLeagueRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Recognized rules for user review. The uploaded file is not retained. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueRuleImport"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description The uploaded file exceeds the 20 MiB limit. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The file was readable but contained no supported scoring rules. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     getLeague: {

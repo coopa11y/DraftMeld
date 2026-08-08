@@ -304,6 +304,29 @@ func TestLeagueLifecycleEndpoints(t *testing.T) {
 	}
 }
 
+func TestLeagueRuleCSVImportReturnsAReviewablePreview(t *testing.T) {
+	router, closeStore := testRouter(t)
+	defer closeStore()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	file, err := writer.CreateFormFile("file", "league-rules.csv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = file.Write([]byte("Statistic,Points,Per\nPassing yards,1,25\nPassing touchdowns,4,1\n"))
+	_ = writer.Close()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/leagues/rules/import", &body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("league rule import failed: %d %s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), `"passingYard":0.04`) || !strings.Contains(response.Body.String(), `"confidence":"high"`) {
+		t.Fatalf("unexpected import preview: %s", response.Body.String())
+	}
+}
+
 func testRouter(t *testing.T) (http.Handler, func()) {
 	router, closeStore, _ := testRouterWithDraftService(t)
 	return router, closeStore

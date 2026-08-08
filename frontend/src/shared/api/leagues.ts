@@ -1,5 +1,5 @@
-import type { League, LeagueBackup, LeagueRules } from "./types";
-import { apiClient, ensureSuccess, unwrap } from "./client";
+import type { League, LeagueBackup, LeagueRuleImport, LeagueRules } from "./types";
+import { apiClient, ensureSuccess, postMultipart, unwrap } from "./client";
 
 export async function listLeagues(): Promise<League[]> {
   const { data, error, response } = await apiClient.GET("/leagues");
@@ -36,6 +36,12 @@ export async function deleteLeague(id: string): Promise<void> {
 export async function importLeagueBackup(backup: LeagueBackup): Promise<League> {
   const { data, error, response } = await apiClient.POST("/leagues/import", { body: backup });
   return unwrap(data, error, response);
+}
+
+export async function importLeagueRules(file: File): Promise<LeagueRuleImport> {
+  const form = new FormData();
+  form.append("file", file);
+  return postMultipart<LeagueRuleImport>("leagues/rules/import", form);
 }
 
 export type LeagueExportKind = "backup" | "rankings.csv" | "draft.csv" | "draft.json";

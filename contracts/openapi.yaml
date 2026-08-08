@@ -54,6 +54,40 @@ paths:
                 $ref: "#/components/schemas/League"
         "400":
           $ref: "#/components/responses/BadRequest"
+  /leagues/rules/import:
+    post:
+      operationId: importLeagueRules
+      summary: Preview scoring rules recognized from a user-supplied PDF or CSV
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Recognized rules for user review. The uploaded file is not retained.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeagueRuleImport"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          description: The uploaded file exceeds the 20 MiB limit.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "422":
+          description: The file was readable but contained no supported scoring rules.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
   /leagues/{leagueId}:
     parameters:
       - $ref: "#/components/parameters/LeagueIdPath"
@@ -833,6 +867,36 @@ components:
             id:
               type: string
         - $ref: "#/components/schemas/LeagueRules"
+    LeagueRuleImport:
+      type: object
+      additionalProperties: false
+      required: [fileType, rules, matches, warnings]
+      properties:
+        fileType:
+          type: string
+          enum: [pdf, csv]
+        rules:
+          type: object
+          additionalProperties: { type: number }
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeagueRuleMatch"
+        warnings:
+          type: array
+          items: { type: string }
+    LeagueRuleMatch:
+      type: object
+      additionalProperties: false
+      required: [key, label, value, source, confidence]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        value: { type: number }
+        source: { type: string }
+        confidence:
+          type: string
+          enum: [high, medium]
     LeagueBackup:
       type: object
       additionalProperties: false
