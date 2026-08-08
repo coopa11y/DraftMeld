@@ -58,6 +58,32 @@ export function LeagueSettings({ rules, setRules, disabled }: SettingsProps) {
             }}
           />
         </FormField>
+        <FormField label="League format" help="Redraft shows only this season. Dynasty can track future rookie picks.">
+          <select
+            value={rules.leagueFormat}
+            onChange={(event) => {
+              const leagueFormat = event.target.value as LeagueRules["leagueFormat"];
+              setRules({
+                ...rules,
+                leagueFormat,
+                futurePickSeasons: leagueFormat === "dynasty" ? Math.max(1, rules.futurePickSeasons) : 0,
+              });
+            }}
+          >
+            <option value="redraft">Redraft</option>
+            <option value="dynasty">Dynasty</option>
+          </select>
+        </FormField>
+        <FormField label="Current season">
+          <input
+            type="number"
+            min="2020"
+            max="2200"
+            required
+            value={rules.season}
+            onChange={(event) => setRules({ ...rules, season: Number(event.target.value) })}
+          />
+        </FormField>
         <FormField label="Scoring preset">
           <select
             value={scoringPreset(rules.scoringRules.reception)}
@@ -127,6 +153,34 @@ export function DraftSettings({ rules, setRules, disabled }: SettingsProps) {
             ))}
           </select>
         </FormField>
+        {rules.leagueFormat === "dynasty" ? (
+          <>
+            <FormField label="Future pick seasons" help="How many upcoming seasons of rookie picks can be traded.">
+              <select
+                value={rules.futurePickSeasons}
+                onChange={(event) => setRules({ ...rules, futurePickSeasons: Number(event.target.value) })}
+              >
+                {[1, 2, 3, 4, 5].map((count) => (
+                  <option key={count} value={count}>
+                    {count}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="Rookie draft rounds">
+              <select
+                value={rules.rookieDraftRounds}
+                onChange={(event) => setRules({ ...rules, rookieDraftRounds: Number(event.target.value) })}
+              >
+                {Array.from({ length: 10 }, (_, index) => index + 1).map((round) => (
+                  <option key={round} value={round}>
+                    {round}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          </>
+        ) : null}
         {rules.draftType === "auction" ? <AuctionSettings rules={rules} setRules={setRules} /> : null}
       </div>
     </fieldset>
@@ -218,6 +272,14 @@ function AuctionSettings({ rules, setRules }: { rules: LeagueRules; setRules: Se
           onChange={(event) => update({ keeperValueRemoved: Number(event.target.value) })}
         />
       </FormField>
+      <label className="checkbox-label">
+        <input
+          type="checkbox"
+          checked={rules.auctionBudgetTrades}
+          onChange={(event) => update({ auctionBudgetTrades: event.target.checked })}
+        />
+        <span>Allow auction budget to be traded</span>
+      </label>
     </>
   );
 }

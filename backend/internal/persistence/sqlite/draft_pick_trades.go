@@ -11,7 +11,8 @@ import (
 
 func (store *DraftEventStore) ListPickTrades(ctx context.Context, leagueID string) ([]draft.PickTrade, error) {
 	rows, err := store.database.QueryContext(ctx, `
-SELECT id, league_id, team_one_number, team_two_number, team_one_receives, team_two_receives, created_at
+SELECT id, league_id, team_one_number, team_two_number, team_one_receives, team_two_receives,
+       season, team_one_future_picks, team_two_future_picks, team_one_auction_budget, team_two_auction_budget, created_at
 FROM draft_pick_trades
 WHERE league_id = ?
 ORDER BY id`, leagueID)
@@ -22,8 +23,9 @@ ORDER BY id`, leagueID)
 	trades := make([]draft.PickTrade, 0)
 	for rows.Next() {
 		var trade draft.PickTrade
-		var teamOneJSON, teamTwoJSON, created string
-		if err = rows.Scan(&trade.ID, &trade.LeagueID, &trade.TeamOneNumber, &trade.TeamTwoNumber, &teamOneJSON, &teamTwoJSON, &created); err != nil {
+		var teamOneJSON, teamTwoJSON, teamOneFutureJSON, teamTwoFutureJSON, created string
+		if err = rows.Scan(&trade.ID, &trade.LeagueID, &trade.TeamOneNumber, &trade.TeamTwoNumber, &teamOneJSON, &teamTwoJSON,
+			&trade.Season, &teamOneFutureJSON, &teamTwoFutureJSON, &trade.TeamOneAuctionBudget, &trade.TeamTwoAuctionBudget, &created); err != nil {
 			return nil, fmt.Errorf("scan draft pick trade: %w", err)
 		}
 		if err = json.Unmarshal([]byte(teamOneJSON), &trade.TeamOneReceives); err != nil {
@@ -31,6 +33,12 @@ ORDER BY id`, leagueID)
 		}
 		if err = json.Unmarshal([]byte(teamTwoJSON), &trade.TeamTwoReceives); err != nil {
 			return nil, fmt.Errorf("decode team two draft picks: %w", err)
+		}
+		if err = json.Unmarshal([]byte(teamOneFutureJSON), &trade.TeamOneFuturePicks); err != nil {
+			return nil, fmt.Errorf("decode team one future picks: %w", err)
+		}
+		if err = json.Unmarshal([]byte(teamTwoFutureJSON), &trade.TeamTwoFuturePicks); err != nil {
+			return nil, fmt.Errorf("decode team two future picks: %w", err)
 		}
 		if trade.CreatedAt, err = time.Parse(time.RFC3339Nano, created); err != nil {
 			return nil, fmt.Errorf("parse draft pick trade time: %w", err)
@@ -49,10 +57,23 @@ func (store *DraftEventStore) SavePickTrade(ctx context.Context, trade draft.Pic
 	if err != nil {
 		return draft.PickTrade{}, fmt.Errorf("encode team two draft picks: %w", err)
 	}
+	oneFuture, err := json.Marshal(trade.TeamOneFuturePicks)
+	if err != nil {
+		return draft.PickTrade{}, fmt.Errorf("encode team one future picks: %w", err)
+	}
+	twoFuture, err := json.Marshal(trade.TeamTwoFuturePicks)
+	if err != nil {
+		return draft.PickTrade{}, fmt.Errorf("encode team two future picks: %w", err)
+	}
 	trade.CreatedAt = time.Now().UTC()
 	result, err := store.database.ExecContext(ctx, `
-INSERT INTO draft_pick_trades (league_id, team_one_number, team_two_number, team_one_receives, team_two_receives, created_at)
-VALUES (?, ?, ?, ?, ?, ?)`, trade.LeagueID, trade.TeamOneNumber, trade.TeamTwoNumber, string(one), string(two), trade.CreatedAt.Format(time.RFC3339Nano))
+INSERT INTO draft_pick_trades (
+    league_id, team_one_number, team_two_number, team_one_receives, team_two_receives, season,
+    team_one_future_picks, team_two_future_picks, team_one_auction_budget, team_two_auction_budget, created_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, trade.LeagueID, trade.TeamOneNumber, trade.TeamTwoNumber,
+		string(one), string(two), trade.Season, string(oneFuture), string(twoFuture), trade.TeamOneAuctionBudget,
+		trade.TeamTwoAuctionBudget, trade.CreatedAt.Format(time.RFC3339Nano))
 	if err != nil {
 		return draft.PickTrade{}, fmt.Errorf("save draft pick trade: %w", err)
 	}

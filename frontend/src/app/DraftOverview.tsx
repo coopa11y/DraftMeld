@@ -1,5 +1,11 @@
 import { useMemo } from "react";
-import type { DraftPickSlot, DraftPickTrade, DraftSnapshot, Pick as DraftPick } from "../shared/api/types";
+import type {
+  DraftPickSlot,
+  DraftPickTrade,
+  DraftSnapshot,
+  FutureDraftPick,
+  Pick as DraftPick,
+} from "../shared/api/types";
 import { Panel } from "../shared/ui/Panel";
 import { DraftPickTrades } from "./DraftPickTrades";
 
@@ -11,6 +17,10 @@ interface DraftOverviewProps {
     teamTwo: number,
     teamOneReceives: number[],
     teamTwoReceives: number[],
+    teamOneFuture: FutureDraftPick[],
+    teamTwoFuture: FutureDraftPick[],
+    teamOneBudget: number,
+    teamTwoBudget: number,
   ) => Promise<void>;
   onDeleteTrade: (trade: DraftPickTrade) => Promise<void>;
 }
@@ -28,9 +38,9 @@ export function DraftOverview({ snapshot, busy, onCreateTrade, onDeleteTrade }: 
         </span>
       </div>
 
-      {snapshot.draftType === "auction" ? null : (
+      {snapshot.draftType !== "auction" || snapshot.auctionBudgetTrades || snapshot.leagueFormat === "dynasty" ? (
         <DraftPickTrades snapshot={snapshot} busy={busy} onCreate={onCreateTrade} onDelete={onDeleteTrade} />
-      )}
+      ) : null}
 
       <Panel variant="board" aria-labelledby="draft-grid-title">
         <h3 id="draft-grid-title">{snapshot.draftType === "auction" ? "Draft ledger" : "Draft grid"}</h3>
@@ -75,8 +85,13 @@ function DraftGrid({ snapshot }: Pick<DraftOverviewProps, "snapshot">) {
     return indexed;
   }, [snapshot.history]);
   const slotsByRoundAndOriginalTeam = useMemo(
-    () => new Map(snapshot.pickSlots.map((slot) => [`${slot.round}:${slot.originalTeamNumber}`, slot])),
-    [snapshot.pickSlots],
+    () =>
+      new Map(
+        snapshot.pickSlots
+          .filter((slot) => slot.season === snapshot.season && slot.overallNumber > 0)
+          .map((slot) => [`${slot.round}:${slot.originalTeamNumber}`, slot]),
+      ),
+    [snapshot.pickSlots, snapshot.season],
   );
   return (
     <div className="table-scroll" role="region" aria-label="Full draft grid" tabIndex={0}>

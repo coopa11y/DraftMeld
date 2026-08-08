@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/draft"
@@ -127,7 +128,7 @@ func TestDraftPickTradeUpdatesAnyUnusedRoundAndPersists(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	afterTrade, err := service.CreatePickTrade(t.Context(), "demo", 12, 1, []int{1}, []int{12, 13})
+	afterTrade, err := service.CreatePickTrade(t.Context(), "demo", 12, 1, []int{1}, []int{12, 13}, nil, nil, 0, 0)
 	if err != nil {
 		t.Fatalf("create multi-pick trade: %v", err)
 	}
@@ -147,7 +148,7 @@ func TestDraftPickTradeUpdatesAnyUnusedRoundAndPersists(t *testing.T) {
 	if afterPick.History[0].TeamNumber != 12 || afterPick.OnClockTeamNumber != 2 {
 		t.Fatalf("unexpected ownership after traded pick: %#v", afterPick)
 	}
-	if _, err = service.CreatePickTrade(t.Context(), "demo", 1, 12, []int{1}, []int{24}); err == nil {
+	if _, err = service.CreatePickTrade(t.Context(), "demo", 1, 12, []int{1}, []int{24}, nil, nil, 0, 0); err == nil {
 		t.Fatal("expected an already-used pick to be rejected")
 	}
 
@@ -159,6 +160,122 @@ func TestDraftPickTradeUpdatesAnyUnusedRoundAndPersists(t *testing.T) {
 	if err != nil || len(persisted.PickTrades) != 1 || persisted.PickSlots[12].OwnerTeamNumber != 1 {
 		t.Fatalf("trade did not persist: snapshot=%#v error=%v", persisted, err)
 	}
+}
+
+func TestDynastyFuturePickTradeSurvivesSeasonChange(t *testing.T) {
+	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	configuration := DemoLeagueConfiguration()
+	configuration.Rules.LeagueFormat = league.LeagueFormatDynasty
+	configuration.Rules.Season = 2026
+	configuration.Rules.FuturePickSeasons = 2
+	configuration.Rules.RookieDraftRounds = 4
+	if err = store.SaveLeague(t.Context(), configuration); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewDraftServiceWithLeagues(store, store, draft.DemoCatalog())
+	if err != nil {
+		t.Fatal(err)
+	}
+	future := draft.FuturePick{Season: 2027, Round: 1, OriginalTeamNumber: 2}
+	afterTrade, err := service.CreatePickTrade(t.Context(), "demo", 1, 2, nil, []int{1}, []draft.FuturePick{future}, nil, 0, 0)
+	if err != nil {
+		t.Fatalf("trade future dynasty pick: %v", err)
+	}
+	if owner := futureSlotOwner(afterTrade.PickSlots, 2027, 1, 2); owner != 1 {
+		t.Fatalf("future pick owner = %d, want 1", owner)
+	}
+	if _, err = service.RecordForTeam(t.Context(), "demo", "p001", draft.ActionTaken, 0, 2); err != nil {
+		t.Fatalf("record 2026 pick: %v", err)
+	}
+
+	configuration.Rules.Season = 2027
+	if err = store.SaveLeague(t.Context(), configuration); err != nil {
+		t.Fatal(err)
+	}
+	nextSeason, err := service.Snapshot(t.Context(), "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nextSeason.PickSlots[1].OriginalTeamNumber != 2 || nextSeason.PickSlots[1].OwnerTeamNumber != 1 {
+		t.Fatalf("future trade was not applied to the new season: %#v", nextSeason.PickSlots[1])
+	}
+	if len(nextSeason.History) != 0 || nextSeason.PickNumber != 1 {
+		t.Fatalf("prior-season draft events leaked into 2027: history=%d pick=%d", len(nextSeason.History), nextSeason.PickNumber)
+	}
+}
+
+func TestAuctionLeagueTradesConfiguredBudgetAndFuturePicks(t *testing.T) {
+	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	configuration := DemoLeagueConfiguration()
+	configuration.Rules.DraftType = league.DraftTypeAuction
+	configuration.Rules.LeagueFormat = league.LeagueFormatDynasty
+	configuration.Rules.FuturePickSeasons = 2
+	configuration.Rules.RookieDraftRounds = 4
+	configuration.Rules.AuctionBudgetTrades = true
+	if err = store.SaveLeague(t.Context(), configuration); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewDraftServiceWithLeagues(store, store, draft.DemoCatalog())
+	if err != nil {
+		t.Fatal(err)
+	}
+	future := draft.FuturePick{Season: 2027, Round: 1, OriginalTeamNumber: 2}
+	snapshot, err := service.CreatePickTrade(t.Context(), "demo", 1, 2, nil, nil, []draft.FuturePick{future}, nil, 0, 25)
+	if err != nil {
+		t.Fatalf("trade auction assets: %v", err)
+	}
+	if snapshot.Teams[0].AuctionBudgetRemaining != 175 || snapshot.Teams[1].AuctionBudgetRemaining != 225 {
+		t.Fatalf("unexpected auction budgets: %#v", snapshot.Teams[:2])
+	}
+	if owner := futureSlotOwner(snapshot.PickSlots, 2027, 1, 2); owner != 1 {
+		t.Fatalf("future auction-league pick owner = %d, want 1", owner)
+	}
+}
+
+func TestTradeAssetsRespectLeagueRules(t *testing.T) {
+	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	configuration := DemoLeagueConfiguration()
+	if err = store.SaveLeague(t.Context(), configuration); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewDraftServiceWithLeagues(store, store, draft.DemoCatalog())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	future := []draft.FuturePick{{Season: 2027, Round: 1, OriginalTeamNumber: 2}}
+	if _, err = service.CreatePickTrade(t.Context(), "demo", 1, 2, nil, nil, future, nil, 0, 0); err == nil || !strings.Contains(err.Error(), "redraft") {
+		t.Fatalf("redraft future pick error = %v", err)
+	}
+
+	configuration.Rules.DraftType = league.DraftTypeAuction
+	if err = store.SaveLeague(t.Context(), configuration); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.CreatePickTrade(t.Context(), "demo", 1, 2, nil, nil, nil, nil, 10, 0); err == nil || !strings.Contains(err.Error(), "not enabled") {
+		t.Fatalf("disabled auction budget error = %v", err)
+	}
+}
+
+func futureSlotOwner(slots []draft.PickSlot, season, round, originalTeam int) int {
+	for _, slot := range slots {
+		if slot.Season == season && slot.Round == round && slot.OriginalTeamNumber == originalTeam {
+			return slot.OwnerTeamNumber
+		}
+	}
+	return 0
 }
 
 func TestRecommendationsReactToRosterNeed(t *testing.T) {

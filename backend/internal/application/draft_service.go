@@ -23,6 +23,10 @@ type DraftEventRepository interface {
 	Append(context.Context, draft.Event) (draft.Event, error)
 }
 
+type seasonDraftEventRepository interface {
+	ListSeason(context.Context, string, int) ([]draft.Event, error)
+}
+
 type DraftService struct {
 	repository     DraftEventRepository
 	players        []draft.Player
@@ -95,7 +99,7 @@ func (service *DraftService) Snapshot(ctx context.Context, leagueID string) (dra
 	if err != nil {
 		return draft.Snapshot{}, err
 	}
-	events, err := service.repository.List(ctx, leagueID)
+	events, err := service.listDraftEvents(ctx, leagueID, configuration.Rules.Season)
 	if err != nil {
 		return draft.Snapshot{}, fmt.Errorf("list draft events: %w", err)
 	}
@@ -143,7 +147,7 @@ func (service *DraftService) RecordForTeam(ctx context.Context, leagueID, player
 	if _, exists := playerByID[playerID]; !exists {
 		return draft.Snapshot{}, fmt.Errorf("unknown player: %s", playerID)
 	}
-	events, err := service.repository.List(ctx, leagueID)
+	events, err := service.listDraftEvents(ctx, leagueID, configuration.Rules.Season)
 	if err != nil {
 		return draft.Snapshot{}, err
 	}
@@ -178,12 +182,14 @@ func (service *DraftService) RecordForTeam(ctx context.Context, leagueID, player
 				myRosterSize++
 			}
 		}
-		_, _, maximumBid := auctionState(configuration.Rules, service.history(state.activeEvents, playerByID, configuration.Rules), available, myRosterSize)
+		auctionRules := configuration.Rules
+		auctionRules.AuctionBudget += auctionBudgetAdjustments(trades, configuration.Rules.Season)[configuration.Rules.DraftPosition]
+		_, _, maximumBid := auctionState(auctionRules, service.history(state.activeEvents, playerByID, configuration.Rules), available, myRosterSize)
 		if cost > maximumBid {
 			return draft.Snapshot{}, fmt.Errorf("bid exceeds your maximum available bid of $%.0f", maximumBid)
 		}
 	}
-	if _, err = service.repository.Append(ctx, draft.Event{LeagueID: leagueID, PlayerID: playerID, Action: action, Cost: cost, TeamNumber: teamNumber}); err != nil {
+	if _, err = service.repository.Append(ctx, draft.Event{LeagueID: leagueID, Season: configuration.Rules.Season, PlayerID: playerID, Action: action, Cost: cost, TeamNumber: teamNumber}); err != nil {
 		return draft.Snapshot{}, err
 	}
 	return service.Snapshot(ctx, leagueID)
@@ -205,10 +211,11 @@ func (service *DraftService) Undo(ctx context.Context, leagueID string) (draft.S
 	service.mu.Lock()
 	defer service.mu.Unlock()
 
-	if _, err := service.configuration(ctx, leagueID); err != nil {
+	configuration, err := service.configuration(ctx, leagueID)
+	if err != nil {
 		return draft.Snapshot{}, err
 	}
-	events, err := service.repository.List(ctx, leagueID)
+	events, err := service.listDraftEvents(ctx, leagueID, configuration.Rules.Season)
 	if err != nil {
 		return draft.Snapshot{}, err
 	}
@@ -222,11 +229,18 @@ func (service *DraftService) Undo(ctx context.Context, leagueID string) (draft.S
 	}
 	target := state.activeEvents[len(state.activeEvents)-1]
 	if _, err = service.repository.Append(ctx, draft.Event{
-		LeagueID: leagueID, PlayerID: target.PlayerID, Action: draft.ActionUndo, TargetEventID: &target.ID,
+		LeagueID: leagueID, Season: configuration.Rules.Season, PlayerID: target.PlayerID, Action: draft.ActionUndo, TargetEventID: &target.ID,
 	}); err != nil {
 		return draft.Snapshot{}, err
 	}
 	return service.Snapshot(ctx, leagueID)
+}
+
+func (service *DraftService) listDraftEvents(ctx context.Context, leagueID string, season int) ([]draft.Event, error) {
+	if repository, ok := service.repository.(seasonDraftEventRepository); ok {
+		return repository.ListSeason(ctx, leagueID, season)
+	}
+	return service.repository.List(ctx, leagueID)
 }
 
 func (service *DraftService) configuration(ctx context.Context, leagueID string) (LeagueConfiguration, error) {
@@ -271,8 +285,10 @@ func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, ev
 	totalPicks := totalDraftPicks(configuration.Rules)
 	complete := len(state.activeEvents) >= totalPicks
 	nextPick := nextUserPickWithTrades(pickNumber-1, configuration.Rules, trades)
-	budgetRemaining, inflation, maximumBid := auctionState(configuration.Rules, history, available, len(myTeam))
-	teams := draftTeams(configuration.Rules, history)
+	auctionRules := configuration.Rules
+	auctionRules.AuctionBudget += auctionBudgetAdjustments(trades, configuration.Rules.Season)[configuration.Rules.DraftPosition]
+	budgetRemaining, inflation, maximumBid := auctionState(auctionRules, history, available, len(myTeam))
+	teams := draftTeams(configuration.Rules, history, trades)
 	onClock := 0
 	if !complete && configuration.Rules.DraftType != league.DraftTypeAuction {
 		onClock = ownerForPick(pickNumber, configuration.Rules, trades)
@@ -280,23 +296,26 @@ func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, ev
 	return draft.Snapshot{
 		LeagueID: configuration.ID, LeagueName: configuration.Rules.Name, PickNumber: pickNumber,
 		Available: available, MyTeam: myTeam, Teams: teams, History: history,
-		Recommendations:   recommend(available, myTeam, configuration.Rules, configuration.Recommendation, recommendationContext{NextUserPick: nextPick, RecentPicks: history}),
-		CanUndo:           len(state.activeEvents) > 0,
-		DataMode:          dataMode,
-		ProjectionCount:   projectionCount,
-		DraftType:         string(configuration.Rules.DraftType),
-		NextUserPick:      nextPick,
-		AuctionBudget:     configuration.Rules.AuctionBudget,
-		BudgetRemaining:   budgetRemaining,
-		AuctionInflation:  inflation,
-		AuctionMinimumBid: configuration.Rules.AuctionMinimumBid,
-		MaximumBid:        maximumBid,
-		IsUserTurn:        !complete && onClock == configuration.Rules.DraftPosition,
-		TotalPicks:        totalPicks,
-		IsComplete:        complete,
-		OnClockTeamNumber: onClock,
-		PickSlots:         draftPickSlots(configuration.Rules, trades, len(state.activeEvents)),
-		PickTrades:        enrichPickTrades(configuration.Rules, trades),
+		Recommendations:     recommend(available, myTeam, configuration.Rules, configuration.Recommendation, recommendationContext{NextUserPick: nextPick, RecentPicks: history}),
+		CanUndo:             len(state.activeEvents) > 0,
+		DataMode:            dataMode,
+		ProjectionCount:     projectionCount,
+		DraftType:           string(configuration.Rules.DraftType),
+		NextUserPick:        nextPick,
+		AuctionBudget:       auctionRules.AuctionBudget,
+		BudgetRemaining:     budgetRemaining,
+		AuctionInflation:    inflation,
+		AuctionMinimumBid:   configuration.Rules.AuctionMinimumBid,
+		MaximumBid:          maximumBid,
+		IsUserTurn:          !complete && onClock == configuration.Rules.DraftPosition,
+		TotalPicks:          totalPicks,
+		IsComplete:          complete,
+		OnClockTeamNumber:   onClock,
+		PickSlots:           draftPickSlots(configuration.Rules, trades, len(state.activeEvents)),
+		PickTrades:          enrichPickTrades(configuration.Rules, trades),
+		LeagueFormat:        string(configuration.Rules.LeagueFormat),
+		Season:              configuration.Rules.Season,
+		AuctionBudgetTrades: configuration.Rules.AuctionBudgetTrades,
 	}
 }
 
@@ -353,14 +372,23 @@ func teamForDraftAction(rules league.Rules, pick, scheduledOwner int, action dra
 	return owner, nil
 }
 
-func draftTeams(rules league.Rules, history []draft.Pick) []draft.Team {
+func draftTeams(rules league.Rules, history []draft.Pick, trades []draft.PickTrade) []draft.Team {
 	teams := make([]draft.Team, rules.TeamCount)
+	adjustments := auctionBudgetAdjustments(trades, rules.Season)
 	for index := range teams {
-		teams[index] = draft.Team{Number: index + 1, Name: teamName(rules, index+1), IsUser: index+1 == rules.DraftPosition, Roster: []draft.Player{}}
+		budget := 0.0
+		if rules.DraftType == league.DraftTypeAuction {
+			budget = rules.AuctionBudget + adjustments[index+1]
+			if index+1 == rules.DraftPosition {
+				budget -= rules.MyKeeperSpend
+			}
+		}
+		teams[index] = draft.Team{Number: index + 1, Name: teamName(rules, index+1), IsUser: index+1 == rules.DraftPosition, Roster: []draft.Player{}, AuctionBudgetRemaining: budget}
 	}
 	for _, pick := range history {
 		if pick.TeamNumber >= 1 && pick.TeamNumber <= len(teams) {
 			teams[pick.TeamNumber-1].Roster = append(teams[pick.TeamNumber-1].Roster, pick.Player)
+			teams[pick.TeamNumber-1].AuctionBudgetRemaining -= pick.Cost
 		}
 	}
 	return teams

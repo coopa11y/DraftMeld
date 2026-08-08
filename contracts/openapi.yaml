@@ -432,10 +432,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-  /draft/pick-trades:
+  /draft/trades:
     post:
-      operationId: createDraftPickTrade
-      summary: Trade one or more unused picks between two teams
+      operationId: createDraftTrade
+      summary: Trade eligible draft assets between two teams
       requestBody:
         required: true
         content:
@@ -449,10 +449,10 @@ paths:
               schema: { $ref: "#/components/schemas/DraftSnapshot" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
-  /draft/pick-trades/{tradeId}:
+  /draft/trades/{tradeId}:
     delete:
-      operationId: deleteDraftPickTrade
-      summary: Reverse a trade whose picks have not been used
+      operationId: deleteDraftTrade
+      summary: Reverse a trade whose assets remain eligible
       parameters:
         - name: tradeId
           in: path
@@ -625,6 +625,11 @@ components:
           draftPosition,
           teamNames,
           draftType,
+          leagueFormat,
+          season,
+          futurePickSeasons,
+          rookieDraftRounds,
+          auctionBudgetTrades,
           rosterSlots,
           scoringRules,
           sourcePreferences,
@@ -659,6 +664,13 @@ components:
         draftType:
           type: string
           enum: [snake, linear, auction]
+        leagueFormat:
+          type: string
+          enum: [redraft, dynasty]
+        season: { type: integer, minimum: 2020, maximum: 2200 }
+        futurePickSeasons: { type: integer, minimum: 0, maximum: 5 }
+        rookieDraftRounds: { type: integer, minimum: 1, maximum: 10 }
+        auctionBudgetTrades: { type: boolean }
         rosterSlots:
           type: array
           minItems: 1
@@ -954,7 +966,7 @@ components:
         teamName: { type: string }
     DraftTeam:
       type: object
-      required: [number, name, isUser, roster]
+      required: [number, name, isUser, roster, auctionBudgetRemaining]
       properties:
         number: { type: integer, minimum: 1 }
         name: { type: string }
@@ -962,6 +974,7 @@ components:
         roster:
           type: array
           items: { $ref: "#/components/schemas/Player" }
+        auctionBudgetRemaining: { type: number }
     DraftSnapshot:
       type: object
       required:
@@ -990,6 +1003,9 @@ components:
           onClockTeamNumber,
           pickSlots,
           pickTrades,
+          leagueFormat,
+          season,
+          auctionBudgetTrades,
         ]
       properties:
         leagueId: { type: string }
@@ -1030,10 +1046,14 @@ components:
         pickTrades:
           type: array
           items: { $ref: "#/components/schemas/DraftPickTrade" }
+        leagueFormat: { type: string, enum: [redraft, dynasty] }
+        season: { type: integer, minimum: 2020 }
+        auctionBudgetTrades: { type: boolean }
     DraftPickSlot:
       type: object
       required:
         [
+          season,
           overallNumber,
           round,
           pickInRound,
@@ -1044,9 +1064,10 @@ components:
           isUsed,
         ]
       properties:
-        overallNumber: { type: integer, minimum: 1 }
+        season: { type: integer, minimum: 2020 }
+        overallNumber: { type: integer, minimum: 0 }
         round: { type: integer, minimum: 1 }
-        pickInRound: { type: integer, minimum: 1 }
+        pickInRound: { type: integer, minimum: 0 }
         originalTeamNumber: { type: integer, minimum: 1 }
         originalTeamName: { type: string }
         ownerTeamNumber: { type: integer, minimum: 1 }
@@ -1064,6 +1085,11 @@ components:
           teamTwoName,
           teamOneReceives,
           teamTwoReceives,
+          teamOneFuturePicks,
+          teamTwoFuturePicks,
+          teamOneAuctionBudget,
+          teamTwoAuctionBudget,
+          season,
           createdAt,
         ]
       properties:
@@ -1079,22 +1105,63 @@ components:
         teamTwoReceives:
           type: array
           items: { type: integer, minimum: 1 }
+        teamOneFuturePicks:
+          type: array
+          items: { $ref: "#/components/schemas/FutureDraftPick" }
+        teamTwoFuturePicks:
+          type: array
+          items: { $ref: "#/components/schemas/FutureDraftPick" }
+        teamOneAuctionBudget: { type: number, minimum: 0 }
+        teamTwoAuctionBudget: { type: number, minimum: 0 }
+        season: { type: integer, minimum: 2020 }
         createdAt: { type: string, format: date-time }
+    FutureDraftPick:
+      type: object
+      required: [season, round, originalTeamNumber, originalTeamName]
+      properties:
+        season: { type: integer, minimum: 2020 }
+        round: { type: integer, minimum: 1 }
+        originalTeamNumber: { type: integer, minimum: 1 }
+        originalTeamName: { type: string }
+    FutureDraftPickRequest:
+      type: object
+      required: [season, round, originalTeamNumber]
+      properties:
+        season: { type: integer, minimum: 2020 }
+        round: { type: integer, minimum: 1 }
+        originalTeamNumber: { type: integer, minimum: 1 }
     DraftPickTradeRequest:
       type: object
-      required: [leagueId, teamOneNumber, teamTwoNumber, teamOneReceives, teamTwoReceives]
+      required:
+        [
+          leagueId,
+          teamOneNumber,
+          teamTwoNumber,
+          teamOneReceives,
+          teamTwoReceives,
+          teamOneFuturePicks,
+          teamTwoFuturePicks,
+          teamOneAuctionBudget,
+          teamTwoAuctionBudget,
+        ]
       properties:
         leagueId: { type: string }
         teamOneNumber: { type: integer, minimum: 1 }
         teamTwoNumber: { type: integer, minimum: 1 }
         teamOneReceives:
           type: array
-          minItems: 1
           items: { type: integer, minimum: 1 }
         teamTwoReceives:
           type: array
-          minItems: 1
           items: { type: integer, minimum: 1 }
+        teamOneFuturePicks:
+          type: array
+          items: { $ref: "#/components/schemas/FutureDraftPickRequest" }
+        teamTwoFuturePicks:
+          type: array
+          items: { $ref: "#/components/schemas/FutureDraftPickRequest" }
+        teamOneAuctionBudget: { type: number, minimum: 0 }
+        teamTwoAuctionBudget: { type: number, minimum: 0 }
     DraftExport:
       type: object
       additionalProperties: false

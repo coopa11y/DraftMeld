@@ -1,4 +1,4 @@
-import type { DraftAction, DraftSnapshot, SleeperSyncResult } from "./types";
+import type { DraftAction, DraftSnapshot, FutureDraftPick, SleeperSyncResult } from "./types";
 import { apiClient, unwrap } from "./client";
 
 export async function getDraft(leagueId: string): Promise<DraftSnapshot> {
@@ -57,15 +57,29 @@ export async function createDraftPickTrade(
   teamTwoNumber: number,
   teamOneReceives: number[],
   teamTwoReceives: number[],
+  teamOneFuturePicks: FutureDraftPick[],
+  teamTwoFuturePicks: FutureDraftPick[],
+  teamOneAuctionBudget: number,
+  teamTwoAuctionBudget: number,
 ): Promise<DraftSnapshot> {
-  const { data, error, response } = await apiClient.POST("/draft/pick-trades", {
-    body: { leagueId, teamOneNumber, teamTwoNumber, teamOneReceives, teamTwoReceives },
+  const { data, error, response } = await apiClient.POST("/draft/trades", {
+    body: {
+      leagueId,
+      teamOneNumber,
+      teamTwoNumber,
+      teamOneReceives,
+      teamTwoReceives,
+      teamOneFuturePicks,
+      teamTwoFuturePicks,
+      teamOneAuctionBudget,
+      teamTwoAuctionBudget,
+    },
   });
   return unwrap(data, error, response);
 }
 
 export async function deleteDraftPickTrade(leagueId: string, tradeId: number): Promise<DraftSnapshot> {
-  const { data, error, response } = await apiClient.DELETE("/draft/pick-trades/{tradeId}", {
+  const { data, error, response } = await apiClient.DELETE("/draft/trades/{tradeId}", {
     params: { path: { tradeId }, query: { leagueId } },
   });
   return unwrap(data, error, response);

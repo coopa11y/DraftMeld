@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/league"
 )
@@ -256,6 +257,20 @@ func withDefaultSourcePreferences(rules league.Rules) league.Rules {
 	}
 	if rules.AuctionMinimumBid <= 0 {
 		rules.AuctionMinimumBid = 1
+	}
+	if rules.LeagueFormat == "" {
+		rules.LeagueFormat = league.LeagueFormatRedraft
+	}
+	if rules.Season == 0 {
+		rules.Season = time.Now().UTC().Year()
+	}
+	if rules.LeagueFormat == league.LeagueFormatRedraft {
+		rules.FuturePickSeasons = 0
+	} else if rules.FuturePickSeasons == 0 {
+		rules.FuturePickSeasons = 3
+	}
+	if rules.RookieDraftRounds == 0 {
+		rules.RookieDraftRounds = 4
 	}
 	return rules
 }

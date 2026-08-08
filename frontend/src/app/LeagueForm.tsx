@@ -42,6 +42,11 @@ function defaultRules(): LeagueRules {
     draftPosition: 1,
     teamNames: ["My Team", ...Array.from({ length: 11 }, () => "")],
     draftType: "snake",
+    leagueFormat: "redraft",
+    season: new Date().getFullYear(),
+    futurePickSeasons: 0,
+    rookieDraftRounds: 4,
+    auctionBudgetTrades: false,
     rosterSlots: defaultRoster.map((slot) => ({ ...slot, positions: [...slot.positions] })),
     scoringRules: {
       reception: 1,

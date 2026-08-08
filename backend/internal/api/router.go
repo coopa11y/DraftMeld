@@ -44,11 +44,15 @@ type sleeperSyncRequest struct {
 }
 
 type pickTradeRequest struct {
-	LeagueID        string `json:"leagueId"`
-	TeamOneNumber   int    `json:"teamOneNumber"`
-	TeamTwoNumber   int    `json:"teamTwoNumber"`
-	TeamOneReceives []int  `json:"teamOneReceives"`
-	TeamTwoReceives []int  `json:"teamTwoReceives"`
+	LeagueID             string             `json:"leagueId"`
+	TeamOneNumber        int                `json:"teamOneNumber"`
+	TeamTwoNumber        int                `json:"teamTwoNumber"`
+	TeamOneReceives      []int              `json:"teamOneReceives"`
+	TeamTwoReceives      []int              `json:"teamTwoReceives"`
+	TeamOneFuturePicks   []draft.FuturePick `json:"teamOneFuturePicks"`
+	TeamTwoFuturePicks   []draft.FuturePick `json:"teamTwoFuturePicks"`
+	TeamOneAuctionBudget float64            `json:"teamOneAuctionBudget"`
+	TeamTwoAuctionBudget float64            `json:"teamTwoAuctionBudget"`
 }
 
 func NewRouter(
@@ -113,13 +117,15 @@ func NewRouter(
 		}
 		writeJSON(response, http.StatusOK, snapshot)
 	})
-	mux.HandleFunc("POST /api/v1/draft/pick-trades", func(response http.ResponseWriter, request *http.Request) {
+	mux.HandleFunc("POST /api/v1/draft/trades", func(response http.ResponseWriter, request *http.Request) {
 		var input pickTradeRequest
 		if err := json.NewDecoder(request.Body).Decode(&input); err != nil || input.LeagueID == "" {
-			writeError(response, http.StatusBadRequest, "The draft-pick trade was not valid.")
+			writeError(response, http.StatusBadRequest, "The draft asset trade was not valid.")
 			return
 		}
-		snapshot, err := draftService.CreatePickTrade(request.Context(), input.LeagueID, input.TeamOneNumber, input.TeamTwoNumber, input.TeamOneReceives, input.TeamTwoReceives)
+		snapshot, err := draftService.CreatePickTrade(request.Context(), input.LeagueID, input.TeamOneNumber, input.TeamTwoNumber,
+			input.TeamOneReceives, input.TeamTwoReceives, input.TeamOneFuturePicks, input.TeamTwoFuturePicks,
+			input.TeamOneAuctionBudget, input.TeamTwoAuctionBudget)
 		if errors.Is(err, application.ErrLeagueNotFound) {
 			writeError(response, http.StatusNotFound, "That league was not found.")
 			return
@@ -130,7 +136,7 @@ func NewRouter(
 		}
 		writeJSON(response, http.StatusCreated, snapshot)
 	})
-	mux.HandleFunc("DELETE /api/v1/draft/pick-trades/{tradeId}", func(response http.ResponseWriter, request *http.Request) {
+	mux.HandleFunc("DELETE /api/v1/draft/trades/{tradeId}", func(response http.ResponseWriter, request *http.Request) {
 		leagueID := request.URL.Query().Get("leagueId")
 		tradeID, err := strconv.ParseInt(request.PathValue("tradeId"), 10, 64)
 		if leagueID == "" || err != nil || tradeID < 1 {

@@ -29,6 +29,38 @@ func TestDraftEventsPersist(t *testing.T) {
 	}
 }
 
+func TestDraftEventsCanBeListedAndReplacedBySeason(t *testing.T) {
+	store, err := Open(t.TempDir() + "/draftmeld.db")
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	defer store.Close()
+
+	for _, event := range []draft.Event{
+		{LeagueID: "league-a", Season: 2026, PlayerID: "p001", Action: draft.ActionDraft},
+		{LeagueID: "league-a", Season: 2027, PlayerID: "p002", Action: draft.ActionDraft},
+	} {
+		if _, err = store.Append(t.Context(), event); err != nil {
+			t.Fatalf("append event: %v", err)
+		}
+	}
+	events, err := store.ListSeason(t.Context(), "league-a", 2027)
+	if err != nil || len(events) != 1 || events[0].PlayerID != "p002" {
+		t.Fatalf("unexpected 2027 events: events=%#v error=%v", events, err)
+	}
+	if err = store.ReplaceDraftEventsForSeason(t.Context(), "league-a", 2027, []draft.Event{{PlayerID: "p003", Action: draft.ActionTaken}}); err != nil {
+		t.Fatalf("replace 2027 events: %v", err)
+	}
+	events, err = store.ListSeason(t.Context(), "league-a", 2026)
+	if err != nil || len(events) != 1 || events[0].PlayerID != "p001" {
+		t.Fatalf("2026 events changed: events=%#v error=%v", events, err)
+	}
+	events, err = store.ListSeason(t.Context(), "league-a", 2027)
+	if err != nil || len(events) != 1 || events[0].PlayerID != "p003" || events[0].Season != 2027 {
+		t.Fatalf("unexpected replacement: events=%#v error=%v", events, err)
+	}
+}
+
 func TestMigrationsAreRecordedAndIdempotent(t *testing.T) {
 	path := t.TempDir() + "/draftmeld.db"
 	store, err := Open(path)

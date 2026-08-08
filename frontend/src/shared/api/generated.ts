@@ -393,7 +393,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/draft/pick-trades": {
+    "/draft/trades": {
         parameters: {
             query?: never;
             header?: never;
@@ -402,15 +402,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Trade one or more unused picks between two teams */
-        post: operations["createDraftPickTrade"];
+        /** Trade eligible draft assets between two teams */
+        post: operations["createDraftTrade"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/draft/pick-trades/{tradeId}": {
+    "/draft/trades/{tradeId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -420,8 +420,8 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Reverse a trade whose picks have not been used */
-        delete: operations["deleteDraftPickTrade"];
+        /** Reverse a trade whose assets remain eligible */
+        delete: operations["deleteDraftTrade"];
         options?: never;
         head?: never;
         patch?: never;
@@ -517,6 +517,12 @@ export interface components {
             teamNames: string[];
             /** @enum {string} */
             draftType: "snake" | "linear" | "auction";
+            /** @enum {string} */
+            leagueFormat: "redraft" | "dynasty";
+            season: number;
+            futurePickSeasons: number;
+            rookieDraftRounds: number;
+            auctionBudgetTrades: boolean;
             rosterSlots: components["schemas"]["RosterSlot"][];
             scoringRules: {
                 [key: string]: number;
@@ -692,6 +698,7 @@ export interface components {
             name: string;
             isUser: boolean;
             roster: components["schemas"]["Player"][];
+            auctionBudgetRemaining: number;
         };
         DraftSnapshot: {
             leagueId: string;
@@ -719,8 +726,13 @@ export interface components {
             onClockTeamNumber: number;
             pickSlots: components["schemas"]["DraftPickSlot"][];
             pickTrades: components["schemas"]["DraftPickTrade"][];
+            /** @enum {string} */
+            leagueFormat: "redraft" | "dynasty";
+            season: number;
+            auctionBudgetTrades: boolean;
         };
         DraftPickSlot: {
+            season: number;
             overallNumber: number;
             round: number;
             pickInRound: number;
@@ -739,8 +751,24 @@ export interface components {
             teamTwoName: string;
             teamOneReceives: number[];
             teamTwoReceives: number[];
+            teamOneFuturePicks: components["schemas"]["FutureDraftPick"][];
+            teamTwoFuturePicks: components["schemas"]["FutureDraftPick"][];
+            teamOneAuctionBudget: number;
+            teamTwoAuctionBudget: number;
+            season: number;
             /** Format: date-time */
             createdAt: string;
+        };
+        FutureDraftPick: {
+            season: number;
+            round: number;
+            originalTeamNumber: number;
+            originalTeamName: string;
+        };
+        FutureDraftPickRequest: {
+            season: number;
+            round: number;
+            originalTeamNumber: number;
         };
         DraftPickTradeRequest: {
             leagueId: string;
@@ -748,6 +776,10 @@ export interface components {
             teamTwoNumber: number;
             teamOneReceives: number[];
             teamTwoReceives: number[];
+            teamOneFuturePicks: components["schemas"]["FutureDraftPickRequest"][];
+            teamTwoFuturePicks: components["schemas"]["FutureDraftPickRequest"][];
+            teamOneAuctionBudget: number;
+            teamTwoAuctionBudget: number;
         };
         DraftExport: {
             /** @constant */
@@ -1448,7 +1480,7 @@ export interface operations {
             };
         };
     };
-    createDraftPickTrade: {
+    createDraftTrade: {
         parameters: {
             query?: never;
             header?: never;
@@ -1474,7 +1506,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
-    deleteDraftPickTrade: {
+    deleteDraftTrade: {
         parameters: {
             query: {
                 leagueId: components["parameters"]["LeagueId"];

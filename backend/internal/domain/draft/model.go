@@ -31,6 +31,7 @@ type Player struct {
 type Event struct {
 	ID            int64     `json:"id"`
 	LeagueID      string    `json:"leagueId"`
+	Season        int       `json:"season"`
 	PlayerID      string    `json:"playerId"`
 	Action        Action    `json:"action"`
 	TargetEventID *int64    `json:"targetEventId,omitempty"`
@@ -51,13 +52,15 @@ type Pick struct {
 }
 
 type Team struct {
-	Number int      `json:"number"`
-	Name   string   `json:"name"`
-	IsUser bool     `json:"isUser"`
-	Roster []Player `json:"roster"`
+	Number                 int      `json:"number"`
+	Name                   string   `json:"name"`
+	IsUser                 bool     `json:"isUser"`
+	Roster                 []Player `json:"roster"`
+	AuctionBudgetRemaining float64  `json:"auctionBudgetRemaining"`
 }
 
 type PickSlot struct {
+	Season             int    `json:"season"`
 	OverallNumber      int    `json:"overallNumber"`
 	Round              int    `json:"round"`
 	PickInRound        int    `json:"pickInRound"`
@@ -68,16 +71,28 @@ type PickSlot struct {
 	IsUsed             bool   `json:"isUsed"`
 }
 
+type FuturePick struct {
+	Season             int    `json:"season"`
+	Round              int    `json:"round"`
+	OriginalTeamNumber int    `json:"originalTeamNumber"`
+	OriginalTeamName   string `json:"originalTeamName"`
+}
+
 type PickTrade struct {
-	ID              int64     `json:"id"`
-	LeagueID        string    `json:"leagueId"`
-	TeamOneNumber   int       `json:"teamOneNumber"`
-	TeamOneName     string    `json:"teamOneName"`
-	TeamTwoNumber   int       `json:"teamTwoNumber"`
-	TeamTwoName     string    `json:"teamTwoName"`
-	TeamOneReceives []int     `json:"teamOneReceives"`
-	TeamTwoReceives []int     `json:"teamTwoReceives"`
-	CreatedAt       time.Time `json:"createdAt"`
+	ID                   int64        `json:"id"`
+	LeagueID             string       `json:"leagueId"`
+	TeamOneNumber        int          `json:"teamOneNumber"`
+	TeamOneName          string       `json:"teamOneName"`
+	TeamTwoNumber        int          `json:"teamTwoNumber"`
+	TeamTwoName          string       `json:"teamTwoName"`
+	TeamOneReceives      []int        `json:"teamOneReceives"`
+	TeamTwoReceives      []int        `json:"teamTwoReceives"`
+	TeamOneFuturePicks   []FuturePick `json:"teamOneFuturePicks"`
+	TeamTwoFuturePicks   []FuturePick `json:"teamTwoFuturePicks"`
+	TeamOneAuctionBudget float64      `json:"teamOneAuctionBudget"`
+	TeamTwoAuctionBudget float64      `json:"teamTwoAuctionBudget"`
+	Season               int          `json:"season"`
+	CreatedAt            time.Time    `json:"createdAt"`
 }
 
 type Recommendation struct {
@@ -87,28 +102,31 @@ type Recommendation struct {
 }
 
 type Snapshot struct {
-	LeagueID          string           `json:"leagueId"`
-	LeagueName        string           `json:"leagueName"`
-	PickNumber        int              `json:"pickNumber"`
-	Available         []Player         `json:"available"`
-	MyTeam            []Player         `json:"myTeam"`
-	Teams             []Team           `json:"teams"`
-	History           []Pick           `json:"history"`
-	Recommendations   []Recommendation `json:"recommendations"`
-	CanUndo           bool             `json:"canUndo"`
-	DataMode          string           `json:"dataMode"`
-	ProjectionCount   int              `json:"projectionCount"`
-	DraftType         string           `json:"draftType"`
-	NextUserPick      int              `json:"nextUserPick"`
-	AuctionBudget     float64          `json:"auctionBudget"`
-	BudgetRemaining   float64          `json:"budgetRemaining"`
-	AuctionInflation  float64          `json:"auctionInflation"`
-	AuctionMinimumBid float64          `json:"auctionMinimumBid"`
-	MaximumBid        float64          `json:"maximumBid"`
-	IsUserTurn        bool             `json:"isUserTurn"`
-	TotalPicks        int              `json:"totalPicks"`
-	IsComplete        bool             `json:"isComplete"`
-	OnClockTeamNumber int              `json:"onClockTeamNumber"`
-	PickSlots         []PickSlot       `json:"pickSlots"`
-	PickTrades        []PickTrade      `json:"pickTrades"`
+	LeagueID            string           `json:"leagueId"`
+	LeagueName          string           `json:"leagueName"`
+	PickNumber          int              `json:"pickNumber"`
+	Available           []Player         `json:"available"`
+	MyTeam              []Player         `json:"myTeam"`
+	Teams               []Team           `json:"teams"`
+	History             []Pick           `json:"history"`
+	Recommendations     []Recommendation `json:"recommendations"`
+	CanUndo             bool             `json:"canUndo"`
+	DataMode            string           `json:"dataMode"`
+	ProjectionCount     int              `json:"projectionCount"`
+	DraftType           string           `json:"draftType"`
+	NextUserPick        int              `json:"nextUserPick"`
+	AuctionBudget       float64          `json:"auctionBudget"`
+	BudgetRemaining     float64          `json:"budgetRemaining"`
+	AuctionInflation    float64          `json:"auctionInflation"`
+	AuctionMinimumBid   float64          `json:"auctionMinimumBid"`
+	MaximumBid          float64          `json:"maximumBid"`
+	IsUserTurn          bool             `json:"isUserTurn"`
+	TotalPicks          int              `json:"totalPicks"`
+	IsComplete          bool             `json:"isComplete"`
+	OnClockTeamNumber   int              `json:"onClockTeamNumber"`
+	PickSlots           []PickSlot       `json:"pickSlots"`
+	PickTrades          []PickTrade      `json:"pickTrades"`
+	LeagueFormat        string           `json:"leagueFormat"`
+	Season              int              `json:"season"`
+	AuctionBudgetTrades bool             `json:"auctionBudgetTrades"`
 }

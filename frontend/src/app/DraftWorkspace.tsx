@@ -9,7 +9,7 @@ import {
   syncSleeperDraft,
   undoDraftAction,
 } from "../shared/api/draft";
-import type { DraftAction, DraftPickTrade, DraftSnapshot, Player } from "../shared/api/types";
+import type { DraftAction, DraftPickTrade, DraftSnapshot, FutureDraftPick, Player } from "../shared/api/types";
 import { useViewHeadingFocus } from "../shared/hooks/useViewHeadingFocus";
 import { StatusMessage } from "../shared/ui/StatusMessage";
 import { DraftSidebar } from "./DraftSidebar";
@@ -156,19 +156,33 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
     teamTwo: number,
     teamOneReceives: number[],
     teamTwoReceives: number[],
+    teamOneFuture: FutureDraftPick[],
+    teamTwoFuture: FutureDraftPick[],
+    teamOneBudget: number,
+    teamTwoBudget: number,
   ) {
     if (busy) return;
     setBusy(true);
     setError("");
     try {
-      const updated = await createDraftPickTrade(leagueId, teamOne, teamTwo, teamOneReceives, teamTwoReceives);
+      const updated = await createDraftPickTrade(
+        leagueId,
+        teamOne,
+        teamTwo,
+        teamOneReceives,
+        teamTwoReceives,
+        teamOneFuture,
+        teamTwoFuture,
+        teamOneBudget,
+        teamTwoBudget,
+      );
       setSnapshot(updated);
       setSelectedTeamNumber(defaultSelectedTeam(updated));
       setAnnouncement(
-        `Trade confirmed. ${teamName(updated, teamOne)} received ${pickCount(teamOneReceives.length)} and ${teamName(updated, teamTwo)} received ${pickCount(teamTwoReceives.length)}.`,
+        `Trade confirmed between ${teamName(updated, teamOne)} and ${teamName(updated, teamTwo)} with ${assetCount(teamOneReceives, teamOneFuture, teamOneBudget)} and ${assetCount(teamTwoReceives, teamTwoFuture, teamTwoBudget)} recorded.`,
       );
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Unable to save the draft-pick trade.");
+      setError(reason instanceof Error ? reason.message : "Unable to save the draft asset trade.");
       throw reason;
     } finally {
       setBusy(false);
@@ -185,7 +199,7 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
       setSelectedTeamNumber(defaultSelectedTeam(updated));
       setAnnouncement(`Trade between ${trade.teamOneName} and ${trade.teamTwoName} was reversed.`);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Unable to reverse the draft-pick trade.");
+      setError(reason instanceof Error ? reason.message : "Unable to reverse the draft asset trade.");
       throw reason;
     } finally {
       setBusy(false);
@@ -285,6 +299,7 @@ function teamName(snapshot: DraftSnapshot, teamNumber: number) {
   return snapshot.teams.find((team) => team.number === teamNumber)?.name ?? `Team ${teamNumber}`;
 }
 
-function pickCount(count: number) {
-  return `${count} ${count === 1 ? "pick" : "picks"}`;
+function assetCount(current: number[], future: FutureDraftPick[], budget: number) {
+  const count = current.length + future.length + (budget > 0 ? 1 : 0);
+  return `${count} ${count === 1 ? "asset" : "assets"}`;
 }

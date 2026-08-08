@@ -8,11 +8,17 @@ import (
 )
 
 type DraftType string
+type LeagueFormat string
 
 const (
 	DraftTypeSnake   DraftType = "snake"
 	DraftTypeLinear  DraftType = "linear"
 	DraftTypeAuction DraftType = "auction"
+)
+
+const (
+	LeagueFormatRedraft LeagueFormat = "redraft"
+	LeagueFormatDynasty LeagueFormat = "dynasty"
 )
 
 type RosterSlot struct {
@@ -28,21 +34,26 @@ type RankingSourcePreference struct {
 }
 
 type Rules struct {
-	Name               string                             `json:"name"`
-	TeamCount          int                                `json:"teamCount"`
-	DraftPosition      int                                `json:"draftPosition"`
-	TeamNames          []string                           `json:"teamNames"`
-	DraftType          DraftType                          `json:"draftType"`
-	RosterSlots        []RosterSlot                       `json:"rosterSlots"`
-	ScoringRules       map[string]float64                 `json:"scoringRules"`
-	SourcePreferences  map[string]RankingSourcePreference `json:"sourcePreferences"`
-	ConsensusMethod    string                             `json:"consensusMethod"`
-	PlayerPreferences  map[string]string                  `json:"playerPreferences"`
-	AuctionBudget      float64                            `json:"auctionBudget"`
-	AuctionMinimumBid  float64                            `json:"auctionMinimumBid"`
-	KeeperBudgetSpent  float64                            `json:"keeperBudgetSpent"`
-	MyKeeperSpend      float64                            `json:"myKeeperSpend"`
-	KeeperValueRemoved float64                            `json:"keeperValueRemoved"`
+	Name                string                             `json:"name"`
+	TeamCount           int                                `json:"teamCount"`
+	DraftPosition       int                                `json:"draftPosition"`
+	TeamNames           []string                           `json:"teamNames"`
+	DraftType           DraftType                          `json:"draftType"`
+	LeagueFormat        LeagueFormat                       `json:"leagueFormat"`
+	Season              int                                `json:"season"`
+	FuturePickSeasons   int                                `json:"futurePickSeasons"`
+	RookieDraftRounds   int                                `json:"rookieDraftRounds"`
+	AuctionBudgetTrades bool                               `json:"auctionBudgetTrades"`
+	RosterSlots         []RosterSlot                       `json:"rosterSlots"`
+	ScoringRules        map[string]float64                 `json:"scoringRules"`
+	SourcePreferences   map[string]RankingSourcePreference `json:"sourcePreferences"`
+	ConsensusMethod     string                             `json:"consensusMethod"`
+	PlayerPreferences   map[string]string                  `json:"playerPreferences"`
+	AuctionBudget       float64                            `json:"auctionBudget"`
+	AuctionMinimumBid   float64                            `json:"auctionMinimumBid"`
+	KeeperBudgetSpent   float64                            `json:"keeperBudgetSpent"`
+	MyKeeperSpend       float64                            `json:"myKeeperSpend"`
+	KeeperValueRemoved  float64                            `json:"keeperValueRemoved"`
 }
 
 type RecommendationPolicy struct {
@@ -103,6 +114,23 @@ func (rules Rules) Validate() error {
 	case DraftTypeSnake, DraftTypeLinear, DraftTypeAuction:
 	default:
 		return fmt.Errorf("unsupported draft type: %q", rules.DraftType)
+	}
+	switch rules.LeagueFormat {
+	case "", LeagueFormatRedraft, LeagueFormatDynasty:
+	default:
+		return fmt.Errorf("unsupported league format: %q", rules.LeagueFormat)
+	}
+	if rules.Season != 0 && (rules.Season < 2020 || rules.Season > 2200) {
+		return fmt.Errorf("league season must be between 2020 and 2200: %d", rules.Season)
+	}
+	if (rules.LeagueFormat == "" || rules.LeagueFormat == LeagueFormatRedraft) && rules.FuturePickSeasons != 0 {
+		return errors.New("redraft leagues cannot expose future-season picks")
+	}
+	if rules.LeagueFormat == LeagueFormatDynasty && (rules.FuturePickSeasons < 1 || rules.FuturePickSeasons > 5) {
+		return errors.New("dynasty leagues must expose between 1 and 5 future pick seasons")
+	}
+	if rules.RookieDraftRounds != 0 && (rules.RookieDraftRounds < 1 || rules.RookieDraftRounds > 10) {
+		return errors.New("rookie draft rounds must be between 1 and 10")
 	}
 	if rules.DraftType == DraftTypeAuction && rules.AuctionBudget <= 0 {
 		return errors.New("auction leagues require a positive team budget")

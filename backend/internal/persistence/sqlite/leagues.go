@@ -166,14 +166,19 @@ VALUES (?, ?, ?, ?, ?, ?)`, configuration.ID, index, slot.Name, slot.Count, stri
 }
 
 type leagueDraftSettings struct {
-	TeamNames          []string          `json:"teamNames"`
-	ConsensusMethod    string            `json:"consensusMethod"`
-	PlayerPreferences  map[string]string `json:"playerPreferences"`
-	AuctionBudget      float64           `json:"auctionBudget"`
-	AuctionMinimumBid  float64           `json:"auctionMinimumBid"`
-	KeeperBudgetSpent  float64           `json:"keeperBudgetSpent"`
-	MyKeeperSpend      float64           `json:"myKeeperSpend"`
-	KeeperValueRemoved float64           `json:"keeperValueRemoved"`
+	TeamNames           []string            `json:"teamNames"`
+	ConsensusMethod     string              `json:"consensusMethod"`
+	PlayerPreferences   map[string]string   `json:"playerPreferences"`
+	AuctionBudget       float64             `json:"auctionBudget"`
+	AuctionMinimumBid   float64             `json:"auctionMinimumBid"`
+	KeeperBudgetSpent   float64             `json:"keeperBudgetSpent"`
+	MyKeeperSpend       float64             `json:"myKeeperSpend"`
+	KeeperValueRemoved  float64             `json:"keeperValueRemoved"`
+	LeagueFormat        league.LeagueFormat `json:"leagueFormat"`
+	Season              int                 `json:"season"`
+	FuturePickSeasons   int                 `json:"futurePickSeasons"`
+	RookieDraftRounds   int                 `json:"rookieDraftRounds"`
+	AuctionBudgetTrades bool                `json:"auctionBudgetTrades"`
 }
 
 func newLeagueDraftSettings(rules league.Rules) leagueDraftSettings {
@@ -182,6 +187,8 @@ func newLeagueDraftSettings(rules league.Rules) leagueDraftSettings {
 		ConsensusMethod: rules.ConsensusMethod, PlayerPreferences: rules.PlayerPreferences,
 		AuctionBudget: rules.AuctionBudget, AuctionMinimumBid: rules.AuctionMinimumBid,
 		KeeperBudgetSpent: rules.KeeperBudgetSpent, MyKeeperSpend: rules.MyKeeperSpend, KeeperValueRemoved: rules.KeeperValueRemoved,
+		LeagueFormat: rules.LeagueFormat, Season: rules.Season, FuturePickSeasons: rules.FuturePickSeasons,
+		RookieDraftRounds: rules.RookieDraftRounds, AuctionBudgetTrades: rules.AuctionBudgetTrades,
 	}
 }
 
@@ -190,6 +197,9 @@ func (settings leagueDraftSettings) apply(rules *league.Rules) {
 	rules.ConsensusMethod, rules.PlayerPreferences = settings.ConsensusMethod, settings.PlayerPreferences
 	rules.AuctionBudget, rules.AuctionMinimumBid = settings.AuctionBudget, settings.AuctionMinimumBid
 	rules.KeeperBudgetSpent, rules.MyKeeperSpend, rules.KeeperValueRemoved = settings.KeeperBudgetSpent, settings.MyKeeperSpend, settings.KeeperValueRemoved
+	rules.LeagueFormat, rules.Season = settings.LeagueFormat, settings.Season
+	rules.FuturePickSeasons, rules.RookieDraftRounds = settings.FuturePickSeasons, settings.RookieDraftRounds
+	rules.AuctionBudgetTrades = settings.AuctionBudgetTrades
 }
 
 func (store *DraftEventStore) DeleteLeague(ctx context.Context, id string) (bool, error) {
@@ -200,6 +210,9 @@ func (store *DraftEventStore) DeleteLeague(ctx context.Context, id string) (bool
 	defer transaction.Rollback()
 	if _, err = transaction.ExecContext(ctx, `DELETE FROM draft_events WHERE league_id = ?`, id); err != nil {
 		return false, fmt.Errorf("delete league draft events: %w", err)
+	}
+	if _, err = transaction.ExecContext(ctx, `DELETE FROM draft_pick_trades WHERE league_id = ?`, id); err != nil {
+		return false, fmt.Errorf("delete league draft trades: %w", err)
 	}
 	if _, err = transaction.ExecContext(ctx, `DELETE FROM league_roster_slots WHERE league_id = ?`, id); err != nil {
 		return false, fmt.Errorf("delete league roster slots: %w", err)
