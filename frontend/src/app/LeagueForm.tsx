@@ -1,64 +1,29 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { leagueToRules } from "../shared/api/leagues";
 import type { League, LeagueRules, RosterSlot } from "../shared/api/types";
 import { Button } from "../shared/ui/Button";
 import { FormField } from "../shared/ui/FormField";
 import { DraftSettings, LeagueSettings, TeamSettings } from "./LeagueSetupSections";
 import { ScoringSettings } from "./ScoringSettings";
-import { defaultScoringRules } from "./scoring";
-
-const playerPositions = ["QB", "RB", "WR", "TE", "K", "DST"] as const;
-
-const defaultRoster: RosterSlot[] = [
-  { name: "QB", count: 1, positions: ["QB"], isStarting: true },
-  { name: "RB", count: 2, positions: ["RB"], isStarting: true },
-  { name: "WR", count: 2, positions: ["WR"], isStarting: true },
-  { name: "TE", count: 1, positions: ["TE"], isStarting: true },
-  { name: "FLEX", count: 1, positions: ["RB", "WR", "TE"], isStarting: true },
-  { name: "K", count: 1, positions: ["K"], isStarting: true },
-  { name: "DST", count: 1, positions: ["DST"], isStarting: true },
-  { name: "Bench", count: 6, positions: [...playerPositions], isStarting: false },
-];
-
-function defaultRules(): LeagueRules {
-  return {
-    name: "My League",
-    teamCount: 12,
-    draftPosition: 1,
-    userTeamNumber: 1,
-    teamNames: ["My Team", ...Array.from({ length: 11 }, () => "")],
-    draftOrder: Array.from({ length: 12 }, (_, index) => index + 1),
-    draftType: "snake",
-    leagueFormat: "redraft",
-    season: new Date().getFullYear(),
-    initialSeason: new Date().getFullYear(),
-    futurePickSeasons: 0,
-    rookieDraftRounds: 4,
-    auctionBudgetTrades: false,
-    faabBudget: 100,
-    faabTrades: false,
-    rosterSlots: defaultRoster.map((slot) => ({ ...slot, positions: [...slot.positions] })),
-    scoringRules: defaultScoringRules(),
-    sourcePreferences: {},
-    consensusMethod: "weighted-median",
-    playerPreferences: {},
-    auctionBudget: 200,
-    auctionMinimumBid: 1,
-    keeperBudgetSpent: 0,
-    myKeeperSpend: 0,
-    keeperValueRemoved: 0,
-  };
-}
+import { cloneLeagueRules, defaultLeagueRules, playerPositions } from "./leagueDefaults";
 
 interface LeagueFormProps {
   league?: League;
+  initialRules?: LeagueRules;
   busy: boolean;
   onCancel: () => void;
+  onChange?: (rules: LeagueRules) => void;
   onSave: (rules: LeagueRules) => Promise<void>;
 }
 
-export function LeagueForm({ league, busy, onCancel, onSave }: LeagueFormProps) {
-  const [rules, setRules] = useState<LeagueRules>(() => (league ? leagueToRules(league) : defaultRules()));
+export function LeagueForm({ league, initialRules, busy, onCancel, onChange, onSave }: LeagueFormProps) {
+  const [rules, setRules] = useState<LeagueRules>(() =>
+    league ? leagueToRules(league) : initialRules ? cloneLeagueRules(initialRules) : defaultLeagueRules(),
+  );
+
+  useEffect(() => {
+    onChange?.(rules);
+  }, [onChange, rules]);
 
   function updateSlot(index: number, update: Partial<RosterSlot>) {
     setRules((current) => ({

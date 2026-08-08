@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { listLeagues } from "../shared/api/leagues";
-import type { League } from "../shared/api/types";
+import { createLeague, listLeagues } from "../shared/api/leagues";
+import type { League, LeagueRules } from "../shared/api/types";
 import { Button } from "../shared/ui/Button";
 import { StatusMessage } from "../shared/ui/StatusMessage";
 import { DraftWorkspace } from "./DraftWorkspace";
 import { LeagueManager } from "./LeagueManager";
+import { OnboardingWizard } from "./OnboardingWizard";
 import { RankingSources } from "./RankingSources";
+import { completeOnboarding, loadOnboardingDraft, onboardingComplete } from "./onboarding";
 
 const ACTIVE_LEAGUE_KEY = "draftmeld.active-league.v1";
 
@@ -16,6 +18,9 @@ export function App() {
   const [view, setView] = useState<"draft" | "leagues" | "rankings">("draft");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [onboardingDone, setOnboardingDone] = useState(onboardingComplete);
+  const [hasOnboardingDraft, setHasOnboardingDraft] = useState(() => loadOnboardingDraft() !== null);
 
   useEffect(() => {
     let active = true;
@@ -55,6 +60,21 @@ export function App() {
 
   function handleLeagueUpdated(updated: League) {
     setLeagues((current) => current.map((league) => (league.id === updated.id ? updated : league)));
+  }
+
+  async function handleOnboardingCreate(rules: LeagueRules): Promise<League> {
+    const saved = await createLeague(rules);
+    setLeagues((current) => [...current.filter((league) => league.id !== saved.id), saved]);
+    selectLeague(saved.id);
+    setOnboardingDone(true);
+    setHasOnboardingDraft(false);
+    return saved;
+  }
+
+  function closeOnboarding() {
+    setOnboardingOpen(false);
+    setOnboardingDone(onboardingComplete());
+    setHasOnboardingDraft(loadOnboardingDraft() !== null);
   }
 
   const activeLeague = leagues.find((league) => league.id === activeLeagueId);
@@ -106,11 +126,60 @@ export function App() {
               Return to draft
             </Button>
           ) : null}
+          {!onboardingDone && !onboardingOpen ? (
+            <Button onClick={() => setOnboardingOpen(true)}>
+              {hasOnboardingDraft ? "Resume setup" : "Setup guide"}
+            </Button>
+          ) : null}
         </nav>
       </header>
 
       {error ? <StatusMessage tone="error">Unable to load leagues. {error}</StatusMessage> : null}
-      {view === "rankings" && activeLeague ? (
+      {!onboardingDone && !onboardingOpen ? (
+        <section className="onboarding-prompt" aria-labelledby="onboarding-prompt-title">
+          <div>
+            <p className="eyebrow">Getting started</p>
+            <h2 id="onboarding-prompt-title">
+              {hasOnboardingDraft ? "Your saved setup is ready" : "Set up your league"}
+            </h2>
+            <p>
+              {hasOnboardingDraft
+                ? "Resume where you stopped. Your saved league settings remain on this device."
+                : "Use the guided setup, import league scoring rules, or configure everything manually."}
+            </p>
+          </div>
+          <div className="onboarding-prompt-actions">
+            <Button variant="primary" onClick={() => setOnboardingOpen(true)}>
+              {hasOnboardingDraft ? "Resume setup" : "Start setup"}
+            </Button>
+            <Button
+              onClick={() => {
+                completeOnboarding();
+                setOnboardingDone(true);
+                setHasOnboardingDraft(false);
+              }}
+            >
+              Dismiss guide
+            </Button>
+          </div>
+        </section>
+      ) : null}
+      {onboardingOpen ? (
+        <OnboardingWizard
+          onClose={closeOnboarding}
+          onCreate={handleOnboardingCreate}
+          onOpenDraft={(id) => {
+            selectLeague(id);
+            setView("draft");
+            setOnboardingOpen(false);
+          }}
+          onOpenRankings={(id) => {
+            selectLeague(id);
+            setView("rankings");
+            setOnboardingOpen(false);
+          }}
+        />
+      ) : view === "rankings" && activeLeague ? (
         <RankingSources key={activeLeague.id} league={activeLeague} onLeagueUpdated={handleLeagueUpdated} />
       ) : view === "leagues" ? (
         <LeagueManager
