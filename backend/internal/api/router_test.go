@@ -313,7 +313,7 @@ func TestLeagueRuleCSVImportReturnsAReviewablePreview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _ = file.Write([]byte("Statistic,Points,Per\nPassing yards,1,25\nPassing touchdowns,4,1\n"))
+	_, _ = file.Write([]byte("Number of teams,Draft format,Passing touchdowns\n10,Snake,6\n"))
 	_ = writer.Close()
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/leagues/rules/import", &body)
 	request.Header.Set("Content-Type", writer.FormDataContentType())
@@ -322,7 +322,7 @@ func TestLeagueRuleCSVImportReturnsAReviewablePreview(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("league rule import failed: %d %s", response.Code, response.Body.String())
 	}
-	if !strings.Contains(response.Body.String(), `"passingYard":0.04`) || !strings.Contains(response.Body.String(), `"confidence":"high"`) {
+	if !strings.Contains(response.Body.String(), `"passingTouchdown":6`) || !strings.Contains(response.Body.String(), `"teamCount":10`) || !strings.Contains(response.Body.String(), `"confidence":"high"`) {
 		t.Fatalf("unexpected import preview: %s", response.Body.String())
 	}
 }

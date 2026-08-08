@@ -1,13 +1,23 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { LeagueRules } from "../shared/api/types";
 import { FormField } from "../shared/ui/FormField";
+import { LeagueRulesImport } from "./LeagueRulesImport";
+import type { OnboardingImportReview } from "./onboarding";
 
 interface StepProps {
   rules: LeagueRules;
   setRules: Dispatch<SetStateAction<LeagueRules>>;
 }
 
-export function LeagueBasicsStep({ rules, setRules }: StepProps) {
+export function LeagueBasicsStep({
+  rules,
+  setRules,
+  importReview,
+  setImportReview,
+}: StepProps & {
+  importReview?: OnboardingImportReview;
+  setImportReview: Dispatch<SetStateAction<OnboardingImportReview | undefined>>;
+}) {
   function updateTeamCount(teamCount: number) {
     const safeCount = Math.max(2, Math.min(32, teamCount));
     const userTeamNumber = Math.min(rules.userTeamNumber, safeCount);
@@ -25,6 +35,12 @@ export function LeagueBasicsStep({ rules, setRules }: StepProps) {
     <section aria-labelledby="league-basics-title">
       <h2 id="league-basics-title">League basics</h2>
       <p>Start with the few details DraftMeld needs. Every setting can be changed later.</p>
+      <LeagueRulesImport
+        rules={rules}
+        setRules={setRules}
+        importReview={importReview}
+        setImportReview={setImportReview}
+      />
       <div className="form-grid">
         <FormField label="League name">
           <input required value={rules.name} onChange={(event) => setRules({ ...rules, name: event.target.value })} />
@@ -86,6 +102,13 @@ export function LeagueBasicsStep({ rules, setRules }: StepProps) {
 
 export function OnboardingReviewStep({ rules }: { rules: LeagueRules }) {
   const activeScoringRules = Object.values(rules.scoringRules).filter((value) => value !== 0).length;
+  const startingSlots = rules.rosterSlots
+    .filter((slot) => slot.isStarting)
+    .map((slot) => `${slot.count} ${slot.name}`)
+    .join(", ");
+  const reserveSlots = rules.rosterSlots
+    .filter((slot) => !slot.isStarting)
+    .reduce((total, slot) => total + slot.count, 0);
   return (
     <section aria-labelledby="review-step-title">
       <h2 id="review-step-title">Review and create</h2>
@@ -109,6 +132,30 @@ export function OnboardingReviewStep({ rules }: { rules: LeagueRules }) {
           <dt>League format</dt>
           <dd>{rules.leagueFormat}</dd>
         </div>
+        <div>
+          <dt>Starting roster</dt>
+          <dd>{startingSlots}</dd>
+        </div>
+        <div>
+          <dt>Reserve slots</dt>
+          <dd>{reserveSlots}</dd>
+        </div>
+        {rules.draftType === "auction" ? (
+          <div>
+            <dt>Auction budget</dt>
+            <dd>
+              ${rules.auctionBudget} with a ${rules.auctionMinimumBid} minimum bid
+            </dd>
+          </div>
+        ) : null}
+        {rules.leagueFormat === "dynasty" ? (
+          <div>
+            <dt>Dynasty assets</dt>
+            <dd>
+              {rules.rookieDraftRounds} rookie rounds and {rules.futurePickSeasons} future pick seasons
+            </dd>
+          </div>
+        ) : null}
         <div>
           <dt>Reception scoring</dt>
           <dd>{rules.scoringRules.reception ?? 0} points per reception</dd>

@@ -4,7 +4,13 @@ import { Button } from "../shared/ui/Button";
 import { Panel } from "../shared/ui/Panel";
 import { StatusMessage } from "../shared/ui/StatusMessage";
 import { LeagueForm } from "./LeagueForm";
-import { completeOnboarding, loadOnboardingDraft, newOnboardingDraft, saveOnboardingDraft } from "./onboarding";
+import {
+  completeOnboarding,
+  loadOnboardingDraft,
+  newOnboardingDraft,
+  saveOnboardingDraft,
+  type OnboardingImportReview,
+} from "./onboarding";
 import { OnboardingScoringStep } from "./OnboardingScoringStep";
 import { LeagueBasicsStep, OnboardingReviewStep } from "./OnboardingSteps";
 
@@ -21,6 +27,7 @@ export function OnboardingWizard({ onClose, onCreate, onOpenDraft, onOpenRanking
   const [initial] = useState(() => loadOnboardingDraft() ?? newOnboardingDraft());
   const [step, setStep] = useState(initial.step);
   const [rules, setRules] = useState(initial.rules);
+  const [importReview, setImportReview] = useState<OnboardingImportReview | undefined>(initial.importReview);
   const [manual, setManual] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -28,8 +35,8 @@ export function OnboardingWizard({ onClose, onCreate, onOpenDraft, onOpenRanking
   const heading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
-    if (!created) saveOnboardingDraft(step, rules);
-  }, [created, rules, step]);
+    if (!created) saveOnboardingDraft(step, rules, importReview);
+  }, [created, importReview, rules, step]);
 
   useEffect(() => {
     heading.current?.focus();
@@ -133,9 +140,20 @@ export function OnboardingWizard({ onClose, onCreate, onOpenDraft, onOpenRanking
           ))}
         </ol>
 
-        {step === 0 ? <LeagueBasicsStep rules={rules} setRules={setRules} /> : null}
-        {step === 1 ? <OnboardingScoringStep rules={rules} setRules={setRules} /> : null}
-        {step === 2 ? <OnboardingReviewStep rules={rules} /> : null}
+        <div hidden={step !== 0}>
+          <LeagueBasicsStep
+            rules={rules}
+            setRules={setRules}
+            importReview={importReview}
+            setImportReview={setImportReview}
+          />
+        </div>
+        <div hidden={step !== 1}>
+          <OnboardingScoringStep rules={rules} setRules={setRules} />
+        </div>
+        <div hidden={step !== 2}>
+          <OnboardingReviewStep rules={rules} />
+        </div>
         {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
 
         <div className="form-actions wizard-actions">

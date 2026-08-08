@@ -57,7 +57,7 @@ paths:
   /leagues/rules/import:
     post:
       operationId: importLeagueRules
-      summary: Preview scoring rules recognized from a user-supplied PDF or CSV
+      summary: Preview league settings and scoring rules recognized from a user-supplied PDF or CSV
       requestBody:
         required: true
         content:
@@ -84,7 +84,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
         "422":
-          description: The file was readable but contained no supported scoring rules.
+          description: The file was readable but contained no supported league settings or scoring rules.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
@@ -870,7 +870,7 @@ components:
     LeagueRuleImport:
       type: object
       additionalProperties: false
-      required: [fileType, rules, matches, warnings]
+      required: [fileType, rules, matches, settings, settingMatches, warnings]
       properties:
         fileType:
           type: string
@@ -882,6 +882,12 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/LeagueRuleMatch"
+        settings:
+          $ref: "#/components/schemas/ImportedLeagueSettings"
+        settingMatches:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeagueSettingMatch"
         warnings:
           type: array
           items: { type: string }
@@ -897,6 +903,49 @@ components:
         confidence:
           type: string
           enum: [high, medium]
+    LeagueSettingMatch:
+      type: object
+      additionalProperties: false
+      required: [key, label, value, source, confidence]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        value: { type: string }
+        source: { type: string }
+        confidence:
+          type: string
+          enum: [high, medium]
+    ImportedRosterSlot:
+      type: object
+      additionalProperties: false
+      required: [name, count, positions, isStarting]
+      properties:
+        name: { type: string }
+        count: { type: integer, minimum: 0, maximum: 40 }
+        positions:
+          type: array
+          minItems: 1
+          items: { type: string }
+        isStarting: { type: boolean }
+    ImportedLeagueSettings:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string }
+        teamCount: { type: integer, minimum: 2, maximum: 32 }
+        draftType: { type: string, enum: [snake, linear, auction] }
+        leagueFormat: { type: string, enum: [redraft, dynasty] }
+        futurePickSeasons: { type: integer, minimum: 0, maximum: 5 }
+        rookieDraftRounds: { type: integer, minimum: 1, maximum: 10 }
+        auctionBudget: { type: number, exclusiveMinimum: 0 }
+        auctionMinimumBid: { type: number, exclusiveMinimum: 0 }
+        auctionBudgetTrades: { type: boolean }
+        faabBudget: { type: number, minimum: 0 }
+        faabTrades: { type: boolean }
+        rosterSlots:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportedRosterSlot"
     LeagueBackup:
       type: object
       additionalProperties: false

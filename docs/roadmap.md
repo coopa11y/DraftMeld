@@ -15,7 +15,7 @@ DraftMeld is keeping the `v0.3.0` release unpublished while the remaining draft-
 - Accessible manual drafting with position views, recommendations, persistence, and undo
 - Explicit draft start, completion, reset, and recoverable reset states with active-draft configuration safeguards
 - Simple-to-advanced scoring with optional TE premium, turnovers, bonuses, kicking bands, and defense tiers
-- Resumable first-run guidance with PDF/CSV scoring-rule import and a full manual setup path
+- Resumable first-run guidance with PDF/CSV league-settings and scoring import plus a full manual setup path
 - Ranking, league backup, and draft-result exports
 - Generic private ranking CSV imports with reusable column mapping
 - Stable canonical player identities, aliases, and provider IDs

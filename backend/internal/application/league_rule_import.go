@@ -11,9 +11,10 @@ import (
 	"strings"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/document"
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/league"
 )
 
-var ErrNoLeagueRulesFound = errors.New("no supported league scoring rules were found")
+var ErrNoLeagueRulesFound = errors.New("no supported league rules were found")
 
 type LeagueRuleMatch struct {
 	Key        string  `json:"key"`
@@ -24,10 +25,42 @@ type LeagueRuleMatch struct {
 }
 
 type LeagueRuleImportResult struct {
-	FileType string             `json:"fileType"`
-	Rules    map[string]float64 `json:"rules"`
-	Matches  []LeagueRuleMatch  `json:"matches"`
-	Warnings []string           `json:"warnings"`
+	FileType       string                 `json:"fileType"`
+	Rules          map[string]float64     `json:"rules"`
+	Matches        []LeagueRuleMatch      `json:"matches"`
+	Settings       ImportedLeagueSettings `json:"settings"`
+	SettingMatches []LeagueSettingMatch   `json:"settingMatches"`
+	Warnings       []string               `json:"warnings"`
+}
+
+type LeagueSettingMatch struct {
+	Key        string `json:"key"`
+	Label      string `json:"label"`
+	Value      string `json:"value"`
+	Source     string `json:"source"`
+	Confidence string `json:"confidence"`
+}
+
+type ImportedRosterSlot struct {
+	Name       string   `json:"name"`
+	Count      int      `json:"count"`
+	Positions  []string `json:"positions"`
+	IsStarting bool     `json:"isStarting"`
+}
+
+type ImportedLeagueSettings struct {
+	Name                *string              `json:"name,omitempty"`
+	TeamCount           *int                 `json:"teamCount,omitempty"`
+	DraftType           *league.DraftType    `json:"draftType,omitempty"`
+	LeagueFormat        *league.LeagueFormat `json:"leagueFormat,omitempty"`
+	FuturePickSeasons   *int                 `json:"futurePickSeasons,omitempty"`
+	RookieDraftRounds   *int                 `json:"rookieDraftRounds,omitempty"`
+	AuctionBudget       *float64             `json:"auctionBudget,omitempty"`
+	AuctionMinimumBid   *float64             `json:"auctionMinimumBid,omitempty"`
+	AuctionBudgetTrades *bool                `json:"auctionBudgetTrades,omitempty"`
+	FAABBudget          *float64             `json:"faabBudget,omitempty"`
+	FAABTrades          *bool                `json:"faabTrades,omitempty"`
+	RosterSlots         []ImportedRosterSlot `json:"rosterSlots,omitempty"`
 }
 
 type leagueRuleDefinition struct {
@@ -104,7 +137,8 @@ func (service *LeagueRuleImportService) ImportPDF(contents []byte) (LeagueRuleIm
 		return LeagueRuleImportResult{}, err
 	}
 	result := parseLeagueRuleLines(strings.Split(extracted.Text, "\n"), "pdf")
-	if len(result.Matches) == 0 {
+	parseLeagueSettingsLines(&result, strings.Split(extracted.Text, "\n"))
+	if len(result.Matches) == 0 && len(result.SettingMatches) == 0 {
 		return LeagueRuleImportResult{}, ErrNoLeagueRulesFound
 	}
 	if extracted.PageCount > 1 {
@@ -124,7 +158,8 @@ func (service *LeagueRuleImportService) ImportCSV(input io.Reader) (LeagueRuleIm
 		return LeagueRuleImportResult{}, ErrNoLeagueRulesFound
 	}
 	result := parseLeagueRuleCSV(rows)
-	if len(result.Matches) == 0 {
+	parseLeagueSettingsCSV(&result, rows)
+	if len(result.Matches) == 0 && len(result.SettingMatches) == 0 {
 		return LeagueRuleImportResult{}, ErrNoLeagueRulesFound
 	}
 	return result, nil
@@ -262,7 +297,7 @@ func (builder *leagueRuleResultBuilder) finish() LeagueRuleImportResult {
 	for _, key := range keys {
 		builder.result.Matches = append(builder.result.Matches, builder.seen[key])
 	}
-	if len(builder.result.Matches) > 0 {
+	if len(builder.result.Matches) > 0 || len(builder.result.SettingMatches) > 0 {
 		builder.result.Warnings = append(builder.result.Warnings, "Review every imported value against your league settings before saving.")
 	}
 	return builder.result

@@ -112,7 +112,7 @@ func registerLeagueRuleImportRoute(mux *http.ServeMux, service *application.Leag
 			return
 		}
 		if errors.Is(err, application.ErrNoLeagueRulesFound) {
-			writeError(response, http.StatusUnprocessableEntity, "No supported scoring rules were recognized. Try a CSV with Statistic, Points, and optional Per columns, or configure scoring manually.")
+			writeError(response, http.StatusUnprocessableEntity, "No supported league settings or scoring rules were recognized. Try a Setting/Value or Statistic/Points CSV, or configure the league manually.")
 			return
 		}
 		if err != nil {

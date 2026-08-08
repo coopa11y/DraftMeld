@@ -2,17 +2,34 @@
 
 DraftMeld shows a non-blocking setup prompt until the user completes or dismisses it. The existing demo draft remains usable while setup is unfinished.
 
-The guided flow covers league basics, scoring, and a final review. **Save and finish later** keeps the current step and league draft in versioned browser local storage. **Configure manually** opens the complete league editor using the values already entered. **Skip setup guide** dismisses the guide without creating or changing a league.
+The guided flow covers league basics, scoring, and a final review. **Save and finish later** keeps the current step, league draft, import evidence, and pre-import undo snapshot in versioned browser local storage. **Configure manually** opens the complete league editor using the values already entered. **Skip setup guide** dismisses the guide without creating or changing a league.
 
 After a league is created, the guide recommends configuring ranking sources before opening the draft board. Projection imports are optional.
 
-## Scoring rule import
+## League rule import
 
-The scoring step accepts one PDF or CSV file up to 20 MiB. Uploads are processed in memory and discarded after extraction. DraftMeld returns a preview containing the canonical rule, value, confidence, and detected source text. Recognized values are applied to the unsaved league draft and can be edited or undone before creation. Unrecognized settings never erase existing values.
+The league-basics step accepts one PDF or CSV file up to 20 MiB. Uploads are processed in memory and discarded after extraction. DraftMeld returns a preview containing the canonical setting, value, confidence, and detected source text. Recognized values are applied to the unsaved league draft and can be edited or undone before creation. Unrecognized settings never erase existing values.
+
+DraftMeld can recognize league name, team count, redraft or dynasty format, snake, linear, or auction draft format, future-pick seasons, rookie rounds, FAAB and auction budgets, budget-trading options, common roster slots, and supported scoring rules. A zero-count roster setting removes that position from the default roster. User-specific draft position, franchise names, full draft order, keeper spend, and ranking-source preferences remain manual because a general league document cannot reliably identify them.
 
 PDF files must contain selectable text. Scanned documents need OCR before upload. Because provider layouts and wording vary, every imported value must be compared with the original league settings.
 
-CSV supports either of these common shapes:
+CSV supports a Setting/Value list:
+
+```csv
+Setting,Value
+League name,Saturday League
+Number of teams,10
+League format,Dynasty
+Draft format,Snake
+QB,1
+RB,2
+WR,3
+K,0
+Bench,7
+```
+
+Scoring rules can use a Statistic/Points list:
 
 ```csv
 Statistic,Points,Per
@@ -27,6 +44,8 @@ Passing TD,Reception,Field goals made 50+ yards
 ```
 
 The optional `Per` column converts units such as one point per 25 passing yards into DraftMeld's points-per-yard value. Zero-valued rules remain valid and disable that scoring category.
+
+A two-row wide CSV is also supported. Each first-row header can be a league setting, roster slot, or scoring rule, with its value in the second row.
 
 ## Accessibility behavior
 

@@ -53,7 +53,7 @@ describe("resumable onboarding wizard", () => {
     expect(loadOnboardingDraft()?.rules.name).toBe("Saved Manual League");
   });
 
-  it("imports recognized CSV rules, preserves review evidence, and supports undo", async () => {
+  it("imports league settings and scoring, preserves review evidence, and supports undo", async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       "fetch",
@@ -72,22 +72,51 @@ describe("resumable onboarding wizard", () => {
                   confidence: "high",
                 },
               ],
+              settings: {
+                name: "Imported League",
+                teamCount: 10,
+                leagueFormat: "dynasty",
+                futurePickSeasons: 3,
+                rosterSlots: [{ name: "WR", count: 3, positions: ["WR"], isStarting: true }],
+              },
+              settingMatches: [
+                {
+                  key: "teamCount",
+                  label: "Number of teams",
+                  value: "10",
+                  source: "Number of teams, 10",
+                  confidence: "high",
+                },
+              ],
               warnings: ["Review every imported value against your league settings before saving."],
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
           ),
       ),
     );
-    renderWizard();
-    await user.click(screen.getByRole("button", { name: "Continue" }));
-    const file = new File(["Statistic,Points\nPassing touchdowns,6"], "rules.csv", { type: "text/csv" });
+    const first = renderWizard();
+    const file = new File(["Setting,Value\nNumber of teams,10\nPassing touchdowns,6"], "rules.csv", {
+      type: "text/csv",
+    });
     await user.upload(screen.getByLabelText("League rules PDF or CSV"), file);
-    await user.click(screen.getByRole("button", { name: "Import and apply recognized rules" }));
-    expect(await screen.findByText("Applied 1 recognized scoring values.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Import and apply recognized settings" }));
+    expect(await screen.findByText(/Applied 2 recognized values/)).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "League name" })).toHaveValue("Imported League");
+    expect(screen.getByRole("spinbutton", { name: "Number of teams" })).toHaveValue(10);
+    expect(screen.getByRole("table", { name: "League settings recognized from the CSV file" })).toBeInTheDocument();
+    expect((await axe(first.container)).violations).toHaveLength(0);
+    await user.click(screen.getByRole("button", { name: "Save and finish later" }));
+    expect(first.props.onClose).toHaveBeenCalledOnce();
+    cleanup();
+    renderWizard();
+    expect(screen.getByRole("heading", { name: "Imported values to review" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "League name" })).toHaveValue("Imported League");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(screen.getByRole("spinbutton", { name: "Points per passing touchdown" })).toHaveValue(6);
-    expect(screen.getByRole("table", { name: "Rules recognized from the CSV file" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Undo imported values" }));
-    expect(screen.getByRole("spinbutton", { name: "Points per passing touchdown" })).toHaveValue(4);
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    await user.click(screen.getByRole("button", { name: "Undo all imported values" }));
+    expect(screen.getByRole("textbox", { name: "League name" })).toHaveValue("My League");
+    expect(screen.getByRole("spinbutton", { name: "Number of teams" })).toHaveValue(12);
   });
 
   it("creates a league only after review and completes the guide", async () => {

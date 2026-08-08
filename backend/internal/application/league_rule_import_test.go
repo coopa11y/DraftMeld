@@ -75,3 +75,58 @@ func TestLeagueRuleImportRejectsUnsupportedContent(t *testing.T) {
 		t.Fatal("expected unsupported scoring CSV to be rejected")
 	}
 }
+
+func TestLeagueRuleCSVImportsLeagueSettingsAndRoster(t *testing.T) {
+	service := NewLeagueRuleImportService()
+	result, err := service.ImportCSV(strings.NewReader(`Setting,Value
+League name,Saturday League
+Number of teams,10
+League format,Dynasty
+Draft format,Snake
+Future pick seasons,3
+Rookie draft rounds,4
+FAAB budget,125
+FAAB trades,Yes
+QB,1
+RB,2
+WR,3
+TE,1
+FLEX,1
+K,0
+DST,1
+Bench,7
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Settings.Name == nil || *result.Settings.Name != "Saturday League" || result.Settings.TeamCount == nil || *result.Settings.TeamCount != 10 {
+		t.Fatalf("unexpected basic settings: %#v", result.Settings)
+	}
+	if result.Settings.LeagueFormat == nil || *result.Settings.LeagueFormat != "dynasty" || result.Settings.FAABTrades == nil || !*result.Settings.FAABTrades {
+		t.Fatalf("unexpected dynasty settings: %#v", result.Settings)
+	}
+	if len(result.Settings.RosterSlots) != 8 || len(result.SettingMatches) < 10 {
+		t.Fatalf("expected reviewable roster and settings: %#v", result)
+	}
+}
+
+func TestLeagueRulePDFImportsAuctionAndInlineRoster(t *testing.T) {
+	extractor := leagueRulePDFExtractorStub{document: document.TextDocument{PageCount: 1, Text: `League Name: Office League
+Number of Teams: 12
+League Type: Redraft
+Draft Type: Salary Cap Auction
+Auction Budget: $250
+Minimum Bid: $2
+Starting roster: 1 QB, 2 RB, 3 WR, 1 TE, 1 SUPERFLEX, 0 K, 1 D/ST, 8 Bench
+Passing Touchdowns: 6`}}
+	result, err := NewLeagueRuleImportServiceWithExtractor(extractor).ImportPDF([]byte("pdf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Settings.DraftType == nil || *result.Settings.DraftType != "auction" || result.Settings.AuctionBudget == nil || *result.Settings.AuctionBudget != 250 {
+		t.Fatalf("unexpected auction settings: %#v", result.Settings)
+	}
+	if len(result.Settings.RosterSlots) != 8 || result.Rules["passingTouchdown"] != 6 {
+		t.Fatalf("unexpected mixed PDF import: %#v", result)
+	}
+}

@@ -48,7 +48,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Preview scoring rules recognized from a user-supplied PDF or CSV */
+        /** Preview league settings and scoring rules recognized from a user-supplied PDF or CSV */
         post: operations["importLeagueRules"];
         delete?: never;
         options?: never;
@@ -660,6 +660,8 @@ export interface components {
                 [key: string]: number;
             };
             matches: components["schemas"]["LeagueRuleMatch"][];
+            settings: components["schemas"]["ImportedLeagueSettings"];
+            settingMatches: components["schemas"]["LeagueSettingMatch"][];
             warnings: string[];
         };
         LeagueRuleMatch: {
@@ -669,6 +671,36 @@ export interface components {
             source: string;
             /** @enum {string} */
             confidence: "high" | "medium";
+        };
+        LeagueSettingMatch: {
+            key: string;
+            label: string;
+            value: string;
+            source: string;
+            /** @enum {string} */
+            confidence: "high" | "medium";
+        };
+        ImportedRosterSlot: {
+            name: string;
+            count: number;
+            positions: string[];
+            isStarting: boolean;
+        };
+        ImportedLeagueSettings: {
+            name?: string;
+            teamCount?: number;
+            /** @enum {string} */
+            draftType?: "snake" | "linear" | "auction";
+            /** @enum {string} */
+            leagueFormat?: "redraft" | "dynasty";
+            futurePickSeasons?: number;
+            rookieDraftRounds?: number;
+            auctionBudget?: number;
+            auctionMinimumBid?: number;
+            auctionBudgetTrades?: boolean;
+            faabBudget?: number;
+            faabTrades?: boolean;
+            rosterSlots?: components["schemas"]["ImportedRosterSlot"][];
         };
         LeagueBackup: {
             /** @constant */
@@ -1138,7 +1170,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description The file was readable but contained no supported scoring rules. */
+            /** @description The file was readable but contained no supported league settings or scoring rules. */
             422: {
                 headers: {
                     [name: string]: unknown;
