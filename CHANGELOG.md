@@ -27,6 +27,7 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 - Automated Windows and Linux release archives, checksums, provenance attestations, GHCR images, and smoke tests
 - Reusable private ranking CSV imports with interactive column mapping, optional ADP and tiers, and persistent source metadata
 - Persistent canonical player directory with stable DraftMeld IDs, source aliases, and provider-specific player IDs
+- Named league teams, enforced pick ownership, opponent rosters, and accessible snake, linear, and auction draft-room views
 - Accessible manual draft board with overall and position rankings
 - Draft and Taken actions with descriptive screen-reader labels
 - My Team, recommendations, and draft-history panels
@@ -36,6 +37,10 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 - Automated axe, keyboard interaction, API, domain, and SQLite tests
 - Persistent multi-league setup with create, edit, duplicate, delete, and active-league selection
 - Custom team count, draft position, format, roster slots, and scoring controls with beginner-friendly presets
+- Draft-position-first setup with optional opponent names and automatic team placeholders
+- Separate league, draft, and team settings plus current-pick reassignment for draft-day trades
+- Persistent multi-pick trades for any unused round with accessible review, reversal, ledger, and draft-grid ownership labels
+- Complete league-aware trade lifecycle: permanent franchises and draft-order changes, current and future picks, conditional picks, players, season-specific auction/FAAB budget assets, a filtered ledger, and guided dynasty season rollover
 - On-demand imports for five ranking signals with source URLs, licenses, timestamps, and record counts
 - Current CBS Sports PPR Top 200 connector that retains attribution without redistributing raw data
 - Weighted consensus preview anchored to the current redraft player pool

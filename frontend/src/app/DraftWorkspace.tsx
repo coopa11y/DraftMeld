@@ -1,16 +1,28 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  advanceDraftSeason,
+  createDraftTrade,
+  deleteDraftPickTrade,
   getDraft,
   recordDraftAction,
+  resolveTradeCondition,
   setPlayerPreference,
   simulateToNextTurn,
   syncSleeperDraft,
   undoDraftAction,
 } from "../shared/api/draft";
-import type { DraftAction, DraftSnapshot, Player } from "../shared/api/types";
+import type {
+  BudgetAsset,
+  DraftAction,
+  DraftPickTrade,
+  DraftSnapshot,
+  FutureDraftPick,
+  Player,
+} from "../shared/api/types";
 import { useViewHeadingFocus } from "../shared/hooks/useViewHeadingFocus";
 import { StatusMessage } from "../shared/ui/StatusMessage";
 import { DraftSidebar } from "./DraftSidebar";
+import { DraftOverview } from "./DraftOverview";
 import { PlayerBoard } from "./PlayerBoard";
 
 interface DraftWorkspaceProps {
@@ -22,6 +34,7 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
   const [busy, setBusy] = useState(false);
   const [announcement, setAnnouncement] = useState("Draft board loading.");
   const [error, setError] = useState("");
+  const [selectedTeamNumber, setSelectedTeamNumber] = useState(0);
   const pendingFocus = useRef<string | null>(null);
   const boardHeading = useViewHeadingFocus<HTMLHeadingElement>(snapshot !== null);
   const errorAlert = useRef<HTMLDivElement>(null);
@@ -32,6 +45,7 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
       .then((data) => {
         if (!active) return;
         setSnapshot(data);
+        setSelectedTeamNumber(defaultSelectedTeam(data));
         setAnnouncement(`Draft board loaded. ${data.available.length} players are available.`);
       })
       .catch((reason: Error) => {
@@ -54,15 +68,16 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
     if (error) errorAlert.current?.focus();
   }, [error]);
 
-  async function handleAction(player: Player, action: DraftAction, cost = 0) {
+  async function handleAction(player: Player, action: DraftAction, cost = 0, teamNumber = 0) {
     if (!snapshot || busy) return;
     const index = snapshot.available.findIndex((candidate) => candidate.id === player.id);
     pendingFocus.current = snapshot.available[index + 1]?.id ?? snapshot.available[index - 1]?.id ?? "board";
     setBusy(true);
     setError("");
     try {
-      const updated = await recordDraftAction(leagueId, player.id, action, cost);
+      const updated = await recordDraftAction(leagueId, player.id, action, cost, teamNumber);
       setSnapshot(updated);
+      setSelectedTeamNumber(defaultSelectedTeam(updated));
       setAnnouncement(
         action === "draft"
           ? `${player.name} was drafted to your team. Rankings and recommendations updated.`
@@ -100,6 +115,7 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
     try {
       const updated = await simulateToNextTurn(leagueId);
       setSnapshot(updated);
+      setSelectedTeamNumber(defaultSelectedTeam(updated));
       setAnnouncement(`Mock opponents completed. It is now pick ${updated.pickNumber}.`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to simulate opponent picks.");
@@ -115,6 +131,7 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
     try {
       const result = await syncSleeperDraft(leagueId, draftId, rosterId);
       setSnapshot(result.snapshot);
+      setSelectedTeamNumber(defaultSelectedTeam(result.snapshot));
       setAnnouncement(
         `Sleeper sync reconciled ${result.snapshot.history.length} picks: ${result.added} added, ${result.updated} changed, ${result.removed} removed${result.unmatched ? `, ${result.unmatched} unmatched` : ""}.`,
       );
@@ -134,9 +151,106 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
     try {
       const updated = await undoDraftAction(leagueId);
       setSnapshot(updated);
+      setSelectedTeamNumber(defaultSelectedTeam(updated));
       setAnnouncement(`${lastPick.player.name} was restored to the available-player list.`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Undo failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCreateTrade(
+    teamOne: number,
+    teamTwo: number,
+    teamOneReceives: number[],
+    teamTwoReceives: number[],
+    teamOneFuture: FutureDraftPick[],
+    teamTwoFuture: FutureDraftPick[],
+    teamOnePlayers: string[],
+    teamTwoPlayers: string[],
+    teamOneBudgets: BudgetAsset[],
+    teamTwoBudgets: BudgetAsset[],
+  ) {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const updated = await createDraftTrade(
+        leagueId,
+        teamOne,
+        teamTwo,
+        teamOneReceives,
+        teamTwoReceives,
+        teamOneFuture,
+        teamTwoFuture,
+        0,
+        0,
+        teamOnePlayers,
+        teamTwoPlayers,
+        teamOneBudgets,
+        teamTwoBudgets,
+      );
+      setSnapshot(updated);
+      setSelectedTeamNumber(defaultSelectedTeam(updated));
+      setAnnouncement(
+        `Trade confirmed between ${teamName(updated, teamOne)} and ${teamName(updated, teamTwo)} with ${assetCount(teamOneReceives, teamOneFuture, teamOnePlayers, teamOneBudgets)} and ${assetCount(teamTwoReceives, teamTwoFuture, teamTwoPlayers, teamTwoBudgets)} recorded.`,
+      );
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to save the draft asset trade.");
+      throw reason;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleResolveTrade(trade: DraftPickTrade, pick: FutureDraftPick, status: "met" | "not-met") {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const updated = await resolveTradeCondition(leagueId, trade.id, pick, status);
+      setSnapshot(updated);
+      setAnnouncement(
+        `The condition for the ${pick.season} round ${pick.round} pick was marked ${status === "met" ? "met" : "not met"}.`,
+      );
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to resolve the pick condition.");
+      throw reason;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAdvanceSeason(season: number, draftType: DraftSnapshot["draftType"], draftOrder: number[]) {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const updated = await advanceDraftSeason(leagueId, season, draftType, draftOrder);
+      setSnapshot(updated);
+      setSelectedTeamNumber(defaultSelectedTeam(updated));
+      setAnnouncement(`${season} is ready. Franchise rosters and traded assets carried forward to a clean draft.`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to start the next season.");
+      throw reason;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteTrade(trade: DraftPickTrade) {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const updated = await deleteDraftPickTrade(leagueId, trade.id);
+      setSnapshot(updated);
+      setSelectedTeamNumber(defaultSelectedTeam(updated));
+      setAnnouncement(`Trade between ${trade.teamOneName} and ${trade.teamTwoName} was reversed.`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to reverse the draft asset trade.");
+      throw reason;
     } finally {
       setBusy(false);
     }
@@ -155,6 +269,9 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
       </main>
     );
   }
+
+  const onClockTeam = snapshot.teams.find((team) => team.number === selectedTeamNumber);
+  const selectedTeamIsUser = onClockTeam?.isUser ?? false;
 
   return (
     <>
@@ -182,7 +299,8 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
           aria-label={`Draft status. Pick ${snapshot.pickNumber}. ${snapshot.available.length} players available.`}
         >
           <span>{snapshot.leagueName}</span>
-          <strong>Pick {snapshot.pickNumber}</strong>
+          <strong>{snapshot.isComplete ? "Draft complete" : `Pick ${snapshot.pickNumber}`}</strong>
+          {onClockTeam ? <span>{onClockTeam.name} on the clock</span> : null}
           <span>{snapshot.available.length} available</span>
           <span>
             {snapshot.dataMode}
@@ -194,6 +312,8 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
             snapshot={snapshot}
             busy={busy}
             headingRef={boardHeading}
+            selectedTeamNumber={selectedTeamNumber}
+            selectedTeamIsUser={selectedTeamIsUser}
             onAction={handleAction}
             onUndo={handleUndo}
             onPreference={handlePreference}
@@ -201,12 +321,37 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
           <DraftSidebar
             snapshot={snapshot}
             busy={busy}
+            selectedTeamNumber={selectedTeamNumber}
+            selectedTeamIsUser={selectedTeamIsUser}
+            onSelectedTeamChange={setSelectedTeamNumber}
             onAction={handleAction}
             onMock={handleMock}
             onSleeperSync={handleSleeperSync}
           />
         </div>
+        <DraftOverview
+          snapshot={snapshot}
+          busy={busy}
+          onCreateTrade={handleCreateTrade}
+          onDeleteTrade={handleDeleteTrade}
+          onResolveTrade={handleResolveTrade}
+          onAdvanceSeason={handleAdvanceSeason}
+        />
       </main>
     </>
   );
+}
+
+function defaultSelectedTeam(snapshot: DraftSnapshot): number {
+  if (snapshot.draftType !== "auction") return snapshot.onClockTeamNumber;
+  return snapshot.teams.find((team) => !team.isUser)?.number ?? 0;
+}
+
+function teamName(snapshot: DraftSnapshot, teamNumber: number) {
+  return snapshot.teams.find((team) => team.number === teamNumber)?.name ?? `Team ${teamNumber}`;
+}
+
+function assetCount(current: number[], future: FutureDraftPick[], players: string[], budgets: BudgetAsset[]) {
+  const count = current.length + future.length + players.length + budgets.length;
+  return `${count} ${count === 1 ? "asset" : "assets"}`;
 }

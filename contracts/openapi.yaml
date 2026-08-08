@@ -432,6 +432,78 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /draft/trades:
+    post:
+      operationId: createDraftTrade
+      summary: Trade eligible draft assets between two teams
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DraftPickTradeRequest" }
+      responses:
+        "201":
+          description: Draft state with the updated pick ownership schedule.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DraftSnapshot" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /draft/trades/{tradeId}:
+    delete:
+      operationId: deleteDraftTrade
+      summary: Reverse a trade whose assets remain eligible
+      parameters:
+        - name: tradeId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+        - $ref: "#/components/parameters/LeagueId"
+      responses:
+        "200":
+          description: Draft state with the trade reversed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DraftSnapshot" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /draft/trades/{tradeId}/condition:
+    put:
+      operationId: resolveDraftTradeCondition
+      summary: Resolve a pending conditional future pick
+      parameters:
+        - name: tradeId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TradeConditionRequest" }
+      responses:
+        "200":
+          description: Draft state with the condition resolved.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DraftSnapshot" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+  /draft/seasons:
+    post:
+      operationId: advanceDraftSeason
+      summary: Close the current dynasty season and start the next draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SeasonRolloverRequest" }
+      responses:
+        "200":
+          description: Fresh next-season draft state with persistent dynasty assets.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DraftSnapshot" }
+        "400": { $ref: "#/components/responses/BadRequest" }
   /draft/undo:
     post:
       operationId: undoDraftAction
@@ -588,7 +660,18 @@ components:
           name,
           teamCount,
           draftPosition,
+          userTeamNumber,
+          teamNames,
+          draftOrder,
           draftType,
+          leagueFormat,
+          season,
+          initialSeason,
+          futurePickSeasons,
+          rookieDraftRounds,
+          auctionBudgetTrades,
+          faabBudget,
+          faabTrades,
           rosterSlots,
           scoringRules,
           sourcePreferences,
@@ -612,9 +695,36 @@ components:
           type: integer
           minimum: 1
           maximum: 32
+        userTeamNumber:
+          type: integer
+          minimum: 1
+          maximum: 32
+        teamNames:
+          type: array
+          minItems: 2
+          maxItems: 32
+          items:
+            type: string
+            minLength: 1
+            maxLength: 80
+        draftOrder:
+          type: array
+          minItems: 2
+          maxItems: 32
+          items: { type: integer, minimum: 1, maximum: 32 }
         draftType:
           type: string
           enum: [snake, linear, auction]
+        leagueFormat:
+          type: string
+          enum: [redraft, dynasty]
+        season: { type: integer, minimum: 2020, maximum: 2200 }
+        initialSeason: { type: integer, minimum: 2020, maximum: 2200 }
+        futurePickSeasons: { type: integer, minimum: 0, maximum: 5 }
+        rookieDraftRounds: { type: integer, minimum: 1, maximum: 10 }
+        auctionBudgetTrades: { type: boolean }
+        faabBudget: { type: number, minimum: 0 }
+        faabTrades: { type: boolean }
         rosterSlots:
           type: array
           minItems: 1
@@ -898,7 +1008,7 @@ components:
           items: { type: string }
     Pick:
       type: object
-      required: [eventId, number, action, player, createdAt, cost]
+      required: [eventId, number, action, player, createdAt, cost, teamNumber, teamName]
       properties:
         eventId: { type: integer }
         number: { type: integer, minimum: 1 }
@@ -906,6 +1016,19 @@ components:
         player: { $ref: "#/components/schemas/Player" }
         createdAt: { type: string, format: date-time }
         cost: { type: number, minimum: 0 }
+        teamNumber: { type: integer, minimum: 0 }
+        teamName: { type: string }
+    DraftTeam:
+      type: object
+      required: [number, name, isUser, roster, auctionBudgetRemaining]
+      properties:
+        number: { type: integer, minimum: 1 }
+        name: { type: string }
+        isUser: { type: boolean }
+        roster:
+          type: array
+          items: { $ref: "#/components/schemas/Player" }
+        auctionBudgetRemaining: { type: number }
     DraftSnapshot:
       type: object
       required:
@@ -915,6 +1038,7 @@ components:
           pickNumber,
           available,
           myTeam,
+          teams,
           history,
           recommendations,
           canUndo,
@@ -928,6 +1052,18 @@ components:
           auctionMinimumBid,
           maximumBid,
           isUserTurn,
+          totalPicks,
+          isComplete,
+          onClockTeamNumber,
+          pickSlots,
+          pickTrades,
+          leagueFormat,
+          season,
+          auctionBudgetTrades,
+          faabTrades,
+          budgetBalances,
+          draftOrder,
+          userTeamNumber,
         ]
       properties:
         leagueId: { type: string }
@@ -939,6 +1075,9 @@ components:
         myTeam:
           type: array
           items: { $ref: "#/components/schemas/Player" }
+        teams:
+          type: array
+          items: { $ref: "#/components/schemas/DraftTeam" }
         history:
           type: array
           items: { $ref: "#/components/schemas/Pick" }
@@ -956,6 +1095,210 @@ components:
         auctionMinimumBid: { type: number, minimum: 0 }
         maximumBid: { type: number, minimum: 0 }
         isUserTurn: { type: boolean }
+        totalPicks: { type: integer, minimum: 1 }
+        isComplete: { type: boolean }
+        onClockTeamNumber: { type: integer, minimum: 0 }
+        pickSlots:
+          type: array
+          items: { $ref: "#/components/schemas/DraftPickSlot" }
+        pickTrades:
+          type: array
+          items: { $ref: "#/components/schemas/DraftPickTrade" }
+        leagueFormat: { type: string, enum: [redraft, dynasty] }
+        season: { type: integer, minimum: 2020 }
+        auctionBudgetTrades: { type: boolean }
+        faabTrades: { type: boolean }
+        budgetBalances:
+          type: array
+          items: { $ref: "#/components/schemas/BudgetBalance" }
+        draftOrder:
+          type: array
+          items: { type: integer, minimum: 1 }
+        userTeamNumber: { type: integer, minimum: 1 }
+    DraftPickSlot:
+      type: object
+      required:
+        [
+          season,
+          overallNumber,
+          round,
+          pickInRound,
+          originalTeamNumber,
+          originalTeamName,
+          ownerTeamNumber,
+          ownerTeamName,
+          isUsed,
+        ]
+      properties:
+        season: { type: integer, minimum: 2020 }
+        overallNumber: { type: integer, minimum: 0 }
+        round: { type: integer, minimum: 1 }
+        pickInRound: { type: integer, minimum: 0 }
+        originalTeamNumber: { type: integer, minimum: 1 }
+        originalTeamName: { type: string }
+        ownerTeamNumber: { type: integer, minimum: 1 }
+        ownerTeamName: { type: string }
+        isUsed: { type: boolean }
+    DraftPickTrade:
+      type: object
+      required:
+        [
+          id,
+          leagueId,
+          teamOneNumber,
+          teamOneName,
+          teamTwoNumber,
+          teamTwoName,
+          teamOneReceives,
+          teamTwoReceives,
+          teamOneFuturePicks,
+          teamTwoFuturePicks,
+          teamOneAuctionBudget,
+          teamTwoAuctionBudget,
+          teamOnePlayers,
+          teamTwoPlayers,
+          teamOneBudgets,
+          teamTwoBudgets,
+          season,
+          createdAt,
+        ]
+      properties:
+        id: { type: integer, minimum: 1 }
+        leagueId: { type: string }
+        teamOneNumber: { type: integer, minimum: 1 }
+        teamOneName: { type: string }
+        teamTwoNumber: { type: integer, minimum: 1 }
+        teamTwoName: { type: string }
+        teamOneReceives:
+          type: array
+          items: { type: integer, minimum: 1 }
+        teamTwoReceives:
+          type: array
+          items: { type: integer, minimum: 1 }
+        teamOneFuturePicks:
+          type: array
+          items: { $ref: "#/components/schemas/FutureDraftPick" }
+        teamTwoFuturePicks:
+          type: array
+          items: { $ref: "#/components/schemas/FutureDraftPick" }
+        teamOneAuctionBudget: { type: number, minimum: 0 }
+        teamTwoAuctionBudget: { type: number, minimum: 0 }
+        teamOnePlayers:
+          type: array
+          items: { type: string }
+        teamTwoPlayers:
+          type: array
+          items: { type: string }
+        teamOneBudgets:
+          type: array
+          items: { $ref: "#/components/schemas/BudgetAsset" }
+        teamTwoBudgets:
+          type: array
+          items: { $ref: "#/components/schemas/BudgetAsset" }
+        season: { type: integer, minimum: 2020 }
+        createdAt: { type: string, format: date-time }
+    FutureDraftPick:
+      type: object
+      required: [season, round, originalTeamNumber, originalTeamName, condition, conditionStatus]
+      properties:
+        season: { type: integer, minimum: 2020 }
+        round: { type: integer, minimum: 1 }
+        originalTeamNumber: { type: integer, minimum: 1 }
+        originalTeamName: { type: string }
+        condition: { type: string }
+        conditionStatus: { type: string, enum: ["", pending, met, not-met] }
+    FutureDraftPickRequest:
+      type: object
+      required: [season, round, originalTeamNumber]
+      properties:
+        season: { type: integer, minimum: 2020 }
+        round: { type: integer, minimum: 1 }
+        originalTeamNumber: { type: integer, minimum: 1 }
+        condition: { type: string, maxLength: 300 }
+    DraftPickTradeRequest:
+      type: object
+      required:
+        [
+          leagueId,
+          teamOneNumber,
+          teamTwoNumber,
+          teamOneReceives,
+          teamTwoReceives,
+          teamOneFuturePicks,
+          teamTwoFuturePicks,
+          teamOneAuctionBudget,
+          teamTwoAuctionBudget,
+          teamOnePlayers,
+          teamTwoPlayers,
+          teamOneBudgets,
+          teamTwoBudgets,
+        ]
+      properties:
+        leagueId: { type: string }
+        teamOneNumber: { type: integer, minimum: 1 }
+        teamTwoNumber: { type: integer, minimum: 1 }
+        teamOneReceives:
+          type: array
+          items: { type: integer, minimum: 1 }
+        teamTwoReceives:
+          type: array
+          items: { type: integer, minimum: 1 }
+        teamOneFuturePicks:
+          type: array
+          items: { $ref: "#/components/schemas/FutureDraftPickRequest" }
+        teamTwoFuturePicks:
+          type: array
+          items: { $ref: "#/components/schemas/FutureDraftPickRequest" }
+        teamOneAuctionBudget: { type: number, minimum: 0 }
+        teamTwoAuctionBudget: { type: number, minimum: 0 }
+        teamOnePlayers:
+          type: array
+          items: { type: string }
+        teamTwoPlayers:
+          type: array
+          items: { type: string }
+        teamOneBudgets:
+          type: array
+          items: { $ref: "#/components/schemas/BudgetAsset" }
+        teamTwoBudgets:
+          type: array
+          items: { $ref: "#/components/schemas/BudgetAsset" }
+    BudgetAsset:
+      type: object
+      required: [kind, season, amount]
+      properties:
+        kind: { type: string, enum: [auction, faab] }
+        season: { type: integer, minimum: 2020 }
+        amount: { type: number, exclusiveMinimum: 0 }
+    BudgetBalance:
+      type: object
+      required: [teamNumber, season, kind, remaining]
+      properties:
+        teamNumber: { type: integer, minimum: 1 }
+        season: { type: integer, minimum: 2020 }
+        kind: { type: string, enum: [auction, faab] }
+        remaining: { type: number }
+    TradeConditionRequest:
+      type: object
+      required: [leagueId, season, round, originalTeamNumber, status]
+      properties:
+        leagueId: { type: string }
+        season: { type: integer, minimum: 2020 }
+        round: { type: integer, minimum: 1 }
+        originalTeamNumber: { type: integer, minimum: 1 }
+        status: { type: string, enum: [met, not-met] }
+    SeasonRolloverRequest:
+      type: object
+      required: [leagueId, season, draftType, draftOrder]
+      properties:
+        leagueId: { type: string }
+        season: { type: integer, minimum: 2021 }
+        draftType: { type: string, enum: [snake, linear, auction] }
+        draftOrder:
+          type: array
+          minItems: 2
+          maxItems: 32
+          items: { type: integer, minimum: 1, maximum: 32 }
     DraftExport:
       type: object
       additionalProperties: false
@@ -994,3 +1337,4 @@ components:
         playerId: { type: string }
         action: { type: string, enum: [draft, taken] }
         cost: { type: number, minimum: 0 }
+        teamNumber: { type: integer, minimum: 0 }

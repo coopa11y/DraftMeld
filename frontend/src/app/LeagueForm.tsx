@@ -3,6 +3,7 @@ import { leagueToRules } from "../shared/api/leagues";
 import type { League, LeagueRules, RosterSlot } from "../shared/api/types";
 import { Button } from "../shared/ui/Button";
 import { FormField } from "../shared/ui/FormField";
+import { DraftSettings, LeagueSettings, TeamSettings } from "./LeagueSetupSections";
 
 const playerPositions = ["QB", "RB", "WR", "TE", "K", "DST"] as const;
 const scoringFields = [
@@ -39,7 +40,18 @@ function defaultRules(): LeagueRules {
     name: "My League",
     teamCount: 12,
     draftPosition: 1,
+    userTeamNumber: 1,
+    teamNames: ["My Team", ...Array.from({ length: 11 }, () => "")],
+    draftOrder: Array.from({ length: 12 }, (_, index) => index + 1),
     draftType: "snake",
+    leagueFormat: "redraft",
+    season: new Date().getFullYear(),
+    initialSeason: new Date().getFullYear(),
+    futurePickSeasons: 0,
+    rookieDraftRounds: 4,
+    auctionBudgetTrades: false,
+    faabBudget: 100,
+    faabTrades: false,
     rosterSlots: defaultRoster.map((slot) => ({ ...slot, positions: [...slot.positions] })),
     scoringRules: {
       reception: 1,
@@ -74,69 +86,6 @@ interface LeagueFormProps {
   busy: boolean;
   onCancel: () => void;
   onSave: (rules: LeagueRules) => Promise<void>;
-}
-
-function AuctionSettings({
-  rules,
-  onChange,
-}: {
-  rules: LeagueRules;
-  onChange: (update: Partial<LeagueRules>) => void;
-}) {
-  return (
-    <>
-      <FormField label="Team auction budget">
-        <input
-          type="number"
-          min="1"
-          step="1"
-          required
-          value={rules.auctionBudget}
-          onChange={(event) => onChange({ auctionBudget: Number(event.target.value) })}
-        />
-      </FormField>
-      <FormField label="Minimum bid">
-        <input
-          type="number"
-          min="1"
-          max={rules.auctionBudget}
-          step="1"
-          required
-          value={rules.auctionMinimumBid}
-          onChange={(event) => onChange({ auctionMinimumBid: Number(event.target.value) })}
-        />
-      </FormField>
-      <FormField label="My keeper spend" help="Dollars already committed by your team.">
-        <input
-          type="number"
-          min="0"
-          max={rules.auctionBudget}
-          step="1"
-          value={rules.myKeeperSpend}
-          onChange={(event) => onChange({ myKeeperSpend: Number(event.target.value) })}
-        />
-      </FormField>
-      <FormField label="League-wide keeper spend" help="Total dollars already committed to keepers across every team.">
-        <input
-          type="number"
-          min={rules.myKeeperSpend}
-          max={rules.auctionBudget * rules.teamCount}
-          step="1"
-          value={rules.keeperBudgetSpent}
-          onChange={(event) => onChange({ keeperBudgetSpent: Number(event.target.value) })}
-        />
-      </FormField>
-      <FormField label="Keeper value removed" help="DraftMeld baseline dollar value of players already kept.">
-        <input
-          type="number"
-          min="0"
-          step="1"
-          value={rules.keeperValueRemoved}
-          onChange={(event) => onChange({ keeperValueRemoved: Number(event.target.value) })}
-        />
-      </FormField>
-    </>
-  );
 }
 
 export function LeagueForm({ league, busy, onCancel, onSave }: LeagueFormProps) {
@@ -174,81 +123,16 @@ export function LeagueForm({ league, busy, onCancel, onSave }: LeagueFormProps) 
         </Button>
       </div>
 
-      <fieldset disabled={busy}>
-        <legend>Basic information</legend>
-        <div className="form-grid">
-          <FormField label="League name">
-            <input
-              required
-              maxLength={80}
-              value={rules.name}
-              onChange={(event) => setRules({ ...rules, name: event.target.value })}
-            />
-          </FormField>
-          <FormField label="Draft format">
-            <select
-              value={rules.draftType}
-              onChange={(event) => setRules({ ...rules, draftType: event.target.value as LeagueRules["draftType"] })}
-            >
-              <option value="snake">Snake</option>
-              <option value="linear">Linear</option>
-              <option value="auction">Auction</option>
-            </select>
-          </FormField>
-          <FormField label="Number of teams">
-            <input
-              type="number"
-              min="2"
-              max="32"
-              required
-              value={rules.teamCount}
-              onChange={(event) => {
-                const teamCount = Number(event.target.value);
-                setRules({ ...rules, teamCount, draftPosition: Math.min(rules.draftPosition, teamCount) });
-              }}
-            />
-          </FormField>
-          <FormField label="Your draft position">
-            <input
-              type="number"
-              min="1"
-              max={rules.teamCount}
-              required
-              value={rules.draftPosition}
-              onChange={(event) => setRules({ ...rules, draftPosition: Number(event.target.value) })}
-            />
-          </FormField>
-          <FormField label="Scoring preset">
-            <select
-              value={scoringPreset(rules.scoringRules.reception)}
-              onChange={(event) => {
-                if (event.target.value === "custom") return;
-                setRules({ ...rules, scoringRules: { ...rules.scoringRules, reception: Number(event.target.value) } });
-              }}
-            >
-              <option value="0">Standard</option>
-              <option value="0.5">Half PPR</option>
-              <option value="1">PPR</option>
-              <option value="custom">Custom</option>
-            </select>
-          </FormField>
-          <FormField label="Consensus method">
-            <select
-              value={rules.consensusMethod}
-              onChange={(event) =>
-                setRules({ ...rules, consensusMethod: event.target.value as LeagueRules["consensusMethod"] })
-              }
-            >
-              <option value="weighted-median">Weighted median</option>
-              <option value="trimmed-mean">Trimmed mean</option>
-              <option value="weighted-average">Weighted average</option>
-            </select>
-          </FormField>
-          {rules.draftType === "auction" ? (
-            <AuctionSettings rules={rules} onChange={(update) => setRules((current) => ({ ...current, ...update }))} />
-          ) : null}
-        </div>
-      </fieldset>
+      <div>
+        <LeagueSettings
+          rules={rules}
+          setRules={setRules}
+          disabled={busy}
+          lockSeason={Boolean(league && rules.leagueFormat === "dynasty")}
+        />
+        <DraftSettings rules={rules} setRules={setRules} disabled={busy} />
+        <TeamSettings rules={rules} setRules={setRules} disabled={busy} />
+      </div>
 
       <fieldset disabled={busy}>
         <legend>Roster slots</legend>
@@ -350,8 +234,4 @@ export function LeagueForm({ league, busy, onCancel, onSave }: LeagueFormProps) 
       </div>
     </form>
   );
-}
-
-function scoringPreset(receptions: number): string {
-  return receptions === 0 || receptions === 0.5 || receptions === 1 ? String(receptions) : "custom";
 }

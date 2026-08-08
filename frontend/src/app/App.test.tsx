@@ -45,6 +45,7 @@ const jordan: Player = {
   tier: 1,
   ...playerIntelligence,
 };
+const teamNames = ["My Team", ...Array.from({ length: 11 }, (_, index) => `Team ${index + 2}`)];
 
 function snapshot(overrides: Partial<DraftSnapshot> = {}): DraftSnapshot {
   return {
@@ -53,6 +54,13 @@ function snapshot(overrides: Partial<DraftSnapshot> = {}): DraftSnapshot {
     pickNumber: 1,
     available: [alex, jordan],
     myTeam: [],
+    teams: teamNames.map((name, index) => ({
+      number: index + 1,
+      name,
+      isUser: index === 0,
+      roster: [],
+      auctionBudgetRemaining: 200,
+    })),
     history: [],
     recommendations: [
       { player: alex, score: 220, reasons: ["Fills an open starting roster need"] },
@@ -69,6 +77,34 @@ function snapshot(overrides: Partial<DraftSnapshot> = {}): DraftSnapshot {
     auctionMinimumBid: 1,
     maximumBid: 0,
     isUserTurn: false,
+    totalPicks: 24,
+    isComplete: false,
+    onClockTeamNumber: 2,
+    pickSlots: Array.from({ length: 24 }, (_, index) => {
+      const overallNumber = index + 1;
+      const round = Math.floor(index / 12) + 1;
+      const pickInRound = (index % 12) + 1;
+      const originalTeamNumber = round % 2 === 1 ? pickInRound : 13 - pickInRound;
+      return {
+        season: 2026,
+        overallNumber,
+        round,
+        pickInRound,
+        originalTeamNumber,
+        originalTeamName: teamNames[originalTeamNumber - 1],
+        ownerTeamNumber: originalTeamNumber,
+        ownerTeamName: teamNames[originalTeamNumber - 1],
+        isUsed: false,
+      };
+    }),
+    pickTrades: [],
+    leagueFormat: "redraft",
+    season: 2026,
+    auctionBudgetTrades: false,
+    faabTrades: false,
+    budgetBalances: [],
+    draftOrder: Array.from({ length: 12 }, (_, index) => index + 1),
+    userTeamNumber: 1,
     ...overrides,
   };
 }
@@ -78,7 +114,18 @@ const demoLeague: League = {
   name: "Demo League",
   teamCount: 12,
   draftPosition: 1,
+  userTeamNumber: 1,
+  teamNames,
+  draftOrder: Array.from({ length: 12 }, (_, index) => index + 1),
   draftType: "snake",
+  leagueFormat: "redraft",
+  season: 2026,
+  initialSeason: 2026,
+  futurePickSeasons: 0,
+  rookieDraftRounds: 4,
+  auctionBudgetTrades: false,
+  faabBudget: 100,
+  faabTrades: false,
   rosterSlots: [{ name: "RB", count: 2, positions: ["RB"], isStarting: true }],
   scoringRules: { reception: 1 },
   sourcePreferences: {
@@ -289,6 +336,7 @@ afterEach(() => {
 describe("accessible draft board", () => {
   it("creates a customized league through an accessible setup form", async () => {
     let configuredLeagues = [demoLeague];
+    let submittedRules: Omit<League, "id"> | undefined;
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
@@ -297,6 +345,7 @@ describe("accessible draft board", () => {
         if (path.endsWith("/leagues") && request.method === "GET") return jsonResponse(configuredLeagues);
         if (path.endsWith("/leagues") && request.method === "POST") {
           const rules = (await request.clone().json()) as Omit<League, "id">;
+          submittedRules = rules;
           const created = { id: "family-league", ...rules };
           configuredLeagues = [...configuredLeagues, created];
           return jsonResponse(created, 201);
@@ -309,14 +358,29 @@ describe("accessible draft board", () => {
 
     await user.click(await screen.findByRole("button", { name: "Manage leagues" }));
     await user.click(screen.getByRole("button", { name: "Create league" }));
+    expect(screen.getByRole("group", { name: "League settings" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Draft settings" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Team settings" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "League format" })).toHaveValue("redraft");
+    expect(screen.queryByRole("combobox", { name: "Future pick seasons" })).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByRole("combobox", { name: "League format" }), "dynasty");
+    expect(screen.getByRole("combobox", { name: "Future pick seasons" })).toBeInTheDocument();
+    await user.selectOptions(screen.getByRole("combobox", { name: "League format" }), "redraft");
+    expect(screen.queryByRole("combobox", { name: "Future pick seasons" })).not.toBeInTheDocument();
     const name = screen.getByRole("textbox", { name: "League name" });
     await user.clear(name);
     await user.type(name, "Family League");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Your draft position" }), "7");
+    expect(screen.getByRole("textbox", { name: "Franchise 1 (your team)" })).toHaveValue("My Team");
+    expect(screen.getByRole("textbox", { name: "Franchise 7" })).toHaveValue("");
     expect((await axe(container)).violations).toHaveLength(0);
     await user.click(screen.getByRole("button", { name: "Save league" }));
 
     expect(await screen.findByRole("heading", { name: "Family League" })).toBeInTheDocument();
     expect(screen.getByText("Family League was saved.")).toBeInTheDocument();
+    expect(submittedRules?.draftPosition).toBe(7);
+    expect(submittedRules?.teamNames[0]).toBe("My Team");
+    expect(submittedRules?.draftOrder[6]).toBe(1);
   });
 
   it("restores a versioned league backup without overwriting existing leagues", async () => {
@@ -503,6 +567,8 @@ describe("accessible draft board", () => {
     });
     const simulated = snapshot({
       pickNumber: 24,
+      isUserTurn: true,
+      onClockTeamNumber: 1,
       available: [targetedAlex],
       recommendations: [{ player: targetedAlex, score: 250, reasons: ["Marked as one of your targets"] }],
     });
@@ -741,8 +807,26 @@ describe("accessible draft board", () => {
     const reconciled = snapshot({
       pickNumber: 3,
       history: [
-        { eventId: 1, number: 1, action: "draft", player: alex, createdAt: new Date().toISOString(), cost: 0 },
-        { eventId: 2, number: 2, action: "taken", player: jordan, createdAt: new Date().toISOString(), cost: 0 },
+        {
+          eventId: 1,
+          number: 1,
+          action: "draft",
+          player: alex,
+          createdAt: new Date().toISOString(),
+          cost: 0,
+          teamNumber: 1,
+          teamName: "My Team",
+        },
+        {
+          eventId: 2,
+          number: 2,
+          action: "taken",
+          player: jordan,
+          createdAt: new Date().toISOString(),
+          cost: 0,
+          teamNumber: 2,
+          teamName: "Team 2",
+        },
       ],
       myTeam: [alex],
       available: [],
@@ -773,14 +857,25 @@ describe("accessible draft board", () => {
       pickNumber: 2,
       available: [jordan],
       myTeam: [alex],
-      history: [{ eventId: 1, number: 1, action: "draft", player: alex, createdAt: new Date().toISOString(), cost: 0 }],
+      history: [
+        {
+          eventId: 1,
+          number: 1,
+          action: "draft",
+          player: alex,
+          createdAt: new Date().toISOString(),
+          cost: 0,
+          teamNumber: 1,
+          teamName: "My Team",
+        },
+      ],
       recommendations: [{ player: jordan, score: 219, reasons: ["Fills an open starting roster need"] }],
       canUndo: true,
     });
     const fetchMock = vi
       .fn()
       .mockImplementationOnce(() => jsonResponse([demoLeague]))
-      .mockImplementationOnce(() => jsonResponse(snapshot()))
+      .mockImplementationOnce(() => jsonResponse(snapshot({ isUserTurn: true, onClockTeamNumber: 1 })))
       .mockImplementationOnce(() => jsonResponse(drafted));
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
@@ -794,8 +889,306 @@ describe("accessible draft board", () => {
       screen.getByText("Alex Rivers was drafted to your team. Rankings and recommendations updated."),
     ).toBeInTheDocument();
     await waitFor(() =>
-      expect(screen.getAllByRole("button", { name: "Draft Jordan Hale, WR, to my team" })[0]).toHaveFocus(),
+      expect(
+        screen.getAllByRole("button", { name: "Mark Jordan Hale, WR, as taken by another team" })[0],
+      ).toHaveFocus(),
     );
+  });
+
+  it("assigns a traded pick to the selected team", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() => jsonResponse([demoLeague]))
+      .mockImplementationOnce(() => jsonResponse(snapshot()))
+      .mockImplementationOnce(() => jsonResponse(snapshot({ pickNumber: 3, onClockTeamNumber: 3 })));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    const pickOwner = await screen.findByRole("combobox", { name: /Owner of pick 1/ });
+    await user.selectOptions(pickOwner, "1");
+    expect(screen.getByText("Traded from Team 2 to My Team.")).toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: "Draft Alex Rivers, RB, to my team" })[0]);
+
+    const request = fetchMock.mock.calls[2][0] as Request;
+    expect(await request.clone().json()).toMatchObject({ action: "draft", playerId: "p001", teamNumber: 1 });
+  });
+
+  it("creates and reviews an accessible multi-pick trade for any round", async () => {
+    const tradedSlots = snapshot().pickSlots.map((slot) => {
+      if (slot.overallNumber === 2) return { ...slot, ownerTeamNumber: 1, ownerTeamName: "My Team" };
+      if (slot.overallNumber === 1 || slot.overallNumber === 24)
+        return { ...slot, ownerTeamNumber: 2, ownerTeamName: "Team 2" };
+      return slot;
+    });
+    const traded = snapshot({
+      onClockTeamNumber: 2,
+      pickSlots: tradedSlots,
+      pickTrades: [
+        {
+          id: 1,
+          leagueId: "demo",
+          teamOneNumber: 1,
+          teamOneName: "My Team",
+          teamTwoNumber: 2,
+          teamTwoName: "Team 2",
+          teamOneReceives: [2],
+          teamTwoReceives: [1, 24],
+          teamOneFuturePicks: [],
+          teamTwoFuturePicks: [],
+          teamOneAuctionBudget: 0,
+          teamTwoAuctionBudget: 0,
+          teamOnePlayers: [],
+          teamTwoPlayers: [],
+          teamOneBudgets: [],
+          teamTwoBudgets: [],
+          season: 2026,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    });
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() => jsonResponse([demoLeague]))
+      .mockImplementationOnce(() => jsonResponse(snapshot()))
+      .mockImplementationOnce(() => jsonResponse(traded, 201));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "Draft asset trades" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "First team" })).toHaveValue("1");
+    expect(screen.getByRole("combobox", { name: "Second team" })).toHaveValue("2");
+    for (const name of ["Round 1, pick 2, overall 2", "Round 1, pick 1, overall 1", "Round 2, pick 12, overall 24"]) {
+      const pick = screen.getByRole("checkbox", { name });
+      pick.focus();
+      await user.keyboard(" ");
+      expect(pick).toBeChecked();
+    }
+    const reviewButton = screen.getByRole("button", { name: "Review trade" });
+    reviewButton.focus();
+    await user.keyboard("{Enter}");
+
+    const review = screen.getByRole("region", { name: "Review this trade" });
+    expect(within(review).getByText("Round 1, pick 2, overall 2")).toBeInTheDocument();
+    expect(within(review).getByText("Round 1, pick 1, overall 1; Round 2, pick 12, overall 24")).toBeInTheDocument();
+    expect((await axe(container)).violations).toHaveLength(0);
+    const confirmButton = within(review).getByRole("button", { name: "Confirm trade" });
+    confirmButton.focus();
+    await user.keyboard("{Enter}");
+
+    expect(
+      await screen.findByText("Trade confirmed between My Team and Team 2 with 1 asset and 2 assets recorded."),
+    ).toBeInTheDocument();
+    const request = fetchMock.mock.calls[2][0] as Request;
+    expect(await request.clone().json()).toEqual({
+      leagueId: "demo",
+      teamOneNumber: 1,
+      teamTwoNumber: 2,
+      teamOneReceives: [2],
+      teamTwoReceives: [1, 24],
+      teamOneFuturePicks: [],
+      teamTwoFuturePicks: [],
+      teamOneAuctionBudget: 0,
+      teamTwoAuctionBudget: 0,
+      teamOnePlayers: [],
+      teamTwoPlayers: [],
+      teamOneBudgets: [],
+      teamTwoBudgets: [],
+    });
+    expect(screen.getAllByText("Traded to Team 2")).toHaveLength(2);
+  });
+
+  it("shows dynasty future picks and auction budget only when league rules allow them", async () => {
+    const futureSlot = {
+      season: 2027,
+      overallNumber: 0,
+      round: 1,
+      pickInRound: 0,
+      originalTeamNumber: 2,
+      originalTeamName: "Team 2",
+      ownerTeamNumber: 2,
+      ownerTeamName: "Team 2",
+      isUsed: false,
+    };
+    const dynastyAuction = snapshot({
+      draftType: "auction",
+      leagueFormat: "dynasty",
+      auctionBudgetTrades: true,
+      budgetBalances: snapshot()
+        .teams.slice(0, 2)
+        .map((team) => ({
+          teamNumber: team.number,
+          season: 2026,
+          kind: "auction" as const,
+          remaining: 200,
+        })),
+      pickSlots: [futureSlot],
+      teams: snapshot().teams.map((team) => ({
+        ...team,
+        auctionBudgetRemaining: 200,
+        roster: team.number === 1 ? [alex] : team.number === 2 ? [jordan] : [],
+      })),
+    });
+    const traded = {
+      ...dynastyAuction,
+      pickSlots: [{ ...futureSlot, ownerTeamNumber: 1, ownerTeamName: "My Team" }],
+      pickTrades: [
+        {
+          id: 1,
+          leagueId: "demo",
+          teamOneNumber: 1,
+          teamOneName: "My Team",
+          teamTwoNumber: 2,
+          teamTwoName: "Team 2",
+          teamOneReceives: [],
+          teamTwoReceives: [],
+          teamOneFuturePicks: [
+            {
+              season: 2027,
+              round: 1,
+              originalTeamNumber: 2,
+              originalTeamName: "Team 2",
+              condition: "Jordan plays eight games",
+              conditionStatus: "pending",
+            },
+          ],
+          teamTwoFuturePicks: [],
+          teamOneAuctionBudget: 0,
+          teamTwoAuctionBudget: 25,
+          teamOnePlayers: ["p002"],
+          teamTwoPlayers: [],
+          teamOneBudgets: [],
+          teamTwoBudgets: [{ kind: "auction" as const, season: 2026, amount: 25 }],
+          season: 2026,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      teams: dynastyAuction.teams.map((team) =>
+        team.number === 1
+          ? { ...team, auctionBudgetRemaining: 175 }
+          : team.number === 2
+            ? { ...team, auctionBudgetRemaining: 225 }
+            : team,
+      ),
+    };
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() =>
+        jsonResponse([
+          {
+            ...demoLeague,
+            draftType: "auction",
+            leagueFormat: "dynasty",
+            futurePickSeasons: 2,
+            auctionBudgetTrades: true,
+          },
+        ]),
+      )
+      .mockImplementationOnce(() => jsonResponse(dynastyAuction))
+      .mockImplementationOnce(() => jsonResponse(traded, 201));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+
+    expect(
+      await screen.findByText(
+        "This dynasty league tracks players, unused 2026 assets, future rookie picks, and enabled budgets across seasons.",
+      ),
+    ).toBeInTheDocument();
+    const futurePick = screen.getByRole("checkbox", { name: "2027, round 1, Team 2 original pick" });
+    futurePick.focus();
+    await user.keyboard(" ");
+    await user.type(
+      screen.getByRole("textbox", { name: "Condition for selected future picks received by My Team (optional)" }),
+      "Jordan plays eight games",
+    );
+    await user.click(screen.getByText("Players from Team 2").closest("summary")!);
+    await user.click(screen.getByRole("checkbox", { name: "Jordan Hale, WR" }));
+    await user.click(screen.getAllByText("Auction and FAAB budgets")[1].closest("summary")!);
+    const budget = screen.getByRole("spinbutton", { name: "2026 auction budget from My Team" });
+    await user.clear(budget);
+    await user.type(budget, "25");
+    await user.click(screen.getByRole("button", { name: "Review trade" }));
+    expect(screen.getByText("$25 2026 auction budget")).toBeInTheDocument();
+    expect(screen.getByText(/condition: Jordan plays eight games/)).toBeInTheDocument();
+    expect((await axe(container)).violations).toHaveLength(0);
+    await user.click(screen.getByRole("button", { name: "Confirm trade" }));
+
+    const request = fetchMock.mock.calls[2][0] as Request;
+    expect(await request.clone().json()).toMatchObject({
+      teamOneFuturePicks: [{ season: 2027, round: 1, originalTeamNumber: 2 }],
+      teamTwoAuctionBudget: 0,
+      teamTwoBudgets: [{ kind: "auction", season: 2026, amount: 25 }],
+      teamOneReceives: [],
+      teamTwoReceives: [],
+      teamOnePlayers: ["p002"],
+    });
+    expect(
+      await screen.findByText("Trade confirmed between My Team and Team 2 with 2 assets and 1 asset recorded."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mark condition met" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Trade season" })).toHaveValue("all");
+  });
+
+  it("guides an accessible dynasty season rollover with a new franchise draft order", async () => {
+    const current = snapshot({
+      leagueFormat: "dynasty",
+      history: [
+        {
+          eventId: 1,
+          number: 1,
+          action: "taken",
+          player: alex,
+          createdAt: new Date().toISOString(),
+          cost: 0,
+          teamNumber: 1,
+          teamName: "My Team",
+        },
+      ],
+    });
+    const next = snapshot({
+      leagueFormat: "dynasty",
+      season: 2027,
+      draftType: "linear",
+      draftOrder: [2, 1, ...Array.from({ length: 10 }, (_, index) => index + 3)],
+      history: [],
+      pickNumber: 1,
+      onClockTeamNumber: 2,
+    });
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() => jsonResponse([{ ...demoLeague, leagueFormat: "dynasty", futurePickSeasons: 2 }]))
+      .mockImplementationOnce(() => jsonResponse(current))
+      .mockImplementationOnce(() => jsonResponse(next));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+
+    const lifecycle = await screen.findByRole("region", { name: "Season 2026" });
+    await user.click(within(lifecycle).getByRole("button", { name: "Close season and start 2027" }));
+    await user.selectOptions(within(lifecycle).getByRole("combobox", { name: "Draft format" }), "linear");
+    await user.selectOptions(within(lifecycle).getByRole("combobox", { name: "Pick 1" }), "2");
+    const start = within(lifecycle).getByRole("button", { name: "Start 2027" });
+    expect(start).toBeDisabled();
+    await user.click(
+      within(lifecycle).getByRole("checkbox", {
+        name: "This draft is not complete. I understand that its existing picks will remain in the 2026 history.",
+      }),
+    );
+    expect((await axe(container)).violations).toHaveLength(0);
+    await user.click(start);
+
+    const request = fetchMock.mock.calls[2][0] as Request;
+    expect(await request.clone().json()).toMatchObject({
+      leagueId: "demo",
+      season: 2027,
+      draftType: "linear",
+      draftOrder: [2, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    });
+    expect(
+      await screen.findByText("2027 is ready. Franchise rosters and traded assets carried forward to a clean draft."),
+    ).toBeInTheDocument();
   });
 
   it("restores the last player when undo is selected", async () => {
@@ -803,7 +1196,18 @@ describe("accessible draft board", () => {
       pickNumber: 2,
       available: [jordan],
       myTeam: [alex],
-      history: [{ eventId: 1, number: 1, action: "draft", player: alex, createdAt: new Date().toISOString(), cost: 0 }],
+      history: [
+        {
+          eventId: 1,
+          number: 1,
+          action: "draft",
+          player: alex,
+          createdAt: new Date().toISOString(),
+          cost: 0,
+          teamNumber: 1,
+          teamName: "My Team",
+        },
+      ],
       recommendations: [{ player: jordan, score: 219, reasons: ["Fills an open starting roster need"] }],
       canUndo: true,
     });
@@ -811,7 +1215,7 @@ describe("accessible draft board", () => {
       .fn()
       .mockImplementationOnce(() => jsonResponse([demoLeague]))
       .mockImplementationOnce(() => jsonResponse(drafted))
-      .mockImplementationOnce(() => jsonResponse(snapshot()));
+      .mockImplementationOnce(() => jsonResponse(snapshot({ isUserTurn: true, onClockTeamNumber: 1 })));
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     render(<App />);

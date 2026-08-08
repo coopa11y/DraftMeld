@@ -166,27 +166,49 @@ VALUES (?, ?, ?, ?, ?, ?)`, configuration.ID, index, slot.Name, slot.Count, stri
 }
 
 type leagueDraftSettings struct {
-	ConsensusMethod    string            `json:"consensusMethod"`
-	PlayerPreferences  map[string]string `json:"playerPreferences"`
-	AuctionBudget      float64           `json:"auctionBudget"`
-	AuctionMinimumBid  float64           `json:"auctionMinimumBid"`
-	KeeperBudgetSpent  float64           `json:"keeperBudgetSpent"`
-	MyKeeperSpend      float64           `json:"myKeeperSpend"`
-	KeeperValueRemoved float64           `json:"keeperValueRemoved"`
+	TeamNames           []string            `json:"teamNames"`
+	ConsensusMethod     string              `json:"consensusMethod"`
+	PlayerPreferences   map[string]string   `json:"playerPreferences"`
+	AuctionBudget       float64             `json:"auctionBudget"`
+	AuctionMinimumBid   float64             `json:"auctionMinimumBid"`
+	KeeperBudgetSpent   float64             `json:"keeperBudgetSpent"`
+	MyKeeperSpend       float64             `json:"myKeeperSpend"`
+	KeeperValueRemoved  float64             `json:"keeperValueRemoved"`
+	LeagueFormat        league.LeagueFormat `json:"leagueFormat"`
+	Season              int                 `json:"season"`
+	InitialSeason       int                 `json:"initialSeason"`
+	FuturePickSeasons   int                 `json:"futurePickSeasons"`
+	RookieDraftRounds   int                 `json:"rookieDraftRounds"`
+	AuctionBudgetTrades bool                `json:"auctionBudgetTrades"`
+	UserTeamNumber      int                 `json:"userTeamNumber"`
+	DraftOrder          []int               `json:"draftOrder"`
+	FAABBudget          float64             `json:"faabBudget"`
+	FAABTrades          bool                `json:"faabTrades"`
 }
 
 func newLeagueDraftSettings(rules league.Rules) leagueDraftSettings {
 	return leagueDraftSettings{
+		TeamNames:       rules.TeamNames,
 		ConsensusMethod: rules.ConsensusMethod, PlayerPreferences: rules.PlayerPreferences,
 		AuctionBudget: rules.AuctionBudget, AuctionMinimumBid: rules.AuctionMinimumBid,
 		KeeperBudgetSpent: rules.KeeperBudgetSpent, MyKeeperSpend: rules.MyKeeperSpend, KeeperValueRemoved: rules.KeeperValueRemoved,
+		LeagueFormat: rules.LeagueFormat, Season: rules.Season, InitialSeason: rules.InitialSeason, FuturePickSeasons: rules.FuturePickSeasons,
+		RookieDraftRounds: rules.RookieDraftRounds, AuctionBudgetTrades: rules.AuctionBudgetTrades,
+		UserTeamNumber: rules.UserTeamNumber, DraftOrder: rules.DraftOrder,
+		FAABBudget: rules.FAABBudget, FAABTrades: rules.FAABTrades,
 	}
 }
 
 func (settings leagueDraftSettings) apply(rules *league.Rules) {
+	rules.TeamNames = settings.TeamNames
 	rules.ConsensusMethod, rules.PlayerPreferences = settings.ConsensusMethod, settings.PlayerPreferences
 	rules.AuctionBudget, rules.AuctionMinimumBid = settings.AuctionBudget, settings.AuctionMinimumBid
 	rules.KeeperBudgetSpent, rules.MyKeeperSpend, rules.KeeperValueRemoved = settings.KeeperBudgetSpent, settings.MyKeeperSpend, settings.KeeperValueRemoved
+	rules.LeagueFormat, rules.Season, rules.InitialSeason = settings.LeagueFormat, settings.Season, settings.InitialSeason
+	rules.FuturePickSeasons, rules.RookieDraftRounds = settings.FuturePickSeasons, settings.RookieDraftRounds
+	rules.AuctionBudgetTrades = settings.AuctionBudgetTrades
+	rules.UserTeamNumber, rules.DraftOrder = settings.UserTeamNumber, settings.DraftOrder
+	rules.FAABBudget, rules.FAABTrades = settings.FAABBudget, settings.FAABTrades
 }
 
 func (store *DraftEventStore) DeleteLeague(ctx context.Context, id string) (bool, error) {
@@ -197,6 +219,9 @@ func (store *DraftEventStore) DeleteLeague(ctx context.Context, id string) (bool
 	defer transaction.Rollback()
 	if _, err = transaction.ExecContext(ctx, `DELETE FROM draft_events WHERE league_id = ?`, id); err != nil {
 		return false, fmt.Errorf("delete league draft events: %w", err)
+	}
+	if _, err = transaction.ExecContext(ctx, `DELETE FROM draft_pick_trades WHERE league_id = ?`, id); err != nil {
+		return false, fmt.Errorf("delete league draft trades: %w", err)
 	}
 	if _, err = transaction.ExecContext(ctx, `DELETE FROM league_roster_slots WHERE league_id = ?`, id); err != nil {
 		return false, fmt.Errorf("delete league roster slots: %w", err)

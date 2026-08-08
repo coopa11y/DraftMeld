@@ -2,6 +2,11 @@ import type { components } from "./generated";
 
 export type DraftActionRequest = components["schemas"]["DraftActionRequest"];
 export type DraftSnapshot = components["schemas"]["DraftSnapshot"];
+export type DraftPickSlot = components["schemas"]["DraftPickSlot"];
+export type DraftPickTrade = components["schemas"]["DraftPickTrade"];
+export type FutureDraftPick = components["schemas"]["FutureDraftPick"];
+export type BudgetAsset = components["schemas"]["BudgetAsset"];
+export type BudgetBalance = components["schemas"]["BudgetBalance"];
 export type ErrorResponse = components["schemas"]["ErrorResponse"];
 export type Pick = components["schemas"]["Pick"];
 export type Player = components["schemas"]["Player"];

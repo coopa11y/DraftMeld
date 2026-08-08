@@ -75,6 +75,8 @@ export function leagueToRules(league: League): LeagueRules {
   return {
     ...rules,
     rosterSlots: rules.rosterSlots.map((slot) => ({ ...slot, positions: [...slot.positions] })),
+    teamNames: [...rules.teamNames],
+    draftOrder: [...rules.draftOrder],
     scoringRules: { ...rules.scoringRules },
     sourcePreferences: Object.fromEntries(
       Object.entries(rules.sourcePreferences).map(([sourceId, preference]) => [sourceId, { ...preference }]),
