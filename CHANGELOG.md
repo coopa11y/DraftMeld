@@ -6,6 +6,8 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 
 ### Added
 
+- Expandable league scoring for TE premium, two-point conversions, fumbles, yardage milestones, distance kicking, blocked kicks, defensive returns, and points-allowed tiers
+- Optional projection CSV mappings for every expanded scoring event while preserving simple and partial scoring setups
 - Explicit not-started, in-progress, and complete draft sessions with setup review, safe reset, and one-step reset recovery
 - Draft-session safeguards that block selections before start and structural league changes while a draft is active
 - Role-aware Consensus v2 with list-depth normalization, conservative missing-rank handling, weighted median, trimmed mean, and weighted average

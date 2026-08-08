@@ -414,6 +414,15 @@ describe("accessible draft board", () => {
     expect(screen.getByRole("group", { name: "Draft settings" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Team settings" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "League format" })).toHaveValue("redraft");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Reception scoring preset" }), "te-premium");
+    expect(screen.getByRole("spinbutton", { name: "Points per tight end reception bonus" })).toHaveValue(0.5);
+    await user.click(screen.getByText("Kicking", { selector: "summary" }));
+    const allFieldGoals = screen.getByRole("spinbutton", { name: "Points per field goal made (any distance)" });
+    const longFieldGoals = screen.getByRole("spinbutton", { name: "Points per field goal made, 50+ yards" });
+    await user.clear(allFieldGoals);
+    await user.type(allFieldGoals, "0");
+    await user.clear(longFieldGoals);
+    await user.type(longFieldGoals, "5");
     expect(screen.queryByRole("combobox", { name: "Future pick seasons" })).not.toBeInTheDocument();
     await user.selectOptions(screen.getByRole("combobox", { name: "League format" }), "dynasty");
     expect(screen.getByRole("combobox", { name: "Future pick seasons" })).toBeInTheDocument();
@@ -433,6 +442,9 @@ describe("accessible draft board", () => {
     expect(submittedRules?.draftPosition).toBe(7);
     expect(submittedRules?.teamNames[0]).toBe("My Team");
     expect(submittedRules?.draftOrder[6]).toBe(1);
+    expect(submittedRules?.scoringRules.tightEndReceptionBonus).toBe(0.5);
+    expect(submittedRules?.scoringRules.fieldGoalMade).toBe(0);
+    expect(submittedRules?.scoringRules.fieldGoal50Plus).toBe(5);
   });
 
   it("restores a versioned league backup without overwriting existing leagues", async () => {

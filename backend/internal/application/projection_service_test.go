@@ -38,6 +38,32 @@ func TestProjectionCSVAppliesLeagueScoring(t *testing.T) {
 	}
 }
 
+func TestProjectionCSVAppliesPremiumBonusMilestoneAndDefenseScoring(t *testing.T) {
+	repository := &projectionRepositoryStub{}
+	service := NewProjectionService(repository)
+	input := `name,position,team,reception,receivingTwoPointConversion,fumbleLost,receiving100YardGame,defenseBlockedKick,defensePointsAllowed0
+Terry End,TE,KC,10,1,1,2,0,0
+Will Receiver,WR,MIN,10,1,1,2,0,0
+Denver Defense,DST,DEN,0,0,0,0,2,3
+`
+	if _, err := service.ImportCSV(t.Context(), "Expanded", strings.NewReader(input)); err != nil {
+		t.Fatal(err)
+	}
+	values, err := service.LeagueValues(t.Context(), map[string]float64{
+		"reception": 1, "tightEndReceptionBonus": 0.5, "receivingTwoPointConversion": 2,
+		"fumbleLost": -2, "receiving100YardGame": 3, "defenseBlockedKick": 2, "defensePointsAllowed0": 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if values["terryend"].ProjectedPoints != 21 || values["willreceiver"].ProjectedPoints != 16 {
+		t.Fatalf("position premium scoring was not applied: %#v", values)
+	}
+	if values["dstden"].ProjectedPoints != 34 {
+		t.Fatalf("expanded defense scoring was not applied: %#v", values["dstden"])
+	}
+}
+
 func TestProjectionCSVRequiresCanonicalColumns(t *testing.T) {
 	service := NewProjectionService(&projectionRepositoryStub{})
 	if _, err := service.ImportCSV(t.Context(), "Broken", strings.NewReader("player,pos\nAda,RB\n")); err == nil {

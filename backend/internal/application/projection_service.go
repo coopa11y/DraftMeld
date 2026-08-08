@@ -18,17 +18,43 @@ var projectionStatColumns = []string{
 	"reception", "passingYard", "passingTouchdown", "interception", "rushingYard", "rushingTouchdown",
 	"receivingYard", "receivingTouchdown", "fieldGoalMade", "extraPointMade", "defenseSack",
 	"defenseInterception", "defenseFumbleRecovery", "defenseTouchdown", "defenseSafety",
+	"passingTwoPointConversion", "rushingTwoPointConversion", "receivingTwoPointConversion", "fumble", "fumbleLost",
+	"passing300YardGame", "passing400YardGame", "rushing100YardGame", "rushing200YardGame",
+	"receiving100YardGame", "receiving200YardGame", "fieldGoal0To39", "fieldGoal40To49", "fieldGoal50Plus",
+	"fieldGoalMissed", "extraPointMissed", "defenseBlockedKick", "defenseTwoPointReturn", "defensePointsAllowed0",
+	"defensePointsAllowed1To6", "defensePointsAllowed7To13", "defensePointsAllowed14To20",
+	"defensePointsAllowed21To27", "defensePointsAllowed28To34", "defensePointsAllowed35Plus",
 }
 
 var nonCSVHeaderCharacter = regexp.MustCompile(`[^a-z0-9]+`)
 
 var projectionHeaderAliases = map[string][]string{
-	"name":       {"name", "player", "playername", "playerfullname"},
-	"position":   {"position", "pos"},
-	"team":       {"team", "nflteam", "tm"},
-	"adp":        {"adp", "averagedraftposition"},
-	"byeWeek":    {"byeweek", "bye"},
-	"providerId": {"providerid", "playerid", "id"},
+	"name":                        {"name", "player", "playername", "playerfullname"},
+	"position":                    {"position", "pos"},
+	"team":                        {"team", "nflteam", "tm"},
+	"adp":                         {"adp", "averagedraftposition"},
+	"byeWeek":                     {"byeweek", "bye"},
+	"providerId":                  {"providerid", "playerid", "id"},
+	"passingTwoPointConversion":   {"passingtwoPointconversion", "passing2pt", "pass2pt"},
+	"rushingTwoPointConversion":   {"rushingtwopointconversion", "rushing2pt", "rush2pt"},
+	"receivingTwoPointConversion": {"receivingtwopointconversion", "receiving2pt", "rec2pt"},
+	"fumbleLost":                  {"fumblelost", "fumbleslost", "fumlost"},
+	"passing300YardGame":          {"passing300yardgame", "pass300games"},
+	"passing400YardGame":          {"passing400yardgame", "pass400games"},
+	"rushing100YardGame":          {"rushing100yardgame", "rush100games"},
+	"rushing200YardGame":          {"rushing200yardgame", "rush200games"},
+	"receiving100YardGame":        {"receiving100yardgame", "rec100games"},
+	"receiving200YardGame":        {"receiving200yardgame", "rec200games"},
+	"fieldGoal0To39":              {"fieldgoal0to39", "fg0to39", "fg039"},
+	"fieldGoal40To49":             {"fieldgoal40to49", "fg40to49", "fg4049"},
+	"fieldGoal50Plus":             {"fieldgoal50plus", "fg50plus", "fg50"},
+	"defensePointsAllowed0":       {"defensepointsallowed0", "dstpa0"},
+	"defensePointsAllowed1To6":    {"defensepointsallowed1to6", "dstpa1to6"},
+	"defensePointsAllowed7To13":   {"defensepointsallowed7to13", "dstpa7to13"},
+	"defensePointsAllowed14To20":  {"defensepointsallowed14to20", "dstpa14to20"},
+	"defensePointsAllowed21To27":  {"defensepointsallowed21to27", "dstpa21to27"},
+	"defensePointsAllowed28To34":  {"defensepointsallowed28to34", "dstpa28to34"},
+	"defensePointsAllowed35Plus":  {"defensepointsallowed35plus", "dstpa35plus"},
 }
 
 type ProjectionRepository interface {
@@ -177,10 +203,7 @@ func (service *ProjectionService) LeagueValues(ctx context.Context, scoring map[
 		}
 	}
 	for _, record := range canonicalRecords {
-		points := 0.0
-		for stat, amount := range record.Stats {
-			points += amount * scoring[stat]
-		}
+		points := projectionPoints(record, scoring)
 		value := totals[record.PlayerKey]
 		value.ProjectedPoints += points
 		if record.ADP > 0 {
@@ -202,6 +225,17 @@ func (service *ProjectionService) LeagueValues(ctx context.Context, scoring map[
 		totals[playerID] = total
 	}
 	return totals, nil
+}
+
+func projectionPoints(record projection.Record, scoring map[string]float64) float64 {
+	points := 0.0
+	for stat, amount := range record.Stats {
+		points += amount * scoring[stat]
+	}
+	if record.Position == "TE" {
+		points += record.Stats["reception"] * scoring["tightEndReceptionBonus"]
+	}
+	return points
 }
 
 func value(row []string, index int) string {
