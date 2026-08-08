@@ -113,6 +113,54 @@ func TestDraftSupportsTradedPickOwnership(t *testing.T) {
 	}
 }
 
+func TestDraftPickTradeUpdatesAnyUnusedRoundAndPersists(t *testing.T) {
+	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	configuration := DemoLeagueConfiguration()
+	configuration.Rules.DraftPosition = 12
+	configuration.Rules.RosterSlots = []league.RosterSlot{{Name: "Bench", Count: 2, Positions: []string{"RB", "WR"}, IsStarting: false}}
+	service, err := NewDraftService(store, draft.DemoCatalog(), configuration)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	afterTrade, err := service.CreatePickTrade(t.Context(), "demo", 12, 1, []int{1}, []int{12, 13})
+	if err != nil {
+		t.Fatalf("create multi-pick trade: %v", err)
+	}
+	if len(afterTrade.PickTrades) != 1 || afterTrade.OnClockTeamNumber != 12 || !afterTrade.IsUserTurn {
+		t.Fatalf("trade did not update the current pick: %#v", afterTrade)
+	}
+	for pick, owner := range map[int]int{1: 12, 12: 1, 13: 1} {
+		if afterTrade.PickSlots[pick-1].OwnerTeamNumber != owner {
+			t.Fatalf("pick %d owner = %d, want %d", pick, afterTrade.PickSlots[pick-1].OwnerTeamNumber, owner)
+		}
+	}
+
+	afterPick, err := service.Record(t.Context(), "demo", "p001", draft.ActionDraft)
+	if err != nil {
+		t.Fatalf("use traded current pick: %v", err)
+	}
+	if afterPick.History[0].TeamNumber != 12 || afterPick.OnClockTeamNumber != 2 {
+		t.Fatalf("unexpected ownership after traded pick: %#v", afterPick)
+	}
+	if _, err = service.CreatePickTrade(t.Context(), "demo", 1, 12, []int{1}, []int{24}); err == nil {
+		t.Fatal("expected an already-used pick to be rejected")
+	}
+
+	reloaded, err := NewDraftService(store, draft.DemoCatalog(), configuration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	persisted, err := reloaded.Snapshot(t.Context(), "demo")
+	if err != nil || len(persisted.PickTrades) != 1 || persisted.PickSlots[12].OwnerTeamNumber != 1 {
+		t.Fatalf("trade did not persist: snapshot=%#v error=%v", persisted, err)
+	}
+}
+
 func TestRecommendationsReactToRosterNeed(t *testing.T) {
 	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
 	if err != nil {

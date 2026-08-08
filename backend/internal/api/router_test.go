@@ -191,6 +191,30 @@ func TestDraftActionAndUndoEndpoints(t *testing.T) {
 	}
 }
 
+func TestDraftPickTradeEndpointHandlesPickPackages(t *testing.T) {
+	router, closeStore := testRouter(t)
+	defer closeStore()
+	body := bytes.NewBufferString(`{"leagueId":"demo","teamOneNumber":12,"teamTwoNumber":1,"teamOneReceives":[1],"teamTwoReceives":[12,13]}`)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/draft/pick-trades", body))
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected trade status %d, got %d: %s", http.StatusCreated, response.Code, response.Body.String())
+	}
+	var snapshot draft.Snapshot
+	if err := json.NewDecoder(response.Body).Decode(&snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.PickTrades) != 1 || snapshot.PickSlots[0].OwnerTeamNumber != 12 || snapshot.PickSlots[11].OwnerTeamNumber != 1 {
+		t.Fatalf("unexpected traded-pick snapshot: %#v", snapshot)
+	}
+
+	reverse := httptest.NewRecorder()
+	router.ServeHTTP(reverse, httptest.NewRequest(http.MethodDelete, "/api/v1/draft/pick-trades/1?leagueId=demo", nil))
+	if reverse.Code != http.StatusOK || !strings.Contains(reverse.Body.String(), `"pickTrades":[]`) {
+		t.Fatalf("trade reversal failed: %d %s", reverse.Code, reverse.Body.String())
+	}
+}
+
 func TestDraftEndpointRequiresKnownLeague(t *testing.T) {
 	router, closeStore := testRouter(t)
 	defer closeStore()

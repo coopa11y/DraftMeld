@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/application"
@@ -40,6 +41,14 @@ type sleeperSyncRequest struct {
 	LeagueID       string `json:"leagueId"`
 	SleeperDraftID string `json:"sleeperDraftId"`
 	RosterID       int    `json:"rosterId"`
+}
+
+type pickTradeRequest struct {
+	LeagueID        string `json:"leagueId"`
+	TeamOneNumber   int    `json:"teamOneNumber"`
+	TeamTwoNumber   int    `json:"teamTwoNumber"`
+	TeamOneReceives []int  `json:"teamOneReceives"`
+	TeamTwoReceives []int  `json:"teamTwoReceives"`
 }
 
 func NewRouter(
@@ -96,6 +105,41 @@ func NewRouter(
 		}
 		if errors.Is(err, application.ErrDraftComplete) {
 			writeError(response, http.StatusConflict, "This draft is complete.")
+			return
+		}
+		if err != nil {
+			writeError(response, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(response, http.StatusOK, snapshot)
+	})
+	mux.HandleFunc("POST /api/v1/draft/pick-trades", func(response http.ResponseWriter, request *http.Request) {
+		var input pickTradeRequest
+		if err := json.NewDecoder(request.Body).Decode(&input); err != nil || input.LeagueID == "" {
+			writeError(response, http.StatusBadRequest, "The draft-pick trade was not valid.")
+			return
+		}
+		snapshot, err := draftService.CreatePickTrade(request.Context(), input.LeagueID, input.TeamOneNumber, input.TeamTwoNumber, input.TeamOneReceives, input.TeamTwoReceives)
+		if errors.Is(err, application.ErrLeagueNotFound) {
+			writeError(response, http.StatusNotFound, "That league was not found.")
+			return
+		}
+		if err != nil {
+			writeError(response, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(response, http.StatusCreated, snapshot)
+	})
+	mux.HandleFunc("DELETE /api/v1/draft/pick-trades/{tradeId}", func(response http.ResponseWriter, request *http.Request) {
+		leagueID := request.URL.Query().Get("leagueId")
+		tradeID, err := strconv.ParseInt(request.PathValue("tradeId"), 10, 64)
+		if leagueID == "" || err != nil || tradeID < 1 {
+			writeError(response, http.StatusBadRequest, "A league ID and trade ID are required.")
+			return
+		}
+		snapshot, err := draftService.DeletePickTrade(request.Context(), leagueID, tradeID)
+		if errors.Is(err, application.ErrLeagueNotFound) {
+			writeError(response, http.StatusNotFound, "That league was not found.")
 			return
 		}
 		if err != nil {

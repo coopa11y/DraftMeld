@@ -57,6 +57,29 @@ type Team struct {
 	Roster []Player `json:"roster"`
 }
 
+type PickSlot struct {
+	OverallNumber      int    `json:"overallNumber"`
+	Round              int    `json:"round"`
+	PickInRound        int    `json:"pickInRound"`
+	OriginalTeamNumber int    `json:"originalTeamNumber"`
+	OriginalTeamName   string `json:"originalTeamName"`
+	OwnerTeamNumber    int    `json:"ownerTeamNumber"`
+	OwnerTeamName      string `json:"ownerTeamName"`
+	IsUsed             bool   `json:"isUsed"`
+}
+
+type PickTrade struct {
+	ID              int64     `json:"id"`
+	LeagueID        string    `json:"leagueId"`
+	TeamOneNumber   int       `json:"teamOneNumber"`
+	TeamOneName     string    `json:"teamOneName"`
+	TeamTwoNumber   int       `json:"teamTwoNumber"`
+	TeamTwoName     string    `json:"teamTwoName"`
+	TeamOneReceives []int     `json:"teamOneReceives"`
+	TeamTwoReceives []int     `json:"teamTwoReceives"`
+	CreatedAt       time.Time `json:"createdAt"`
+}
+
 type Recommendation struct {
 	Player  Player   `json:"player"`
 	Score   float64  `json:"score"`
@@ -86,4 +109,6 @@ type Snapshot struct {
 	TotalPicks        int              `json:"totalPicks"`
 	IsComplete        bool             `json:"isComplete"`
 	OnClockTeamNumber int              `json:"onClockTeamNumber"`
+	PickSlots         []PickSlot       `json:"pickSlots"`
+	PickTrades        []PickTrade      `json:"pickTrades"`
 }

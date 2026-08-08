@@ -74,6 +74,23 @@ function snapshot(overrides: Partial<DraftSnapshot> = {}): DraftSnapshot {
     totalPicks: 24,
     isComplete: false,
     onClockTeamNumber: 2,
+    pickSlots: Array.from({ length: 24 }, (_, index) => {
+      const overallNumber = index + 1;
+      const round = Math.floor(index / 12) + 1;
+      const pickInRound = (index % 12) + 1;
+      const originalTeamNumber = round % 2 === 1 ? pickInRound : 13 - pickInRound;
+      return {
+        overallNumber,
+        round,
+        pickInRound,
+        originalTeamNumber,
+        originalTeamName: teamNames[originalTeamNumber - 1],
+        ownerTeamNumber: originalTeamNumber,
+        ownerTeamName: teamNames[originalTeamNumber - 1],
+        isUsed: false,
+      };
+    }),
+    pickTrades: [],
     ...overrides,
   };
 }
@@ -865,6 +882,74 @@ describe("accessible draft board", () => {
 
     const request = fetchMock.mock.calls[2][0] as Request;
     expect(await request.clone().json()).toMatchObject({ action: "draft", playerId: "p001", teamNumber: 1 });
+  });
+
+  it("creates and reviews an accessible multi-pick trade for any round", async () => {
+    const tradedSlots = snapshot().pickSlots.map((slot) => {
+      if (slot.overallNumber === 2) return { ...slot, ownerTeamNumber: 1, ownerTeamName: "My Team" };
+      if (slot.overallNumber === 1 || slot.overallNumber === 24)
+        return { ...slot, ownerTeamNumber: 2, ownerTeamName: "Team 2" };
+      return slot;
+    });
+    const traded = snapshot({
+      onClockTeamNumber: 2,
+      pickSlots: tradedSlots,
+      pickTrades: [
+        {
+          id: 1,
+          leagueId: "demo",
+          teamOneNumber: 1,
+          teamOneName: "My Team",
+          teamTwoNumber: 2,
+          teamTwoName: "Team 2",
+          teamOneReceives: [2],
+          teamTwoReceives: [1, 24],
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    });
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() => jsonResponse([demoLeague]))
+      .mockImplementationOnce(() => jsonResponse(snapshot()))
+      .mockImplementationOnce(() => jsonResponse(traded, 201));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "Draft-pick trades" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "First team" })).toHaveValue("1");
+    expect(screen.getByRole("combobox", { name: "Second team" })).toHaveValue("2");
+    for (const name of ["Round 1, pick 2, overall 2", "Round 1, pick 1, overall 1", "Round 2, pick 12, overall 24"]) {
+      const pick = screen.getByRole("checkbox", { name });
+      pick.focus();
+      await user.keyboard(" ");
+      expect(pick).toBeChecked();
+    }
+    const reviewButton = screen.getByRole("button", { name: "Review trade" });
+    reviewButton.focus();
+    await user.keyboard("{Enter}");
+
+    const review = screen.getByRole("region", { name: "Review this trade" });
+    expect(within(review).getByText("Round 1, pick 2, overall 2")).toBeInTheDocument();
+    expect(within(review).getByText("Round 1, pick 1, overall 1; Round 2, pick 12, overall 24")).toBeInTheDocument();
+    expect((await axe(container)).violations).toHaveLength(0);
+    const confirmButton = within(review).getByRole("button", { name: "Confirm trade" });
+    confirmButton.focus();
+    await user.keyboard("{Enter}");
+
+    expect(
+      await screen.findByText("Trade confirmed. My Team received 1 pick and Team 2 received 2 picks."),
+    ).toBeInTheDocument();
+    const request = fetchMock.mock.calls[2][0] as Request;
+    expect(await request.clone().json()).toEqual({
+      leagueId: "demo",
+      teamOneNumber: 1,
+      teamTwoNumber: 2,
+      teamOneReceives: [2],
+      teamTwoReceives: [1, 24],
+    });
+    expect(screen.getAllByText("Traded to Team 2")).toHaveLength(2);
   });
 
   it("restores the last player when undo is selected", async () => {

@@ -32,10 +32,14 @@ func (service *DraftService) MockToNextTurn(ctx context.Context, leagueID string
 		return draft.Snapshot{}, err
 	}
 	currentPick := len(replay(events).activeEvents) + 1
-	if isUserTurn(currentPick, configuration.Rules) {
+	trades, err := service.pickTrades(ctx, leagueID)
+	if err != nil {
+		return draft.Snapshot{}, err
+	}
+	if ownerForPick(currentPick, configuration.Rules, trades) == configuration.Rules.DraftPosition {
 		return draft.Snapshot{}, errors.New("make your pick before simulating opponent selections")
 	}
-	targetPick := nextUserPick(currentPick, configuration.Rules)
+	targetPick := nextUserPickWithTrades(currentPick, configuration.Rules, trades)
 	if targetPick == 0 || targetPick <= currentPick {
 		return draft.Snapshot{}, errors.New("unable to determine the next draft turn")
 	}
@@ -53,7 +57,7 @@ func (service *DraftService) MockToNextTurn(ctx context.Context, leagueID string
 	for pick := currentPick; pick < targetPick && len(available) > 0; pick++ {
 		index := mockSelection(available, pick)
 		selected := available[index]
-		if _, err = service.repository.Append(ctx, draft.Event{LeagueID: leagueID, PlayerID: selected.ID, Action: draft.ActionTaken, TeamNumber: pickOwner(pick, configuration.Rules)}); err != nil {
+		if _, err = service.repository.Append(ctx, draft.Event{LeagueID: leagueID, PlayerID: selected.ID, Action: draft.ActionTaken, TeamNumber: ownerForPick(pick, configuration.Rules, trades)}); err != nil {
 			return draft.Snapshot{}, err
 		}
 		available = append(available[:index], available[index+1:]...)

@@ -50,3 +50,23 @@ export async function undoDraftAction(leagueId: string): Promise<DraftSnapshot> 
   const { data, error, response } = await apiClient.POST("/draft/undo", { body: { leagueId } });
   return unwrap(data, error, response);
 }
+
+export async function createDraftPickTrade(
+  leagueId: string,
+  teamOneNumber: number,
+  teamTwoNumber: number,
+  teamOneReceives: number[],
+  teamTwoReceives: number[],
+): Promise<DraftSnapshot> {
+  const { data, error, response } = await apiClient.POST("/draft/pick-trades", {
+    body: { leagueId, teamOneNumber, teamTwoNumber, teamOneReceives, teamTwoReceives },
+  });
+  return unwrap(data, error, response);
+}
+
+export async function deleteDraftPickTrade(leagueId: string, tradeId: number): Promise<DraftSnapshot> {
+  const { data, error, response } = await apiClient.DELETE("/draft/pick-trades/{tradeId}", {
+    params: { path: { tradeId }, query: { leagueId } },
+  });
+  return unwrap(data, error, response);
+}

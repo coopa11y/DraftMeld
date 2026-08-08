@@ -1,12 +1,21 @@
 import { useMemo } from "react";
-import type { DraftSnapshot, Pick } from "../shared/api/types";
+import type { DraftPickSlot, DraftPickTrade, DraftSnapshot, Pick as DraftPick } from "../shared/api/types";
 import { Panel } from "../shared/ui/Panel";
+import { DraftPickTrades } from "./DraftPickTrades";
 
 interface DraftOverviewProps {
   snapshot: DraftSnapshot;
+  busy: boolean;
+  onCreateTrade: (
+    teamOne: number,
+    teamTwo: number,
+    teamOneReceives: number[],
+    teamTwoReceives: number[],
+  ) => Promise<void>;
+  onDeleteTrade: (trade: DraftPickTrade) => Promise<void>;
 }
 
-export function DraftOverview({ snapshot }: DraftOverviewProps) {
+export function DraftOverview({ snapshot, busy, onCreateTrade, onDeleteTrade }: DraftOverviewProps) {
   return (
     <section className="draft-overview" aria-labelledby="draft-overview-title">
       <div className="section-heading">
@@ -18,6 +27,10 @@ export function DraftOverview({ snapshot }: DraftOverviewProps) {
           {snapshot.isComplete ? "Draft complete" : `${snapshot.history.length} of ${snapshot.totalPicks} picks`}
         </span>
       </div>
+
+      {snapshot.draftType === "auction" ? null : (
+        <DraftPickTrades snapshot={snapshot} busy={busy} onCreate={onCreateTrade} onDelete={onDeleteTrade} />
+      )}
 
       <Panel variant="board" aria-labelledby="draft-grid-title">
         <h3 id="draft-grid-title">{snapshot.draftType === "auction" ? "Draft ledger" : "Draft grid"}</h3>
@@ -52,16 +65,19 @@ export function DraftOverview({ snapshot }: DraftOverviewProps) {
   );
 }
 
-function DraftGrid({ snapshot }: DraftOverviewProps) {
+function DraftGrid({ snapshot }: Pick<DraftOverviewProps, "snapshot">) {
   const rounds = Math.ceil(snapshot.totalPicks / snapshot.teams.length);
-  const picksByRoundAndTeam = useMemo(() => {
-    const indexed = new Map<string, Pick>();
+  const picksByNumber = useMemo(() => {
+    const indexed = new Map<number, DraftPick>();
     for (const pick of snapshot.history) {
-      const round = Math.floor((pick.number - 1) / snapshot.teams.length) + 1;
-      indexed.set(`${round}:${pick.teamNumber}`, pick);
+      indexed.set(pick.number, pick);
     }
     return indexed;
-  }, [snapshot.history, snapshot.teams.length]);
+  }, [snapshot.history]);
+  const slotsByRoundAndOriginalTeam = useMemo(
+    () => new Map(snapshot.pickSlots.map((slot) => [`${slot.round}:${slot.originalTeamNumber}`, slot])),
+    [snapshot.pickSlots],
+  );
   return (
     <div className="table-scroll" role="region" aria-label="Full draft grid" tabIndex={0}>
       <table className="draft-grid">
@@ -81,9 +97,16 @@ function DraftGrid({ snapshot }: DraftOverviewProps) {
           {Array.from({ length: rounds }, (_, index) => index + 1).map((round) => (
             <tr key={round}>
               <th scope="row">{round}</th>
-              {snapshot.teams.map((team) => (
-                <DraftGridCell key={team.number} pick={picksByRoundAndTeam.get(`${round}:${team.number}`)} />
-              ))}
+              {snapshot.teams.map((team) => {
+                const slot = slotsByRoundAndOriginalTeam.get(`${round}:${team.number}`);
+                return (
+                  <DraftGridCell
+                    key={team.number}
+                    slot={slot}
+                    pick={slot ? picksByNumber.get(slot.overallNumber) : undefined}
+                  />
+                );
+              })}
             </tr>
           ))}
         </tbody>
@@ -92,7 +115,7 @@ function DraftGrid({ snapshot }: DraftOverviewProps) {
   );
 }
 
-function DraftGridCell({ pick }: { pick?: Pick }) {
+function DraftGridCell({ pick, slot }: { pick?: DraftPick; slot?: DraftPickSlot }) {
   return (
     <td>
       {pick ? (
@@ -101,15 +124,23 @@ function DraftGridCell({ pick }: { pick?: Pick }) {
           <span>
             {pick.player.position} · Pick {pick.number}
           </span>
+          {slot && slot.ownerTeamNumber !== slot.originalTeamNumber ? (
+            <span>Traded to {slot.ownerTeamName}</span>
+          ) : null}
         </>
       ) : (
-        <span className="empty-pick">—</span>
+        <>
+          <span className="empty-pick">{slot ? `Pick ${slot.overallNumber}` : "—"}</span>
+          {slot && slot.ownerTeamNumber !== slot.originalTeamNumber ? (
+            <span>Traded to {slot.ownerTeamName}</span>
+          ) : null}
+        </>
       )}
     </td>
   );
 }
 
-function AuctionLedger({ snapshot }: DraftOverviewProps) {
+function AuctionLedger({ snapshot }: Pick<DraftOverviewProps, "snapshot">) {
   return (
     <div className="table-scroll" role="region" aria-label="Full auction draft ledger" tabIndex={0}>
       <table className="draft-grid">

@@ -393,6 +393,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/draft/pick-trades": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Trade one or more unused picks between two teams */
+        post: operations["createDraftPickTrade"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/draft/pick-trades/{tradeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Reverse a trade whose picks have not been used */
+        delete: operations["deleteDraftPickTrade"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/draft/undo": {
         parameters: {
             query?: never;
@@ -683,6 +717,37 @@ export interface components {
             totalPicks: number;
             isComplete: boolean;
             onClockTeamNumber: number;
+            pickSlots: components["schemas"]["DraftPickSlot"][];
+            pickTrades: components["schemas"]["DraftPickTrade"][];
+        };
+        DraftPickSlot: {
+            overallNumber: number;
+            round: number;
+            pickInRound: number;
+            originalTeamNumber: number;
+            originalTeamName: string;
+            ownerTeamNumber: number;
+            ownerTeamName: string;
+            isUsed: boolean;
+        };
+        DraftPickTrade: {
+            id: number;
+            leagueId: string;
+            teamOneNumber: number;
+            teamOneName: string;
+            teamTwoNumber: number;
+            teamTwoName: string;
+            teamOneReceives: number[];
+            teamTwoReceives: number[];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        DraftPickTradeRequest: {
+            leagueId: string;
+            teamOneNumber: number;
+            teamTwoNumber: number;
+            teamOneReceives: number[];
+            teamTwoReceives: number[];
         };
         DraftExport: {
             /** @constant */
@@ -1381,6 +1446,58 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+        };
+    };
+    createDraftPickTrade: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftPickTradeRequest"];
+            };
+        };
+        responses: {
+            /** @description Draft state with the updated pick ownership schedule. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftSnapshot"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteDraftPickTrade: {
+        parameters: {
+            query: {
+                leagueId: components["parameters"]["LeagueId"];
+            };
+            header?: never;
+            path: {
+                tradeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Draft state with the trade reversed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftSnapshot"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
         };
     };
     undoDraftAction: {

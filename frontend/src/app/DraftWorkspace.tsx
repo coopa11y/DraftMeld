@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  createDraftPickTrade,
+  deleteDraftPickTrade,
   getDraft,
   recordDraftAction,
   setPlayerPreference,
@@ -7,7 +9,7 @@ import {
   syncSleeperDraft,
   undoDraftAction,
 } from "../shared/api/draft";
-import type { DraftAction, DraftSnapshot, Player } from "../shared/api/types";
+import type { DraftAction, DraftPickTrade, DraftSnapshot, Player } from "../shared/api/types";
 import { useViewHeadingFocus } from "../shared/hooks/useViewHeadingFocus";
 import { StatusMessage } from "../shared/ui/StatusMessage";
 import { DraftSidebar } from "./DraftSidebar";
@@ -149,6 +151,47 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
     }
   }
 
+  async function handleCreateTrade(
+    teamOne: number,
+    teamTwo: number,
+    teamOneReceives: number[],
+    teamTwoReceives: number[],
+  ) {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const updated = await createDraftPickTrade(leagueId, teamOne, teamTwo, teamOneReceives, teamTwoReceives);
+      setSnapshot(updated);
+      setSelectedTeamNumber(defaultSelectedTeam(updated));
+      setAnnouncement(
+        `Trade confirmed. ${teamName(updated, teamOne)} received ${pickCount(teamOneReceives.length)} and ${teamName(updated, teamTwo)} received ${pickCount(teamTwoReceives.length)}.`,
+      );
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to save the draft-pick trade.");
+      throw reason;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteTrade(trade: DraftPickTrade) {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const updated = await deleteDraftPickTrade(leagueId, trade.id);
+      setSnapshot(updated);
+      setSelectedTeamNumber(defaultSelectedTeam(updated));
+      setAnnouncement(`Trade between ${trade.teamOneName} and ${trade.teamTwoName} was reversed.`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to reverse the draft-pick trade.");
+      throw reason;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!snapshot) {
     return (
       <main className="centered-status" aria-busy={!error}>
@@ -222,7 +265,12 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
             onSleeperSync={handleSleeperSync}
           />
         </div>
-        <DraftOverview snapshot={snapshot} />
+        <DraftOverview
+          snapshot={snapshot}
+          busy={busy}
+          onCreateTrade={handleCreateTrade}
+          onDeleteTrade={handleDeleteTrade}
+        />
       </main>
     </>
   );
@@ -231,4 +279,12 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
 function defaultSelectedTeam(snapshot: DraftSnapshot): number {
   if (snapshot.draftType !== "auction") return snapshot.onClockTeamNumber;
   return snapshot.teams.find((team) => !team.isUser)?.number ?? 0;
+}
+
+function teamName(snapshot: DraftSnapshot, teamNumber: number) {
+  return snapshot.teams.find((team) => team.number === teamNumber)?.name ?? `Team ${teamNumber}`;
+}
+
+function pickCount(count: number) {
+  return `${count} ${count === 1 ? "pick" : "picks"}`;
 }

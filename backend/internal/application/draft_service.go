@@ -107,7 +107,11 @@ func (service *DraftService) Snapshot(ctx context.Context, leagueID string) (dra
 	if err != nil {
 		return draft.Snapshot{}, err
 	}
-	return service.buildSnapshot(configuration, events, players, playerByID, dataMode, projectionCount), nil
+	trades, err := service.pickTrades(ctx, leagueID)
+	if err != nil {
+		return draft.Snapshot{}, fmt.Errorf("list draft pick trades: %w", err)
+	}
+	return service.buildSnapshot(configuration, events, trades, players, playerByID, dataMode, projectionCount), nil
 }
 
 func (service *DraftService) Record(ctx context.Context, leagueID, playerID string, action draft.Action, costs ...float64) (draft.Snapshot, error) {
@@ -152,7 +156,11 @@ func (service *DraftService) RecordForTeam(ctx context.Context, leagueID, player
 	if pickNumber > totalDraftPicks(configuration.Rules) {
 		return draft.Snapshot{}, ErrDraftComplete
 	}
-	teamNumber, err := teamForDraftAction(configuration.Rules, pickNumber, action, requestedTeam)
+	trades, err := service.pickTrades(ctx, leagueID)
+	if err != nil {
+		return draft.Snapshot{}, err
+	}
+	teamNumber, err := teamForDraftAction(configuration.Rules, pickNumber, ownerForPick(pickNumber, configuration.Rules, trades), action, requestedTeam)
 	if err != nil {
 		return draft.Snapshot{}, err
 	}
@@ -233,7 +241,7 @@ func (service *DraftService) configuration(ctx context.Context, leagueID string)
 	return configuration, nil
 }
 
-func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, events []draft.Event, players []draft.Player, playerByID map[string]draft.Player, dataMode string, projectionCount int) draft.Snapshot {
+func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, events []draft.Event, trades []draft.PickTrade, players []draft.Player, playerByID map[string]draft.Player, dataMode string, projectionCount int) draft.Snapshot {
 	state := replay(events)
 	available := make([]draft.Player, 0, len(players))
 	myTeam := make([]draft.Player, 0)
@@ -262,12 +270,12 @@ func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, ev
 	pickNumber := len(state.activeEvents) + 1
 	totalPicks := totalDraftPicks(configuration.Rules)
 	complete := len(state.activeEvents) >= totalPicks
-	nextPick := nextUserPick(pickNumber, configuration.Rules)
+	nextPick := nextUserPickWithTrades(pickNumber-1, configuration.Rules, trades)
 	budgetRemaining, inflation, maximumBid := auctionState(configuration.Rules, history, available, len(myTeam))
 	teams := draftTeams(configuration.Rules, history)
 	onClock := 0
 	if !complete && configuration.Rules.DraftType != league.DraftTypeAuction {
-		onClock = pickOwner(pickNumber, configuration.Rules)
+		onClock = ownerForPick(pickNumber, configuration.Rules, trades)
 	}
 	return draft.Snapshot{
 		LeagueID: configuration.ID, LeagueName: configuration.Rules.Name, PickNumber: pickNumber,
@@ -283,10 +291,12 @@ func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, ev
 		AuctionInflation:  inflation,
 		AuctionMinimumBid: configuration.Rules.AuctionMinimumBid,
 		MaximumBid:        maximumBid,
-		IsUserTurn:        !complete && isUserTurn(pickNumber, configuration.Rules),
+		IsUserTurn:        !complete && onClock == configuration.Rules.DraftPosition,
 		TotalPicks:        totalPicks,
 		IsComplete:        complete,
 		OnClockTeamNumber: onClock,
+		PickSlots:         draftPickSlots(configuration.Rules, trades, len(state.activeEvents)),
+		PickTrades:        enrichPickTrades(configuration.Rules, trades),
 	}
 }
 
@@ -317,7 +327,7 @@ func teamName(rules league.Rules, number int) string {
 	return "Unassigned"
 }
 
-func teamForDraftAction(rules league.Rules, pick int, action draft.Action, requested int) (int, error) {
+func teamForDraftAction(rules league.Rules, pick, scheduledOwner int, action draft.Action, requested int) (int, error) {
 	if rules.DraftType == league.DraftTypeAuction {
 		if action == draft.ActionDraft {
 			return rules.DraftPosition, nil
@@ -327,7 +337,7 @@ func teamForDraftAction(rules league.Rules, pick int, action draft.Action, reque
 		}
 		return requested, nil
 	}
-	owner := pickOwner(pick, rules)
+	owner := scheduledOwner
 	if requested != 0 {
 		if requested < 1 || requested > rules.TeamCount {
 			return 0, fmt.Errorf("pick owner must be between 1 and %d", rules.TeamCount)
