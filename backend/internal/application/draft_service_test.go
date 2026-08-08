@@ -65,6 +65,7 @@ func TestDraftEnforcesPickOwnershipAndCompletion(t *testing.T) {
 	configuration := DemoLeagueConfiguration()
 	configuration.Rules.TeamCount = 2
 	configuration.Rules.DraftPosition = 1
+	configuration.Rules.UserTeamNumber = 1
 	configuration.Rules.TeamNames = []string{"Marcus", "Opponent"}
 	configuration.Rules.RosterSlots = []league.RosterSlot{{Name: "FLEX", Count: 1, Positions: []string{"RB", "WR"}, IsStarting: true}}
 	service, err := NewDraftService(store, draft.DemoCatalog(), configuration)
@@ -98,6 +99,7 @@ func TestDraftSupportsTradedPickOwnership(t *testing.T) {
 	configuration := DemoLeagueConfiguration()
 	configuration.Rules.TeamCount = 2
 	configuration.Rules.DraftPosition = 2
+	configuration.Rules.UserTeamNumber = 2
 	configuration.Rules.TeamNames = []string{"Team 1", "Marcus"}
 	configuration.Rules.RosterSlots = []league.RosterSlot{{Name: "FLEX", Count: 1, Positions: []string{"RB", "WR"}, IsStarting: true}}
 	service, err := NewDraftService(store, draft.DemoCatalog(), configuration)
@@ -122,6 +124,7 @@ func TestDraftPickTradeUpdatesAnyUnusedRoundAndPersists(t *testing.T) {
 	defer store.Close()
 	configuration := DemoLeagueConfiguration()
 	configuration.Rules.DraftPosition = 12
+	configuration.Rules.UserTeamNumber = 12
 	configuration.Rules.RosterSlots = []league.RosterSlot{{Name: "Bench", Count: 2, Positions: []string{"RB", "WR"}, IsStarting: false}}
 	service, err := NewDraftService(store, draft.DemoCatalog(), configuration)
 	if err != nil {
@@ -267,6 +270,112 @@ func TestTradeAssetsRespectLeagueRules(t *testing.T) {
 	if _, err = service.CreatePickTrade(t.Context(), "demo", 1, 2, nil, nil, nil, nil, 10, 0); err == nil || !strings.Contains(err.Error(), "not enabled") {
 		t.Fatalf("disabled auction budget error = %v", err)
 	}
+}
+
+func TestDynastyFranchisesPlayersAndDraftOrderPersistAcrossRollover(t *testing.T) {
+	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	configuration := DemoLeagueConfiguration()
+	configuration.Rules.TeamCount = 2
+	configuration.Rules.TeamNames = []string{"Marcus", "Rival"}
+	configuration.Rules.UserTeamNumber = 1
+	configuration.Rules.DraftOrder = []int{2, 1}
+	configuration.Rules.DraftPosition = 2
+	configuration.Rules.LeagueFormat = league.LeagueFormatDynasty
+	configuration.Rules.FuturePickSeasons = 2
+	configuration.Rules.RookieDraftRounds = 2
+	configuration.Rules.RosterSlots = []league.RosterSlot{{Name: "Bench", Count: 2, Positions: []string{"RB", "WR"}}}
+	if err = store.SaveLeague(t.Context(), configuration); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewDraftServiceWithLeagues(store, store, draft.DemoCatalog())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.RecordForTeam(t.Context(), "demo", "p002", draft.ActionTaken, 0, 2); err != nil {
+		t.Fatalf("record Rival pick from first draft slot: %v", err)
+	}
+	if _, err = service.RecordForTeam(t.Context(), "demo", "p001", draft.ActionDraft, 0, 1); err != nil {
+		t.Fatalf("record Marcus pick from second draft slot: %v", err)
+	}
+	snapshot, err := service.CreateDraftTrade(t.Context(), "demo", 1, 2, nil, nil, nil, nil, []string{"p002"}, []string{"p001"}, nil, nil, 0, 0)
+	if err != nil {
+		t.Fatalf("trade dynasty players: %v", err)
+	}
+	if len(snapshot.Teams[0].Roster) != 1 || snapshot.Teams[0].Roster[0].ID != "p002" || snapshot.Teams[0].Name != "Marcus" {
+		t.Fatalf("permanent Marcus franchise roster = %#v", snapshot.Teams[0])
+	}
+
+	next, err := service.AdvanceSeason(t.Context(), "demo", 2027, league.DraftTypeLinear, []int{1, 2})
+	if err != nil {
+		t.Fatalf("advance dynasty season: %v", err)
+	}
+	if next.Season != 2027 || next.OnClockTeamNumber != 1 || next.TotalPicks != 4 || len(next.History) != 0 {
+		t.Fatalf("unexpected next-season draft: %#v", next)
+	}
+	if len(next.Teams[0].Roster) != 1 || next.Teams[0].Roster[0].ID != "p002" || containsPlayer(next.Available, "p001") || containsPlayer(next.Available, "p002") {
+		t.Fatalf("dynasty rosters did not carry forward: teams=%#v available=%#v", next.Teams, next.Available)
+	}
+}
+
+func TestDynastyFutureFAABAndConditionalPickLifecycle(t *testing.T) {
+	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	configuration := DemoLeagueConfiguration()
+	configuration.Rules.LeagueFormat = league.LeagueFormatDynasty
+	configuration.Rules.FuturePickSeasons = 2
+	configuration.Rules.RookieDraftRounds = 2
+	configuration.Rules.FAABBudget = 100
+	configuration.Rules.FAABTrades = true
+	if err = store.SaveLeague(t.Context(), configuration); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewDraftServiceWithLeagues(store, store, draft.DemoCatalog())
+	if err != nil {
+		t.Fatal(err)
+	}
+	conditional := draft.FuturePick{Season: 2027, Round: 1, OriginalTeamNumber: 2, Condition: "Player appears in eight games"}
+	snapshot, err := service.CreateDraftTrade(t.Context(), "demo", 1, 2, nil, nil, []draft.FuturePick{conditional}, nil, nil, nil,
+		[]draft.BudgetAsset{{Kind: "faab", Season: 2027, Amount: 25}}, nil, 0, 0)
+	if err != nil {
+		t.Fatalf("trade conditional pick and future FAAB: %v", err)
+	}
+	trade := snapshot.PickTrades[0]
+	if trade.TeamOneFuturePicks[0].ConditionStatus != "pending" || futureSlotOwner(snapshot.PickSlots, 2027, 1, 2) != 1 {
+		t.Fatalf("conditional pick was not locked to recipient: %#v", trade)
+	}
+	if _, err = service.CreateDraftTrade(t.Context(), "demo", 1, 3, nil, nil, nil, []draft.FuturePick{conditional}, nil, nil, nil, nil, 0, 0); err == nil || !strings.Contains(err.Error(), "unresolved condition") {
+		t.Fatalf("pending conditional pick was tradeable: %v", err)
+	}
+	resolved, err := service.ResolveTradeCondition(t.Context(), "demo", trade.ID, 2027, 1, 2, "not-met")
+	if err != nil {
+		t.Fatalf("resolve condition: %v", err)
+	}
+	if futureSlotOwner(resolved.PickSlots, 2027, 1, 2) != 2 {
+		t.Fatal("unmet conditional pick did not return to its prior franchise")
+	}
+	next, err := service.AdvanceSeason(t.Context(), "demo", 2027, league.DraftTypeSnake, configuration.Rules.DraftOrder)
+	if err != nil {
+		t.Fatalf("advance season: %v", err)
+	}
+	if remainingBudget(next.BudgetBalances, 1, 2027, "faab") != 125 || remainingBudget(next.BudgetBalances, 2, 2027, "faab") != 75 {
+		t.Fatalf("future FAAB did not carry forward: %#v", next.BudgetBalances)
+	}
+}
+
+func remainingBudget(balances []draft.BudgetBalance, team, season int, kind string) float64 {
+	for _, balance := range balances {
+		if balance.TeamNumber == team && balance.Season == season && balance.Kind == kind {
+			return balance.Remaining
+		}
+	}
+	return -1
 }
 
 func futureSlotOwner(slots []draft.PickSlot, season, round, originalTeam int) int {

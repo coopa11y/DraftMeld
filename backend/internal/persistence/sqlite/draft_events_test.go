@@ -2,10 +2,55 @@ package sqlite
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/draft"
 )
+
+func TestDraftTradeAssetsAndConditionsPersist(t *testing.T) {
+	store, err := Open(t.TempDir() + "/draftmeld.db")
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	defer store.Close()
+
+	written, err := store.SavePickTrade(t.Context(), draft.PickTrade{
+		LeagueID:       "league-a",
+		TeamOneNumber:  1,
+		TeamTwoNumber:  2,
+		Season:         2026,
+		TeamOnePlayers: []string{"p002"},
+		TeamTwoPlayers: []string{"p001"},
+		TeamOneFuturePicks: []draft.FuturePick{{
+			Season: 2027, Round: 1, OriginalTeamNumber: 2, Condition: "If Team 2 reaches the final", ConditionStatus: "pending",
+		}},
+		TeamTwoBudgets: []draft.BudgetAsset{{Kind: "faab", Season: 2027, Amount: 25}},
+	})
+	if err != nil {
+		t.Fatalf("save draft trade: %v", err)
+	}
+
+	trades, err := store.ListPickTrades(t.Context(), "league-a")
+	if err != nil || len(trades) != 1 {
+		t.Fatalf("list draft trades: trades=%#v error=%v", trades, err)
+	}
+	if !reflect.DeepEqual(trades[0].TeamOnePlayers, []string{"p002"}) ||
+		!reflect.DeepEqual(trades[0].TeamTwoPlayers, []string{"p001"}) ||
+		!reflect.DeepEqual(trades[0].TeamTwoBudgets, []draft.BudgetAsset{{Kind: "faab", Season: 2027, Amount: 25}}) ||
+		trades[0].TeamOneFuturePicks[0].ConditionStatus != "pending" {
+		t.Fatalf("trade assets did not round-trip: %#v", trades[0])
+	}
+
+	written.TeamOneFuturePicks[0].ConditionStatus = "met"
+	if err = store.UpdatePickTrade(t.Context(), written); err != nil {
+		t.Fatalf("update draft trade: %v", err)
+	}
+	trades, err = store.ListPickTrades(t.Context(), "league-a")
+	if err != nil || trades[0].TeamOneFuturePicks[0].ConditionStatus != "met" {
+		t.Fatalf("condition resolution did not persist: trades=%#v error=%v", trades, err)
+	}
+}
 
 func TestDraftEventsPersist(t *testing.T) {
 	store, err := Open(t.TempDir() + "/draftmeld.db")

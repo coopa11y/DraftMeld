@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type {
+  BudgetAsset,
   DraftPickSlot,
   DraftPickTrade,
   DraftSnapshot,
@@ -8,6 +9,7 @@ import type {
 } from "../shared/api/types";
 import { Panel } from "../shared/ui/Panel";
 import { DraftPickTrades } from "./DraftPickTrades";
+import { DraftSeasonRollover } from "./DraftSeasonRollover";
 
 interface DraftOverviewProps {
   snapshot: DraftSnapshot;
@@ -19,13 +21,24 @@ interface DraftOverviewProps {
     teamTwoReceives: number[],
     teamOneFuture: FutureDraftPick[],
     teamTwoFuture: FutureDraftPick[],
-    teamOneBudget: number,
-    teamTwoBudget: number,
+    teamOnePlayers: string[],
+    teamTwoPlayers: string[],
+    teamOneBudgets: BudgetAsset[],
+    teamTwoBudgets: BudgetAsset[],
   ) => Promise<void>;
   onDeleteTrade: (trade: DraftPickTrade) => Promise<void>;
+  onResolveTrade: (trade: DraftPickTrade, pick: FutureDraftPick, status: "met" | "not-met") => Promise<void>;
+  onAdvanceSeason: (season: number, draftType: DraftSnapshot["draftType"], draftOrder: number[]) => Promise<void>;
 }
 
-export function DraftOverview({ snapshot, busy, onCreateTrade, onDeleteTrade }: DraftOverviewProps) {
+export function DraftOverview({
+  snapshot,
+  busy,
+  onCreateTrade,
+  onDeleteTrade,
+  onResolveTrade,
+  onAdvanceSeason,
+}: DraftOverviewProps) {
   return (
     <section className="draft-overview" aria-labelledby="draft-overview-title">
       <div className="section-heading">
@@ -38,8 +51,18 @@ export function DraftOverview({ snapshot, busy, onCreateTrade, onDeleteTrade }: 
         </span>
       </div>
 
+      {snapshot.leagueFormat === "dynasty" ? (
+        <DraftSeasonRollover snapshot={snapshot} busy={busy} onAdvance={onAdvanceSeason} />
+      ) : null}
+
       {snapshot.draftType !== "auction" || snapshot.auctionBudgetTrades || snapshot.leagueFormat === "dynasty" ? (
-        <DraftPickTrades snapshot={snapshot} busy={busy} onCreate={onCreateTrade} onDelete={onDeleteTrade} />
+        <DraftPickTrades
+          snapshot={snapshot}
+          busy={busy}
+          onCreate={onCreateTrade}
+          onDelete={onDeleteTrade}
+          onResolve={onResolveTrade}
+        />
       ) : null}
 
       <Panel variant="board" aria-labelledby="draft-grid-title">

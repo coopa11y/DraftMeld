@@ -25,6 +25,8 @@ DraftMeld is in active `0.3.0` development. It includes an accessible live board
 ## Planned formats
 
 - Redraft and dynasty
+- Accessible draft-day and dynasty trades for picks, players, and configured auction/FAAB budgets
+- Guided dynasty season rollover with permanent franchise identities and season-specific draft order
 - Snake and linear drafts
 - Auction and salary-cap drafts
 - Keeper leagues

@@ -108,6 +108,9 @@ func (service *LeagueService) Update(ctx context.Context, id string, rules leagu
 	if err != nil {
 		return LeagueConfiguration{}, err
 	}
+	if configuration.Rules.LeagueFormat == league.LeagueFormatDynasty && rules.Season != configuration.Rules.Season {
+		return LeagueConfiguration{}, fmt.Errorf("%w: use the guided season rollover to change a dynasty league's season", ErrInvalidLeague)
+	}
 	configuration.Rules = withDefaultSourcePreferences(rules)
 	if err = configuration.Validate(); err != nil {
 		return LeagueConfiguration{}, fmt.Errorf("%w: %v", ErrInvalidLeague, err)
@@ -238,7 +241,19 @@ func clonePlayerPreferences(preferences map[string]string) map[string]string {
 }
 
 func withDefaultSourcePreferences(rules league.Rules) league.Rules {
-	rules.TeamNames = normalizedTeamNames(rules.TeamNames, rules.TeamCount, rules.DraftPosition)
+	if rules.UserTeamNumber == 0 {
+		rules.UserTeamNumber = rules.DraftPosition
+	}
+	if len(rules.DraftOrder) != rules.TeamCount {
+		rules.DraftOrder = make([]int, rules.TeamCount)
+		for index := range rules.DraftOrder {
+			rules.DraftOrder[index] = index + 1
+		}
+	}
+	if position := draftPositionForTeam(rules.DraftOrder, rules.UserTeamNumber); position > 0 {
+		rules.DraftPosition = position
+	}
+	rules.TeamNames = normalizedTeamNames(rules.TeamNames, rules.TeamCount, rules.UserTeamNumber)
 	defaults := DefaultRankingSourcePreferences()
 	rules.SourcePreferences = cloneSourcePreferences(rules.SourcePreferences)
 	for sourceID, preference := range defaults {
@@ -264,6 +279,9 @@ func withDefaultSourcePreferences(rules league.Rules) league.Rules {
 	if rules.Season == 0 {
 		rules.Season = time.Now().UTC().Year()
 	}
+	if rules.InitialSeason == 0 {
+		rules.InitialSeason = rules.Season
+	}
 	if rules.LeagueFormat == league.LeagueFormatRedraft {
 		rules.FuturePickSeasons = 0
 	} else if rules.FuturePickSeasons == 0 {
@@ -272,7 +290,19 @@ func withDefaultSourcePreferences(rules league.Rules) league.Rules {
 	if rules.RookieDraftRounds == 0 {
 		rules.RookieDraftRounds = 4
 	}
+	if rules.LeagueFormat == league.LeagueFormatDynasty && rules.FAABBudget == 0 {
+		rules.FAABBudget = 100
+	}
 	return rules
+}
+
+func draftPositionForTeam(order []int, teamNumber int) int {
+	for index, team := range order {
+		if team == teamNumber {
+			return index + 1
+		}
+	}
+	return 0
 }
 
 func normalizedTeamNames(names []string, teamCount, userPosition int) []string {

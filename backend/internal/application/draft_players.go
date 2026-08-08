@@ -203,7 +203,7 @@ func nextUserPick(current int, rules league.Rules) int {
 		lastPick = current + rules.TeamCount*2
 	}
 	for pick := current + 1; pick <= min(current+rules.TeamCount*2, lastPick); pick++ {
-		if pickOwner(pick, rules) == rules.DraftPosition {
+		if pickOwner(pick, rules) == userTeamNumber(rules) {
 			return pick
 		}
 	}
@@ -214,7 +214,7 @@ func isUserTurn(pick int, rules league.Rules) bool {
 	if rules.DraftType == league.DraftTypeAuction {
 		return true
 	}
-	return pickOwner(pick, rules) == rules.DraftPosition
+	return pickOwner(pick, rules) == userTeamNumber(rules)
 }
 
 func auctionState(rules league.Rules, history []draft.Pick, available []draft.Player, myRosterSize int) (float64, float64, float64) {

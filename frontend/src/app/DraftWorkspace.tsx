@@ -1,15 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  createDraftPickTrade,
+  advanceDraftSeason,
+  createDraftTrade,
   deleteDraftPickTrade,
   getDraft,
   recordDraftAction,
+  resolveTradeCondition,
   setPlayerPreference,
   simulateToNextTurn,
   syncSleeperDraft,
   undoDraftAction,
 } from "../shared/api/draft";
-import type { DraftAction, DraftPickTrade, DraftSnapshot, FutureDraftPick, Player } from "../shared/api/types";
+import type {
+  BudgetAsset,
+  DraftAction,
+  DraftPickTrade,
+  DraftSnapshot,
+  FutureDraftPick,
+  Player,
+} from "../shared/api/types";
 import { useViewHeadingFocus } from "../shared/hooks/useViewHeadingFocus";
 import { StatusMessage } from "../shared/ui/StatusMessage";
 import { DraftSidebar } from "./DraftSidebar";
@@ -158,14 +167,16 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
     teamTwoReceives: number[],
     teamOneFuture: FutureDraftPick[],
     teamTwoFuture: FutureDraftPick[],
-    teamOneBudget: number,
-    teamTwoBudget: number,
+    teamOnePlayers: string[],
+    teamTwoPlayers: string[],
+    teamOneBudgets: BudgetAsset[],
+    teamTwoBudgets: BudgetAsset[],
   ) {
     if (busy) return;
     setBusy(true);
     setError("");
     try {
-      const updated = await createDraftPickTrade(
+      const updated = await createDraftTrade(
         leagueId,
         teamOne,
         teamTwo,
@@ -173,16 +184,55 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
         teamTwoReceives,
         teamOneFuture,
         teamTwoFuture,
-        teamOneBudget,
-        teamTwoBudget,
+        0,
+        0,
+        teamOnePlayers,
+        teamTwoPlayers,
+        teamOneBudgets,
+        teamTwoBudgets,
       );
       setSnapshot(updated);
       setSelectedTeamNumber(defaultSelectedTeam(updated));
       setAnnouncement(
-        `Trade confirmed between ${teamName(updated, teamOne)} and ${teamName(updated, teamTwo)} with ${assetCount(teamOneReceives, teamOneFuture, teamOneBudget)} and ${assetCount(teamTwoReceives, teamTwoFuture, teamTwoBudget)} recorded.`,
+        `Trade confirmed between ${teamName(updated, teamOne)} and ${teamName(updated, teamTwo)} with ${assetCount(teamOneReceives, teamOneFuture, teamOnePlayers, teamOneBudgets)} and ${assetCount(teamTwoReceives, teamTwoFuture, teamTwoPlayers, teamTwoBudgets)} recorded.`,
       );
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to save the draft asset trade.");
+      throw reason;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleResolveTrade(trade: DraftPickTrade, pick: FutureDraftPick, status: "met" | "not-met") {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const updated = await resolveTradeCondition(leagueId, trade.id, pick, status);
+      setSnapshot(updated);
+      setAnnouncement(
+        `The condition for the ${pick.season} round ${pick.round} pick was marked ${status === "met" ? "met" : "not met"}.`,
+      );
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to resolve the pick condition.");
+      throw reason;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAdvanceSeason(season: number, draftType: DraftSnapshot["draftType"], draftOrder: number[]) {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const updated = await advanceDraftSeason(leagueId, season, draftType, draftOrder);
+      setSnapshot(updated);
+      setSelectedTeamNumber(defaultSelectedTeam(updated));
+      setAnnouncement(`${season} is ready. Franchise rosters and traded assets carried forward to a clean draft.`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to start the next season.");
       throw reason;
     } finally {
       setBusy(false);
@@ -284,6 +334,8 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
           busy={busy}
           onCreateTrade={handleCreateTrade}
           onDeleteTrade={handleDeleteTrade}
+          onResolveTrade={handleResolveTrade}
+          onAdvanceSeason={handleAdvanceSeason}
         />
       </main>
     </>
@@ -299,7 +351,7 @@ function teamName(snapshot: DraftSnapshot, teamNumber: number) {
   return snapshot.teams.find((team) => team.number === teamNumber)?.name ?? `Team ${teamNumber}`;
 }
 
-function assetCount(current: number[], future: FutureDraftPick[], budget: number) {
-  const count = current.length + future.length + (budget > 0 ? 1 : 0);
+function assetCount(current: number[], future: FutureDraftPick[], players: string[], budgets: BudgetAsset[]) {
+  const count = current.length + future.length + players.length + budgets.length;
   return `${count} ${count === 1 ? "asset" : "assets"}`;
 }

@@ -36,7 +36,7 @@ func (service *DraftService) MockToNextTurn(ctx context.Context, leagueID string
 	if err != nil {
 		return draft.Snapshot{}, err
 	}
-	if ownerForPick(currentPick, configuration.Rules, trades) == configuration.Rules.DraftPosition {
+	if ownerForPick(currentPick, configuration.Rules, trades) == userTeamNumber(configuration.Rules) {
 		return draft.Snapshot{}, errors.New("make your pick before simulating opponent selections")
 	}
 	targetPick := nextUserPickWithTrades(currentPick, configuration.Rules, trades)
@@ -241,7 +241,7 @@ func (service *DraftService) SyncSleeper(ctx context.Context, leagueID, sleeperD
 }
 
 func sleeperTeamNumbers(picks []sleeperPick, myRosterID int, rules league.Rules) map[int]int {
-	result := map[int]int{myRosterID: rules.DraftPosition}
+	result := map[int]int{myRosterID: userTeamNumber(rules)}
 	rosterIDs := make([]int, 0)
 	seen := map[int]bool{myRosterID: true}
 	for _, pick := range picks {
@@ -253,7 +253,7 @@ func sleeperTeamNumbers(picks []sleeperPick, myRosterID int, rules league.Rules)
 	sort.Ints(rosterIDs)
 	next := 1
 	for _, rosterID := range rosterIDs {
-		for next == rules.DraftPosition {
+		for next == userTeamNumber(rules) {
 			next++
 		}
 		if next <= rules.TeamCount {

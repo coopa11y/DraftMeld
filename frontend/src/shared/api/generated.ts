@@ -427,6 +427,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/draft/trades/{tradeId}/condition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Resolve a pending conditional future pick */
+        put: operations["resolveDraftTradeCondition"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/draft/seasons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Close the current dynasty season and start the next draft */
+        post: operations["advanceDraftSeason"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/draft/undo": {
         parameters: {
             query?: never;
@@ -514,15 +548,20 @@ export interface components {
             name: string;
             teamCount: number;
             draftPosition: number;
+            userTeamNumber: number;
             teamNames: string[];
+            draftOrder: number[];
             /** @enum {string} */
             draftType: "snake" | "linear" | "auction";
             /** @enum {string} */
             leagueFormat: "redraft" | "dynasty";
             season: number;
+            initialSeason: number;
             futurePickSeasons: number;
             rookieDraftRounds: number;
             auctionBudgetTrades: boolean;
+            faabBudget: number;
+            faabTrades: boolean;
             rosterSlots: components["schemas"]["RosterSlot"][];
             scoringRules: {
                 [key: string]: number;
@@ -730,6 +769,10 @@ export interface components {
             leagueFormat: "redraft" | "dynasty";
             season: number;
             auctionBudgetTrades: boolean;
+            faabTrades: boolean;
+            budgetBalances: components["schemas"]["BudgetBalance"][];
+            draftOrder: number[];
+            userTeamNumber: number;
         };
         DraftPickSlot: {
             season: number;
@@ -755,6 +798,10 @@ export interface components {
             teamTwoFuturePicks: components["schemas"]["FutureDraftPick"][];
             teamOneAuctionBudget: number;
             teamTwoAuctionBudget: number;
+            teamOnePlayers: string[];
+            teamTwoPlayers: string[];
+            teamOneBudgets: components["schemas"]["BudgetAsset"][];
+            teamTwoBudgets: components["schemas"]["BudgetAsset"][];
             season: number;
             /** Format: date-time */
             createdAt: string;
@@ -764,11 +811,15 @@ export interface components {
             round: number;
             originalTeamNumber: number;
             originalTeamName: string;
+            condition: string;
+            /** @enum {string} */
+            conditionStatus: "" | "pending" | "met" | "not-met";
         };
         FutureDraftPickRequest: {
             season: number;
             round: number;
             originalTeamNumber: number;
+            condition?: string;
         };
         DraftPickTradeRequest: {
             leagueId: string;
@@ -780,6 +831,38 @@ export interface components {
             teamTwoFuturePicks: components["schemas"]["FutureDraftPickRequest"][];
             teamOneAuctionBudget: number;
             teamTwoAuctionBudget: number;
+            teamOnePlayers: string[];
+            teamTwoPlayers: string[];
+            teamOneBudgets: components["schemas"]["BudgetAsset"][];
+            teamTwoBudgets: components["schemas"]["BudgetAsset"][];
+        };
+        BudgetAsset: {
+            /** @enum {string} */
+            kind: "auction" | "faab";
+            season: number;
+            amount: number;
+        };
+        BudgetBalance: {
+            teamNumber: number;
+            season: number;
+            /** @enum {string} */
+            kind: "auction" | "faab";
+            remaining: number;
+        };
+        TradeConditionRequest: {
+            leagueId: string;
+            season: number;
+            round: number;
+            originalTeamNumber: number;
+            /** @enum {string} */
+            status: "met" | "not-met";
+        };
+        SeasonRolloverRequest: {
+            leagueId: string;
+            season: number;
+            /** @enum {string} */
+            draftType: "snake" | "linear" | "auction";
+            draftOrder: number[];
         };
         DraftExport: {
             /** @constant */
@@ -1530,6 +1613,58 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    resolveDraftTradeCondition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tradeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TradeConditionRequest"];
+            };
+        };
+        responses: {
+            /** @description Draft state with the condition resolved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftSnapshot"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    advanceDraftSeason: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeasonRolloverRequest"];
+            };
+        };
+        responses: {
+            /** @description Fresh next-season draft state with persistent dynasty assets. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftSnapshot"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
         };
     };
     undoDraftAction: {

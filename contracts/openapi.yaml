@@ -467,6 +467,43 @@ paths:
               schema: { $ref: "#/components/schemas/DraftSnapshot" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
+  /draft/trades/{tradeId}/condition:
+    put:
+      operationId: resolveDraftTradeCondition
+      summary: Resolve a pending conditional future pick
+      parameters:
+        - name: tradeId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TradeConditionRequest" }
+      responses:
+        "200":
+          description: Draft state with the condition resolved.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DraftSnapshot" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+  /draft/seasons:
+    post:
+      operationId: advanceDraftSeason
+      summary: Close the current dynasty season and start the next draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SeasonRolloverRequest" }
+      responses:
+        "200":
+          description: Fresh next-season draft state with persistent dynasty assets.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DraftSnapshot" }
+        "400": { $ref: "#/components/responses/BadRequest" }
   /draft/undo:
     post:
       operationId: undoDraftAction
@@ -623,13 +660,18 @@ components:
           name,
           teamCount,
           draftPosition,
+          userTeamNumber,
           teamNames,
+          draftOrder,
           draftType,
           leagueFormat,
           season,
+          initialSeason,
           futurePickSeasons,
           rookieDraftRounds,
           auctionBudgetTrades,
+          faabBudget,
+          faabTrades,
           rosterSlots,
           scoringRules,
           sourcePreferences,
@@ -653,6 +695,10 @@ components:
           type: integer
           minimum: 1
           maximum: 32
+        userTeamNumber:
+          type: integer
+          minimum: 1
+          maximum: 32
         teamNames:
           type: array
           minItems: 2
@@ -661,6 +707,11 @@ components:
             type: string
             minLength: 1
             maxLength: 80
+        draftOrder:
+          type: array
+          minItems: 2
+          maxItems: 32
+          items: { type: integer, minimum: 1, maximum: 32 }
         draftType:
           type: string
           enum: [snake, linear, auction]
@@ -668,9 +719,12 @@ components:
           type: string
           enum: [redraft, dynasty]
         season: { type: integer, minimum: 2020, maximum: 2200 }
+        initialSeason: { type: integer, minimum: 2020, maximum: 2200 }
         futurePickSeasons: { type: integer, minimum: 0, maximum: 5 }
         rookieDraftRounds: { type: integer, minimum: 1, maximum: 10 }
         auctionBudgetTrades: { type: boolean }
+        faabBudget: { type: number, minimum: 0 }
+        faabTrades: { type: boolean }
         rosterSlots:
           type: array
           minItems: 1
@@ -1006,6 +1060,10 @@ components:
           leagueFormat,
           season,
           auctionBudgetTrades,
+          faabTrades,
+          budgetBalances,
+          draftOrder,
+          userTeamNumber,
         ]
       properties:
         leagueId: { type: string }
@@ -1049,6 +1107,14 @@ components:
         leagueFormat: { type: string, enum: [redraft, dynasty] }
         season: { type: integer, minimum: 2020 }
         auctionBudgetTrades: { type: boolean }
+        faabTrades: { type: boolean }
+        budgetBalances:
+          type: array
+          items: { $ref: "#/components/schemas/BudgetBalance" }
+        draftOrder:
+          type: array
+          items: { type: integer, minimum: 1 }
+        userTeamNumber: { type: integer, minimum: 1 }
     DraftPickSlot:
       type: object
       required:
@@ -1089,6 +1155,10 @@ components:
           teamTwoFuturePicks,
           teamOneAuctionBudget,
           teamTwoAuctionBudget,
+          teamOnePlayers,
+          teamTwoPlayers,
+          teamOneBudgets,
+          teamTwoBudgets,
           season,
           createdAt,
         ]
@@ -1113,16 +1183,30 @@ components:
           items: { $ref: "#/components/schemas/FutureDraftPick" }
         teamOneAuctionBudget: { type: number, minimum: 0 }
         teamTwoAuctionBudget: { type: number, minimum: 0 }
+        teamOnePlayers:
+          type: array
+          items: { type: string }
+        teamTwoPlayers:
+          type: array
+          items: { type: string }
+        teamOneBudgets:
+          type: array
+          items: { $ref: "#/components/schemas/BudgetAsset" }
+        teamTwoBudgets:
+          type: array
+          items: { $ref: "#/components/schemas/BudgetAsset" }
         season: { type: integer, minimum: 2020 }
         createdAt: { type: string, format: date-time }
     FutureDraftPick:
       type: object
-      required: [season, round, originalTeamNumber, originalTeamName]
+      required: [season, round, originalTeamNumber, originalTeamName, condition, conditionStatus]
       properties:
         season: { type: integer, minimum: 2020 }
         round: { type: integer, minimum: 1 }
         originalTeamNumber: { type: integer, minimum: 1 }
         originalTeamName: { type: string }
+        condition: { type: string }
+        conditionStatus: { type: string, enum: ["", pending, met, not-met] }
     FutureDraftPickRequest:
       type: object
       required: [season, round, originalTeamNumber]
@@ -1130,6 +1214,7 @@ components:
         season: { type: integer, minimum: 2020 }
         round: { type: integer, minimum: 1 }
         originalTeamNumber: { type: integer, minimum: 1 }
+        condition: { type: string, maxLength: 300 }
     DraftPickTradeRequest:
       type: object
       required:
@@ -1143,6 +1228,10 @@ components:
           teamTwoFuturePicks,
           teamOneAuctionBudget,
           teamTwoAuctionBudget,
+          teamOnePlayers,
+          teamTwoPlayers,
+          teamOneBudgets,
+          teamTwoBudgets,
         ]
       properties:
         leagueId: { type: string }
@@ -1162,6 +1251,54 @@ components:
           items: { $ref: "#/components/schemas/FutureDraftPickRequest" }
         teamOneAuctionBudget: { type: number, minimum: 0 }
         teamTwoAuctionBudget: { type: number, minimum: 0 }
+        teamOnePlayers:
+          type: array
+          items: { type: string }
+        teamTwoPlayers:
+          type: array
+          items: { type: string }
+        teamOneBudgets:
+          type: array
+          items: { $ref: "#/components/schemas/BudgetAsset" }
+        teamTwoBudgets:
+          type: array
+          items: { $ref: "#/components/schemas/BudgetAsset" }
+    BudgetAsset:
+      type: object
+      required: [kind, season, amount]
+      properties:
+        kind: { type: string, enum: [auction, faab] }
+        season: { type: integer, minimum: 2020 }
+        amount: { type: number, exclusiveMinimum: 0 }
+    BudgetBalance:
+      type: object
+      required: [teamNumber, season, kind, remaining]
+      properties:
+        teamNumber: { type: integer, minimum: 1 }
+        season: { type: integer, minimum: 2020 }
+        kind: { type: string, enum: [auction, faab] }
+        remaining: { type: number }
+    TradeConditionRequest:
+      type: object
+      required: [leagueId, season, round, originalTeamNumber, status]
+      properties:
+        leagueId: { type: string }
+        season: { type: integer, minimum: 2020 }
+        round: { type: integer, minimum: 1 }
+        originalTeamNumber: { type: integer, minimum: 1 }
+        status: { type: string, enum: [met, not-met] }
+    SeasonRolloverRequest:
+      type: object
+      required: [leagueId, season, draftType, draftOrder]
+      properties:
+        leagueId: { type: string }
+        season: { type: integer, minimum: 2021 }
+        draftType: { type: string, enum: [snake, linear, auction] }
+        draftOrder:
+          type: array
+          minItems: 2
+          maxItems: 32
+          items: { type: integer, minimum: 1, maximum: 32 }
     DraftExport:
       type: object
       additionalProperties: false

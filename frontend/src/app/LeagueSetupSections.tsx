@@ -8,12 +8,19 @@ function resizeTeamNames(names: string[], teamCount: number): string[] {
   return Array.from({ length: teamCount }, (_, index) => names[index] ?? "");
 }
 
-function moveUserTeam(names: string[], previousPosition: number, nextPosition: number): string[] {
-  const updated = [...names];
-  [updated[previousPosition - 1], updated[nextPosition - 1]] = [
-    updated[nextPosition - 1] ?? "",
-    updated[previousPosition - 1] ?? "",
-  ];
+function resizeDraftOrder(order: number[], teamCount: number): number[] {
+  const retained = order.filter((team) => team <= teamCount);
+  for (let team = 1; team <= teamCount; team += 1) {
+    if (!retained.includes(team)) retained.push(team);
+  }
+  return retained;
+}
+
+function moveTeamToPosition(order: number[], team: number, position: number): number[] {
+  const updated = [...order];
+  const currentIndex = updated.indexOf(team);
+  const targetIndex = position - 1;
+  [updated[currentIndex], updated[targetIndex]] = [updated[targetIndex], updated[currentIndex]];
   return updated;
 }
 
@@ -23,7 +30,12 @@ interface SettingsProps {
   disabled: boolean;
 }
 
-export function LeagueSettings({ rules, setRules, disabled }: SettingsProps) {
+export function LeagueSettings({
+  rules,
+  setRules,
+  disabled,
+  lockSeason = false,
+}: SettingsProps & { lockSeason?: boolean }) {
   return (
     <fieldset disabled={disabled}>
       <legend>League settings</legend>
@@ -45,15 +57,16 @@ export function LeagueSettings({ rules, setRules, disabled }: SettingsProps) {
             value={rules.teamCount}
             onChange={(event) => {
               const teamCount = Number(event.target.value);
-              const draftPosition = Math.min(rules.draftPosition, teamCount);
+              const userTeamNumber = Math.min(rules.userTeamNumber, teamCount);
+              const draftOrder = resizeDraftOrder(rules.draftOrder, teamCount);
+              const draftPosition = draftOrder.indexOf(userTeamNumber) + 1;
               setRules({
                 ...rules,
                 teamCount,
                 draftPosition,
-                teamNames: resizeTeamNames(
-                  moveUserTeam(rules.teamNames, rules.draftPosition, draftPosition),
-                  teamCount,
-                ),
+                userTeamNumber,
+                draftOrder,
+                teamNames: resizeTeamNames(rules.teamNames, teamCount),
               });
             }}
           />
@@ -74,12 +87,20 @@ export function LeagueSettings({ rules, setRules, disabled }: SettingsProps) {
             <option value="dynasty">Dynasty</option>
           </select>
         </FormField>
-        <FormField label="Current season">
+        <FormField
+          label="Current season"
+          help={
+            lockSeason
+              ? "Use the guided season rollover in the draft workspace to start the next dynasty season."
+              : undefined
+          }
+        >
           <input
             type="number"
             min="2020"
             max="2200"
             required
+            readOnly={lockSeason}
             value={rules.season}
             onChange={(event) => setRules({ ...rules, season: Number(event.target.value) })}
           />
@@ -139,10 +160,11 @@ export function DraftSettings({ rules, setRules, disabled }: SettingsProps) {
             value={rules.draftPosition}
             onChange={(event) => {
               const draftPosition = Number(event.target.value);
+              const draftOrder = moveTeamToPosition(rules.draftOrder, rules.userTeamNumber, draftPosition);
               setRules({
                 ...rules,
                 draftPosition,
-                teamNames: moveUserTeam(rules.teamNames, rules.draftPosition, draftPosition),
+                draftOrder,
               });
             }}
           >
@@ -179,11 +201,69 @@ export function DraftSettings({ rules, setRules, disabled }: SettingsProps) {
                 ))}
               </select>
             </FormField>
+            <FormField label="FAAB budget" help="Annual free-agent acquisition budget for each franchise.">
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={rules.faabBudget}
+                onChange={(event) => setRules({ ...rules, faabBudget: Number(event.target.value) })}
+              />
+            </FormField>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={rules.faabTrades}
+                disabled={rules.faabBudget <= 0}
+                onChange={(event) => setRules({ ...rules, faabTrades: event.target.checked })}
+              />
+              <span>Allow FAAB to be traded</span>
+            </label>
           </>
         ) : null}
         {rules.draftType === "auction" ? <AuctionSettings rules={rules} setRules={setRules} /> : null}
       </div>
+      <DraftOrderEditor rules={rules} setRules={setRules} disabled={disabled} />
     </fieldset>
+  );
+}
+
+function DraftOrderEditor({ rules, setRules, disabled }: SettingsProps) {
+  if (rules.draftType === "auction") return null;
+  return (
+    <details className="draft-order-editor">
+      <summary>Customize the full draft order</summary>
+      <p className="field-help">
+        Franchise identity stays permanent when its draft position changes. Choosing a franchise swaps it with the
+        franchise already in that position.
+      </p>
+      <div className="form-grid">
+        {rules.draftOrder.map((teamNumber, index) => (
+          <FormField key={index} label={`Pick ${index + 1} franchise`}>
+            <select
+              value={teamNumber}
+              disabled={disabled}
+              onChange={(event) => {
+                const selectedTeam = Number(event.target.value);
+                const updated = moveTeamToPosition(rules.draftOrder, selectedTeam, index + 1);
+                setRules({
+                  ...rules,
+                  draftOrder: updated,
+                  draftPosition: updated.indexOf(rules.userTeamNumber) + 1,
+                });
+              }}
+            >
+              {rules.teamNames.map((name, teamIndex) => (
+                <option key={teamIndex + 1} value={teamIndex + 1}>
+                  {name || `Team ${teamIndex + 1}`}
+                  {teamIndex + 1 === rules.userTeamNumber ? " (you)" : ""}
+                </option>
+              ))}
+            </select>
+          </FormField>
+        ))}
+      </div>
+    </details>
   );
 }
 
@@ -197,11 +277,14 @@ export function TeamSettings({ rules, setRules, disabled }: SettingsProps) {
       </p>
       <div className="form-grid team-name-grid">
         {rules.teamNames.map((name, index) => (
-          <FormField key={index} label={`Team ${index + 1}${index + 1 === rules.draftPosition ? " (your team)" : ""}`}>
+          <FormField
+            key={index}
+            label={`Franchise ${index + 1}${index + 1 === rules.userTeamNumber ? " (your team)" : ""}`}
+          >
             <input
               maxLength={80}
               value={name}
-              placeholder={index + 1 === rules.draftPosition ? "My Team" : `Team ${index + 1}`}
+              placeholder={index + 1 === rules.userTeamNumber ? "My Team" : `Team ${index + 1}`}
               onChange={(event) =>
                 setRules((current) => ({
                   ...current,

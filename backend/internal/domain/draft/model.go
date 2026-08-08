@@ -76,23 +76,42 @@ type FuturePick struct {
 	Round              int    `json:"round"`
 	OriginalTeamNumber int    `json:"originalTeamNumber"`
 	OriginalTeamName   string `json:"originalTeamName"`
+	Condition          string `json:"condition"`
+	ConditionStatus    string `json:"conditionStatus"`
+}
+
+type BudgetAsset struct {
+	Kind   string  `json:"kind"`
+	Season int     `json:"season"`
+	Amount float64 `json:"amount"`
+}
+
+type BudgetBalance struct {
+	TeamNumber int     `json:"teamNumber"`
+	Season     int     `json:"season"`
+	Kind       string  `json:"kind"`
+	Remaining  float64 `json:"remaining"`
 }
 
 type PickTrade struct {
-	ID                   int64        `json:"id"`
-	LeagueID             string       `json:"leagueId"`
-	TeamOneNumber        int          `json:"teamOneNumber"`
-	TeamOneName          string       `json:"teamOneName"`
-	TeamTwoNumber        int          `json:"teamTwoNumber"`
-	TeamTwoName          string       `json:"teamTwoName"`
-	TeamOneReceives      []int        `json:"teamOneReceives"`
-	TeamTwoReceives      []int        `json:"teamTwoReceives"`
-	TeamOneFuturePicks   []FuturePick `json:"teamOneFuturePicks"`
-	TeamTwoFuturePicks   []FuturePick `json:"teamTwoFuturePicks"`
-	TeamOneAuctionBudget float64      `json:"teamOneAuctionBudget"`
-	TeamTwoAuctionBudget float64      `json:"teamTwoAuctionBudget"`
-	Season               int          `json:"season"`
-	CreatedAt            time.Time    `json:"createdAt"`
+	ID                   int64         `json:"id"`
+	LeagueID             string        `json:"leagueId"`
+	TeamOneNumber        int           `json:"teamOneNumber"`
+	TeamOneName          string        `json:"teamOneName"`
+	TeamTwoNumber        int           `json:"teamTwoNumber"`
+	TeamTwoName          string        `json:"teamTwoName"`
+	TeamOneReceives      []int         `json:"teamOneReceives"`
+	TeamTwoReceives      []int         `json:"teamTwoReceives"`
+	TeamOneFuturePicks   []FuturePick  `json:"teamOneFuturePicks"`
+	TeamTwoFuturePicks   []FuturePick  `json:"teamTwoFuturePicks"`
+	TeamOneAuctionBudget float64       `json:"teamOneAuctionBudget"`
+	TeamTwoAuctionBudget float64       `json:"teamTwoAuctionBudget"`
+	TeamOnePlayers       []string      `json:"teamOnePlayers"`
+	TeamTwoPlayers       []string      `json:"teamTwoPlayers"`
+	TeamOneBudgets       []BudgetAsset `json:"teamOneBudgets"`
+	TeamTwoBudgets       []BudgetAsset `json:"teamTwoBudgets"`
+	Season               int           `json:"season"`
+	CreatedAt            time.Time     `json:"createdAt"`
 }
 
 type Recommendation struct {
@@ -129,4 +148,8 @@ type Snapshot struct {
 	LeagueFormat        string           `json:"leagueFormat"`
 	Season              int              `json:"season"`
 	AuctionBudgetTrades bool             `json:"auctionBudgetTrades"`
+	FAABTrades          bool             `json:"faabTrades"`
+	BudgetBalances      []BudgetBalance  `json:"budgetBalances"`
+	DraftOrder          []int            `json:"draftOrder"`
+	UserTeamNumber      int              `json:"userTeamNumber"`
 }

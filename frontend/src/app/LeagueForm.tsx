@@ -40,13 +40,18 @@ function defaultRules(): LeagueRules {
     name: "My League",
     teamCount: 12,
     draftPosition: 1,
+    userTeamNumber: 1,
     teamNames: ["My Team", ...Array.from({ length: 11 }, () => "")],
+    draftOrder: Array.from({ length: 12 }, (_, index) => index + 1),
     draftType: "snake",
     leagueFormat: "redraft",
     season: new Date().getFullYear(),
+    initialSeason: new Date().getFullYear(),
     futurePickSeasons: 0,
     rookieDraftRounds: 4,
     auctionBudgetTrades: false,
+    faabBudget: 100,
+    faabTrades: false,
     rosterSlots: defaultRoster.map((slot) => ({ ...slot, positions: [...slot.positions] })),
     scoringRules: {
       reception: 1,
@@ -119,7 +124,12 @@ export function LeagueForm({ league, busy, onCancel, onSave }: LeagueFormProps) 
       </div>
 
       <div>
-        <LeagueSettings rules={rules} setRules={setRules} disabled={busy} />
+        <LeagueSettings
+          rules={rules}
+          setRules={setRules}
+          disabled={busy}
+          lockSeason={Boolean(league && rules.leagueFormat === "dynasty")}
+        />
         <DraftSettings rules={rules} setRules={setRules} disabled={busy} />
         <TeamSettings rules={rules} setRules={setRules} disabled={busy} />
       </div>

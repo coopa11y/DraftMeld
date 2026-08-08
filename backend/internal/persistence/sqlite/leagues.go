@@ -176,9 +176,14 @@ type leagueDraftSettings struct {
 	KeeperValueRemoved  float64             `json:"keeperValueRemoved"`
 	LeagueFormat        league.LeagueFormat `json:"leagueFormat"`
 	Season              int                 `json:"season"`
+	InitialSeason       int                 `json:"initialSeason"`
 	FuturePickSeasons   int                 `json:"futurePickSeasons"`
 	RookieDraftRounds   int                 `json:"rookieDraftRounds"`
 	AuctionBudgetTrades bool                `json:"auctionBudgetTrades"`
+	UserTeamNumber      int                 `json:"userTeamNumber"`
+	DraftOrder          []int               `json:"draftOrder"`
+	FAABBudget          float64             `json:"faabBudget"`
+	FAABTrades          bool                `json:"faabTrades"`
 }
 
 func newLeagueDraftSettings(rules league.Rules) leagueDraftSettings {
@@ -187,8 +192,10 @@ func newLeagueDraftSettings(rules league.Rules) leagueDraftSettings {
 		ConsensusMethod: rules.ConsensusMethod, PlayerPreferences: rules.PlayerPreferences,
 		AuctionBudget: rules.AuctionBudget, AuctionMinimumBid: rules.AuctionMinimumBid,
 		KeeperBudgetSpent: rules.KeeperBudgetSpent, MyKeeperSpend: rules.MyKeeperSpend, KeeperValueRemoved: rules.KeeperValueRemoved,
-		LeagueFormat: rules.LeagueFormat, Season: rules.Season, FuturePickSeasons: rules.FuturePickSeasons,
+		LeagueFormat: rules.LeagueFormat, Season: rules.Season, InitialSeason: rules.InitialSeason, FuturePickSeasons: rules.FuturePickSeasons,
 		RookieDraftRounds: rules.RookieDraftRounds, AuctionBudgetTrades: rules.AuctionBudgetTrades,
+		UserTeamNumber: rules.UserTeamNumber, DraftOrder: rules.DraftOrder,
+		FAABBudget: rules.FAABBudget, FAABTrades: rules.FAABTrades,
 	}
 }
 
@@ -197,9 +204,11 @@ func (settings leagueDraftSettings) apply(rules *league.Rules) {
 	rules.ConsensusMethod, rules.PlayerPreferences = settings.ConsensusMethod, settings.PlayerPreferences
 	rules.AuctionBudget, rules.AuctionMinimumBid = settings.AuctionBudget, settings.AuctionMinimumBid
 	rules.KeeperBudgetSpent, rules.MyKeeperSpend, rules.KeeperValueRemoved = settings.KeeperBudgetSpent, settings.MyKeeperSpend, settings.KeeperValueRemoved
-	rules.LeagueFormat, rules.Season = settings.LeagueFormat, settings.Season
+	rules.LeagueFormat, rules.Season, rules.InitialSeason = settings.LeagueFormat, settings.Season, settings.InitialSeason
 	rules.FuturePickSeasons, rules.RookieDraftRounds = settings.FuturePickSeasons, settings.RookieDraftRounds
 	rules.AuctionBudgetTrades = settings.AuctionBudgetTrades
+	rules.UserTeamNumber, rules.DraftOrder = settings.UserTeamNumber, settings.DraftOrder
+	rules.FAABBudget, rules.FAABTrades = settings.FAABBudget, settings.FAABTrades
 }
 
 func (store *DraftEventStore) DeleteLeague(ctx context.Context, id string) (bool, error) {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 
@@ -58,7 +59,9 @@ func NewDraftService(
 		return nil, errors.New("at least one league configuration is required")
 	}
 	seenLeagueIDs := make(map[string]struct{}, len(configurations))
-	for _, configuration := range configurations {
+	for index := range configurations {
+		configurations[index].Rules = withDefaultSourcePreferences(configurations[index].Rules)
+		configuration := configurations[index]
 		if err := configuration.Validate(); err != nil {
 			return nil, err
 		}
@@ -115,7 +118,18 @@ func (service *DraftService) Snapshot(ctx context.Context, leagueID string) (dra
 	if err != nil {
 		return draft.Snapshot{}, fmt.Errorf("list draft pick trades: %w", err)
 	}
-	return service.buildSnapshot(configuration, events, trades, players, playerByID, dataMode, projectionCount), nil
+	allEvents := events
+	if configuration.Rules.LeagueFormat == league.LeagueFormatDynasty {
+		allEvents, err = service.repository.List(ctx, leagueID)
+		if err != nil {
+			return draft.Snapshot{}, fmt.Errorf("list dynasty roster events: %w", err)
+		}
+		allEvents, err = resolveDraftEventAliases(ctx, service.repository, allEvents)
+		if err != nil {
+			return draft.Snapshot{}, err
+		}
+	}
+	return service.buildSnapshot(configuration, events, allEvents, trades, players, playerByID, dataMode, projectionCount), nil
 }
 
 func (service *DraftService) Record(ctx context.Context, leagueID, playerID string, action draft.Action, costs ...float64) (draft.Snapshot, error) {
@@ -164,6 +178,19 @@ func (service *DraftService) RecordForTeam(ctx context.Context, leagueID, player
 	if err != nil {
 		return draft.Snapshot{}, err
 	}
+	if configuration.Rules.LeagueFormat == league.LeagueFormatDynasty {
+		allEvents, listErr := service.repository.List(ctx, leagueID)
+		if listErr != nil {
+			return draft.Snapshot{}, listErr
+		}
+		allEvents, listErr = resolveDraftEventAliases(ctx, service.repository, allEvents)
+		if listErr != nil {
+			return draft.Snapshot{}, listErr
+		}
+		if dynastyPlayerOwnership(allEvents, trades)[playerID] > 0 {
+			return draft.Snapshot{}, ErrPlayerUnavailable
+		}
+	}
 	teamNumber, err := teamForDraftAction(configuration.Rules, pickNumber, ownerForPick(pickNumber, configuration.Rules, trades), action, requestedTeam)
 	if err != nil {
 		return draft.Snapshot{}, err
@@ -183,7 +210,7 @@ func (service *DraftService) RecordForTeam(ctx context.Context, leagueID, player
 			}
 		}
 		auctionRules := configuration.Rules
-		auctionRules.AuctionBudget += auctionBudgetAdjustments(trades, configuration.Rules.Season)[configuration.Rules.DraftPosition]
+		auctionRules.AuctionBudget += auctionBudgetAdjustments(trades, configuration.Rules.Season)[userTeamNumber(configuration.Rules)]
 		_, _, maximumBid := auctionState(auctionRules, service.history(state.activeEvents, playerByID, configuration.Rules), available, myRosterSize)
 		if cost > maximumBid {
 			return draft.Snapshot{}, fmt.Errorf("bid exceeds your maximum available bid of $%.0f", maximumBid)
@@ -255,13 +282,23 @@ func (service *DraftService) configuration(ctx context.Context, leagueID string)
 	return configuration, nil
 }
 
-func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, events []draft.Event, trades []draft.PickTrade, players []draft.Player, playerByID map[string]draft.Player, dataMode string, projectionCount int) draft.Snapshot {
+func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, events, allEvents []draft.Event, trades []draft.PickTrade, players []draft.Player, playerByID map[string]draft.Player, dataMode string, projectionCount int) draft.Snapshot {
 	state := replay(events)
+	dynastyOwners := map[string]int{}
+	if configuration.Rules.LeagueFormat == league.LeagueFormatDynasty {
+		dynastyOwners = dynastyPlayerOwnership(allEvents, trades)
+	}
 	available := make([]draft.Player, 0, len(players))
 	myTeam := make([]draft.Player, 0)
 	history := make([]draft.Pick, 0, len(state.activeEvents))
 
 	for _, player := range players {
+		if owner := dynastyOwners[player.ID]; owner > 0 {
+			if owner == userTeamNumber(configuration.Rules) {
+				myTeam = append(myTeam, player)
+			}
+			continue
+		}
 		action, unavailable := state.playerActions[player.ID]
 		if !unavailable {
 			available = append(available, player)
@@ -286,9 +323,9 @@ func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, ev
 	complete := len(state.activeEvents) >= totalPicks
 	nextPick := nextUserPickWithTrades(pickNumber-1, configuration.Rules, trades)
 	auctionRules := configuration.Rules
-	auctionRules.AuctionBudget += auctionBudgetAdjustments(trades, configuration.Rules.Season)[configuration.Rules.DraftPosition]
+	auctionRules.AuctionBudget += auctionBudgetAdjustments(trades, configuration.Rules.Season)[userTeamNumber(configuration.Rules)]
 	budgetRemaining, inflation, maximumBid := auctionState(auctionRules, history, available, len(myTeam))
-	teams := draftTeams(configuration.Rules, history, trades)
+	teams := draftTeams(configuration.Rules, history, trades, dynastyOwners, playerByID)
 	onClock := 0
 	if !complete && configuration.Rules.DraftType != league.DraftTypeAuction {
 		onClock = ownerForPick(pickNumber, configuration.Rules, trades)
@@ -307,7 +344,7 @@ func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, ev
 		AuctionInflation:    inflation,
 		AuctionMinimumBid:   configuration.Rules.AuctionMinimumBid,
 		MaximumBid:          maximumBid,
-		IsUserTurn:          !complete && onClock == configuration.Rules.DraftPosition,
+		IsUserTurn:          !complete && onClock == userTeamNumber(configuration.Rules),
 		TotalPicks:          totalPicks,
 		IsComplete:          complete,
 		OnClockTeamNumber:   onClock,
@@ -316,10 +353,17 @@ func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, ev
 		LeagueFormat:        string(configuration.Rules.LeagueFormat),
 		Season:              configuration.Rules.Season,
 		AuctionBudgetTrades: configuration.Rules.AuctionBudgetTrades,
+		FAABTrades:          configuration.Rules.FAABTrades,
+		BudgetBalances:      draftBudgetBalances(configuration.Rules, events, trades),
+		DraftOrder:          append([]int(nil), configuration.Rules.DraftOrder...),
+		UserTeamNumber:      userTeamNumber(configuration.Rules),
 	}
 }
 
 func totalDraftPicks(rules league.Rules) int {
+	if rules.LeagueFormat == league.LeagueFormatDynasty && rules.InitialSeason > 0 && rules.Season > rules.InitialSeason {
+		return rules.RookieDraftRounds * rules.TeamCount
+	}
 	rosterSize := 0
 	for _, slot := range rules.RosterSlots {
 		rosterSize += slot.Count
@@ -334,7 +378,10 @@ func pickOwner(pick int, rules league.Rules) int {
 	round := (pick - 1) / rules.TeamCount
 	slot := (pick-1)%rules.TeamCount + 1
 	if rules.DraftType == league.DraftTypeSnake && round%2 == 1 {
-		return rules.TeamCount - slot + 1
+		slot = rules.TeamCount - slot + 1
+	}
+	if len(rules.DraftOrder) == rules.TeamCount {
+		return rules.DraftOrder[slot-1]
 	}
 	return slot
 }
@@ -349,9 +396,9 @@ func teamName(rules league.Rules, number int) string {
 func teamForDraftAction(rules league.Rules, pick, scheduledOwner int, action draft.Action, requested int) (int, error) {
 	if rules.DraftType == league.DraftTypeAuction {
 		if action == draft.ActionDraft {
-			return rules.DraftPosition, nil
+			return userTeamNumber(rules), nil
 		}
-		if requested < 1 || requested > rules.TeamCount || requested == rules.DraftPosition {
+		if requested < 1 || requested > rules.TeamCount || requested == userTeamNumber(rules) {
 			return 0, errors.New("choose the opponent team that won this player")
 		}
 		return requested, nil
@@ -363,33 +410,55 @@ func teamForDraftAction(rules league.Rules, pick, scheduledOwner int, action dra
 		}
 		owner = requested
 	}
-	if action == draft.ActionDraft && owner != rules.DraftPosition {
+	if action == draft.ActionDraft && owner != userTeamNumber(rules) {
 		return 0, fmt.Errorf("pick %d belongs to %s", pick, teamName(rules, owner))
 	}
-	if action == draft.ActionTaken && owner == rules.DraftPosition {
+	if action == draft.ActionTaken && owner == userTeamNumber(rules) {
 		return 0, errors.New("it is your turn; use Draft to add a player to your team")
 	}
 	return owner, nil
 }
 
-func draftTeams(rules league.Rules, history []draft.Pick, trades []draft.PickTrade) []draft.Team {
+func draftTeams(rules league.Rules, history []draft.Pick, trades []draft.PickTrade, dynastyOwners map[string]int, playerByID map[string]draft.Player) []draft.Team {
 	teams := make([]draft.Team, rules.TeamCount)
 	adjustments := auctionBudgetAdjustments(trades, rules.Season)
 	for index := range teams {
 		budget := 0.0
 		if rules.DraftType == league.DraftTypeAuction {
 			budget = rules.AuctionBudget + adjustments[index+1]
-			if index+1 == rules.DraftPosition {
+			if index+1 == userTeamNumber(rules) {
 				budget -= rules.MyKeeperSpend
 			}
 		}
-		teams[index] = draft.Team{Number: index + 1, Name: teamName(rules, index+1), IsUser: index+1 == rules.DraftPosition, Roster: []draft.Player{}, AuctionBudgetRemaining: budget}
+		teams[index] = draft.Team{Number: index + 1, Name: teamName(rules, index+1), IsUser: index+1 == userTeamNumber(rules), Roster: []draft.Player{}, AuctionBudgetRemaining: budget}
 	}
 	for _, pick := range history {
 		if pick.TeamNumber >= 1 && pick.TeamNumber <= len(teams) {
-			teams[pick.TeamNumber-1].Roster = append(teams[pick.TeamNumber-1].Roster, pick.Player)
 			teams[pick.TeamNumber-1].AuctionBudgetRemaining -= pick.Cost
+			if rules.LeagueFormat != league.LeagueFormatDynasty {
+				teams[pick.TeamNumber-1].Roster = append(teams[pick.TeamNumber-1].Roster, pick.Player)
+			}
 		}
 	}
+	if rules.LeagueFormat == league.LeagueFormatDynasty {
+		for playerID, owner := range dynastyOwners {
+			player, exists := playerByID[playerID]
+			if exists && owner >= 1 && owner <= len(teams) {
+				teams[owner-1].Roster = append(teams[owner-1].Roster, player)
+			}
+		}
+	}
+	for index := range teams {
+		sort.SliceStable(teams[index].Roster, func(left, right int) bool {
+			return teams[index].Roster[left].OverallRank < teams[index].Roster[right].OverallRank
+		})
+	}
 	return teams
+}
+
+func userTeamNumber(rules league.Rules) int {
+	if rules.UserTeamNumber > 0 {
+		return rules.UserTeamNumber
+	}
+	return rules.DraftPosition
 }

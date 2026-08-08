@@ -1,4 +1,4 @@
-import type { DraftAction, DraftSnapshot, FutureDraftPick, SleeperSyncResult } from "./types";
+import type { BudgetAsset, DraftAction, DraftSnapshot, FutureDraftPick, SleeperSyncResult } from "./types";
 import { apiClient, unwrap } from "./client";
 
 export async function getDraft(leagueId: string): Promise<DraftSnapshot> {
@@ -51,7 +51,7 @@ export async function undoDraftAction(leagueId: string): Promise<DraftSnapshot> 
   return unwrap(data, error, response);
 }
 
-export async function createDraftPickTrade(
+export async function createDraftTrade(
   leagueId: string,
   teamOneNumber: number,
   teamTwoNumber: number,
@@ -61,6 +61,10 @@ export async function createDraftPickTrade(
   teamTwoFuturePicks: FutureDraftPick[],
   teamOneAuctionBudget: number,
   teamTwoAuctionBudget: number,
+  teamOnePlayers: string[],
+  teamTwoPlayers: string[],
+  teamOneBudgets: BudgetAsset[],
+  teamTwoBudgets: BudgetAsset[],
 ): Promise<DraftSnapshot> {
   const { data, error, response } = await apiClient.POST("/draft/trades", {
     body: {
@@ -73,7 +77,42 @@ export async function createDraftPickTrade(
       teamTwoFuturePicks,
       teamOneAuctionBudget,
       teamTwoAuctionBudget,
+      teamOnePlayers,
+      teamTwoPlayers,
+      teamOneBudgets,
+      teamTwoBudgets,
     },
+  });
+  return unwrap(data, error, response);
+}
+
+export async function resolveTradeCondition(
+  leagueId: string,
+  tradeId: number,
+  pick: FutureDraftPick,
+  status: "met" | "not-met",
+): Promise<DraftSnapshot> {
+  const { data, error, response } = await apiClient.PUT("/draft/trades/{tradeId}/condition", {
+    params: { path: { tradeId } },
+    body: {
+      leagueId,
+      season: pick.season,
+      round: pick.round,
+      originalTeamNumber: pick.originalTeamNumber,
+      status,
+    },
+  });
+  return unwrap(data, error, response);
+}
+
+export async function advanceDraftSeason(
+  leagueId: string,
+  season: number,
+  draftType: DraftSnapshot["draftType"],
+  draftOrder: number[],
+): Promise<DraftSnapshot> {
+  const { data, error, response } = await apiClient.POST("/draft/seasons", {
+    body: { leagueId, season, draftType, draftOrder },
   });
   return unwrap(data, error, response);
 }

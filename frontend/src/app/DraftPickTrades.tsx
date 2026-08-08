@@ -1,5 +1,12 @@
 import { useMemo, useState } from "react";
-import type { DraftPickSlot, DraftPickTrade, DraftSnapshot, FutureDraftPick } from "../shared/api/types";
+import type {
+  BudgetAsset,
+  DraftPickSlot,
+  DraftPickTrade,
+  DraftSnapshot,
+  FutureDraftPick,
+  Player,
+} from "../shared/api/types";
 import { Button } from "../shared/ui/Button";
 import { Panel } from "../shared/ui/Panel";
 
@@ -13,39 +20,69 @@ interface DraftPickTradesProps {
     teamTwoReceives: number[],
     teamOneFuture: FutureDraftPick[],
     teamTwoFuture: FutureDraftPick[],
-    teamOneBudget: number,
-    teamTwoBudget: number,
+    teamOnePlayers: string[],
+    teamTwoPlayers: string[],
+    teamOneBudgets: BudgetAsset[],
+    teamTwoBudgets: BudgetAsset[],
   ) => Promise<void>;
   onDelete: (trade: DraftPickTrade) => Promise<void>;
+  onResolve: (trade: DraftPickTrade, pick: FutureDraftPick, status: "met" | "not-met") => Promise<void>;
 }
 
-export function DraftPickTrades({ snapshot, busy, onCreate, onDelete }: DraftPickTradesProps) {
+export function DraftPickTrades({ snapshot, busy, onCreate, onDelete, onResolve }: DraftPickTradesProps) {
   const [teamOne, setTeamOne] = useState(snapshot.teams[0]?.number ?? 0);
   const [teamTwo, setTeamTwo] = useState(snapshot.teams[1]?.number ?? 0);
   const [teamOneSelected, setTeamOneSelected] = useState<string[]>([]);
   const [teamTwoSelected, setTeamTwoSelected] = useState<string[]>([]);
-  const [teamOneBudget, setTeamOneBudget] = useState(0);
-  const [teamTwoBudget, setTeamTwoBudget] = useState(0);
+  const [teamOnePlayers, setTeamOnePlayers] = useState<string[]>([]);
+  const [teamTwoPlayers, setTeamTwoPlayers] = useState<string[]>([]);
+  const [teamOneBudgets, setTeamOneBudgets] = useState<BudgetAsset[]>([]);
+  const [teamTwoBudgets, setTeamTwoBudgets] = useState<BudgetAsset[]>([]);
+  const [teamOneCondition, setTeamOneCondition] = useState("");
+  const [teamTwoCondition, setTeamTwoCondition] = useState("");
   const [reviewing, setReviewing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const [ledgerSeason, setLedgerSeason] = useState("all");
 
   const slotsByKey = useMemo(
     () => new Map(snapshot.pickSlots.map((pick) => [pickKey(pick), pick])),
     [snapshot.pickSlots],
   );
+  const playersByID = useMemo(
+    () => new Map(snapshot.teams.flatMap((team) => team.roster).map((player) => [player.id, player])),
+    [snapshot.teams],
+  );
   const teamOneSlots = selectedSlots(teamOneSelected, slotsByKey);
   const teamTwoSlots = selectedSlots(teamTwoSelected, slotsByKey);
   const firstName = teamName(snapshot, teamOne);
   const secondName = teamName(snapshot, teamTwo);
-  const firstAssets = assetLabels(teamOneSlots, teamOneBudget, snapshot.leagueFormat);
-  const secondAssets = assetLabels(teamTwoSlots, teamTwoBudget, snapshot.leagueFormat);
+  const firstAssets = assetLabels(
+    teamOneSlots,
+    teamOnePlayers,
+    teamOneBudgets,
+    playersByID,
+    snapshot.leagueFormat,
+    teamOneCondition,
+  );
+  const secondAssets = assetLabels(
+    teamTwoSlots,
+    teamTwoPlayers,
+    teamTwoBudgets,
+    playersByID,
+    snapshot.leagueFormat,
+    teamTwoCondition,
+  );
   const canReview = teamOne !== teamTwo && firstAssets.length + secondAssets.length > 0;
 
   function resetSelection() {
     setTeamOneSelected([]);
     setTeamTwoSelected([]);
-    setTeamOneBudget(0);
-    setTeamTwoBudget(0);
+    setTeamOnePlayers([]);
+    setTeamTwoPlayers([]);
+    setTeamOneBudgets([]);
+    setTeamTwoBudgets([]);
+    setTeamOneCondition("");
+    setTeamTwoCondition("");
     setReviewing(false);
   }
 
@@ -56,14 +93,16 @@ export function DraftPickTrades({ snapshot, busy, onCreate, onDelete }: DraftPic
         teamTwo,
         currentPicks(teamOneSlots),
         currentPicks(teamTwoSlots),
-        futurePicks(teamOneSlots),
-        futurePicks(teamTwoSlots),
-        teamOneBudget,
-        teamTwoBudget,
+        futurePicks(teamOneSlots, teamOneCondition),
+        futurePicks(teamTwoSlots, teamTwoCondition),
+        teamOnePlayers,
+        teamTwoPlayers,
+        teamOneBudgets,
+        teamTwoBudgets,
       );
       resetSelection();
     } catch {
-      // The workspace presents the API error and keeps this review intact for correction.
+      // The workspace presents the API error and keeps the review intact for correction.
     }
   }
 
@@ -83,11 +122,11 @@ export function DraftPickTrades({ snapshot, busy, onCreate, onDelete }: DraftPic
         onSubmit={(event) => {
           event.preventDefault();
           if (reviewing) void confirmTrade();
-          else setReviewing(true);
+          else if (canReview) setReviewing(true);
         }}
       >
         <fieldset disabled={busy || reviewing}>
-          <legend>Teams in this trade</legend>
+          <legend>Trade partners</legend>
           <div className="trade-team-selectors">
             <TeamSelect
               label="First team"
@@ -113,27 +152,33 @@ export function DraftPickTrades({ snapshot, busy, onCreate, onDelete }: DraftPic
 
         {teamOne !== teamTwo ? (
           <div className="trade-pick-columns">
-            <PickSelector
+            <AssetSelector
               receivingTeam={firstName}
-              currentOwner={teamTwo}
               sourceTeam={snapshot.teams.find((team) => team.number === teamTwo)}
               snapshot={snapshot}
               selected={teamOneSelected}
-              budget={teamOneBudget}
+              selectedPlayers={teamOnePlayers}
+              budgets={teamOneBudgets}
+              condition={teamOneCondition}
               disabled={busy || reviewing}
               onChange={setTeamOneSelected}
-              onBudgetChange={setTeamOneBudget}
+              onPlayersChange={setTeamOnePlayers}
+              onBudgetsChange={setTeamOneBudgets}
+              onConditionChange={setTeamOneCondition}
             />
-            <PickSelector
+            <AssetSelector
               receivingTeam={secondName}
-              currentOwner={teamOne}
               sourceTeam={snapshot.teams.find((team) => team.number === teamOne)}
               snapshot={snapshot}
               selected={teamTwoSelected}
-              budget={teamTwoBudget}
+              selectedPlayers={teamTwoPlayers}
+              budgets={teamTwoBudgets}
+              condition={teamTwoCondition}
               disabled={busy || reviewing}
               onChange={setTeamTwoSelected}
-              onBudgetChange={setTeamTwoBudget}
+              onPlayersChange={setTeamTwoPlayers}
+              onBudgetsChange={setTeamTwoBudgets}
+              onConditionChange={setTeamTwoCondition}
             />
           </div>
         ) : null}
@@ -147,13 +192,13 @@ export function DraftPickTrades({ snapshot, busy, onCreate, onDelete }: DraftPic
               firstAssets={firstAssets}
               secondAssets={secondAssets}
             />
-            <p>Ownership changes immediately after confirmation. Used or expired assets cannot be reversed.</p>
+            <p>Ownership changes immediately. Pending conditional picks stay locked until their result is recorded.</p>
             <div className="trade-actions">
               <Button type="submit" disabled={busy}>
                 Confirm trade
               </Button>
-              <Button type="button" variant="secondary" disabled={busy} onClick={() => setReviewing(false)}>
-                Edit trade
+              <Button type="button" onClick={() => setReviewing(false)} disabled={busy}>
+                Go back and edit
               </Button>
             </div>
           </section>
@@ -166,10 +211,14 @@ export function DraftPickTrades({ snapshot, busy, onCreate, onDelete }: DraftPic
 
       <TradeLedger
         snapshot={snapshot}
+        playersByID={playersByID}
+        ledgerSeason={ledgerSeason}
+        setLedgerSeason={setLedgerSeason}
         busy={busy}
         confirmDelete={confirmDelete}
         setConfirmDelete={setConfirmDelete}
         onDelete={onDelete}
+        onResolve={onResolve}
       />
     </Panel>
   );
@@ -201,94 +250,174 @@ function TeamSelect({
   );
 }
 
-function PickSelector({
-  receivingTeam,
-  currentOwner,
-  sourceTeam,
-  snapshot,
-  selected,
-  budget,
-  disabled,
-  onChange,
-  onBudgetChange,
-}: {
+interface AssetSelectorProps {
   receivingTeam: string;
-  currentOwner: number;
   sourceTeam?: DraftSnapshot["teams"][number];
   snapshot: DraftSnapshot;
   selected: string[];
-  budget: number;
+  selectedPlayers: string[];
+  budgets: BudgetAsset[];
+  condition: string;
   disabled: boolean;
   onChange: (picks: string[]) => void;
-  onBudgetChange: (amount: number) => void;
-}) {
-  const available = snapshot.pickSlots.filter((pick) => !pick.isUsed && pick.ownerTeamNumber === currentOwner);
+  onPlayersChange: (players: string[]) => void;
+  onBudgetsChange: (budgets: BudgetAsset[]) => void;
+  onConditionChange: (condition: string) => void;
+}
+
+function AssetSelector(props: AssetSelectorProps) {
+  const {
+    receivingTeam,
+    sourceTeam,
+    snapshot,
+    selected,
+    selectedPlayers,
+    budgets,
+    condition,
+    disabled,
+    onChange,
+    onPlayersChange,
+    onBudgetsChange,
+    onConditionChange,
+  } = props;
+  const available = snapshot.pickSlots.filter((pick) => !pick.isUsed && pick.ownerTeamNumber === sourceTeam?.number);
   const groups = available.reduce<Map<string, DraftPickSlot[]>>((grouped, pick) => {
     const key = `${pick.season}:${pick.round}`;
     grouped.set(key, [...(grouped.get(key) ?? []), pick]);
     return grouped;
   }, new Map());
+  const selectedFuture = available.some((pick) => selected.includes(pickKey(pick)) && pick.overallNumber === 0);
+  const balanceOptions = snapshot.budgetBalances.filter((balance) => balance.teamNumber === sourceTeam?.number);
+
   return (
     <fieldset className="trade-pick-selector" disabled={disabled}>
       <legend>Assets {receivingTeam} receives</legend>
-      {snapshot.auctionBudgetTrades ? (
-        <label className="trade-budget-field">
-          <span>Auction budget from {sourceTeam?.name ?? "the other team"}</span>
-          <input
-            type="number"
-            aria-label={`Auction budget from ${sourceTeam?.name ?? "the other team"}`}
-            min="0"
-            max={sourceTeam?.auctionBudgetRemaining}
-            step="1"
-            value={budget}
-            onChange={(event) => onBudgetChange(Number(event.target.value))}
+      {available.length
+        ? [...groups].map(([key, picks]) => (
+            <fieldset key={key} className="trade-round">
+              <legend>{groupLabel(picks[0], snapshot.leagueFormat)}</legend>
+              {picks.map((pick) => {
+                const key = pickKey(pick);
+                return (
+                  <label key={key}>
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(key)}
+                      onChange={(event) =>
+                        onChange(event.target.checked ? [...selected, key] : selected.filter((item) => item !== key))
+                      }
+                    />
+                    <span>{pickLabel(pick, snapshot.leagueFormat)}</span>
+                  </label>
+                );
+              })}
+            </fieldset>
+          ))
+        : null}
+
+      {selectedFuture ? (
+        <label className="trade-condition-field">
+          <span>Condition for selected future picks received by {receivingTeam} (optional)</span>
+          <textarea
+            aria-label={`Condition for selected future picks received by ${receivingTeam} (optional)`}
+            maxLength={300}
+            value={condition}
+            onChange={(event) => onConditionChange(event.target.value)}
           />
-          <small>
-            {sourceTeam?.name ?? "That team"} has ${sourceTeam?.auctionBudgetRemaining.toFixed(0) ?? "0"} available.
-          </small>
+          <small>Example: transfers only if the player appears in eight games.</small>
         </label>
       ) : null}
-      {available.length ? (
-        [...groups].map(([key, picks]) => (
-          <fieldset key={key} className="trade-round">
-            <legend>{groupLabel(picks[0], snapshot.leagueFormat)}</legend>
-            {picks.map((pick) => {
-              const key = pickKey(pick);
+
+      {snapshot.leagueFormat === "dynasty" && sourceTeam?.roster.length ? (
+        <details className="trade-asset-details">
+          <summary>Players from {sourceTeam.name}</summary>
+          <div className="trade-player-list">
+            {sourceTeam.roster.map((player) => (
+              <label key={player.id}>
+                <input
+                  type="checkbox"
+                  checked={selectedPlayers.includes(player.id)}
+                  onChange={(event) =>
+                    onPlayersChange(
+                      event.target.checked
+                        ? [...selectedPlayers, player.id]
+                        : selectedPlayers.filter((id) => id !== player.id),
+                    )
+                  }
+                />
+                <span>
+                  {player.name}, {player.position}
+                </span>
+              </label>
+            ))}
+          </div>
+        </details>
+      ) : null}
+
+      {balanceOptions.length ? (
+        <details className="trade-asset-details">
+          <summary>Auction and FAAB budgets</summary>
+          <div className="trade-budget-grid">
+            {balanceOptions.map((balance) => {
+              const current =
+                budgets.find((asset) => asset.kind === balance.kind && asset.season === balance.season)?.amount ?? 0;
+              const label = `${balance.season} ${balance.kind === "faab" ? "FAAB" : "auction budget"} from ${sourceTeam?.name ?? "the other team"}`;
               return (
-                <label key={key}>
+                <label key={`${balance.kind}:${balance.season}`} className="trade-budget-field">
+                  <span>{label}</span>
                   <input
-                    type="checkbox"
-                    checked={selected.includes(key)}
+                    type="number"
+                    aria-label={label}
+                    min="0"
+                    max={balance.remaining}
+                    step="1"
+                    value={current}
                     onChange={(event) =>
-                      onChange(event.target.checked ? [...selected, key] : selected.filter((item) => item !== key))
+                      onBudgetsChange(updateBudget(budgets, balance.kind, balance.season, Number(event.target.value)))
                     }
                   />
-                  <span>{pickLabel(pick, snapshot.leagueFormat)}</span>
+                  <small>${balance.remaining.toFixed(0)} available.</small>
                 </label>
               );
             })}
-          </fieldset>
-        ))
-      ) : snapshot.auctionBudgetTrades ? null : (
-        <p className="empty-state">This team has no unused picks available to trade.</p>
-      )}
+          </div>
+        </details>
+      ) : null}
+
+      {!available.length && !sourceTeam?.roster.length && !balanceOptions.length ? (
+        <p className="empty-state">This team has no eligible assets available to trade.</p>
+      ) : null}
     </fieldset>
   );
 }
 
-function TradeLedger({
-  snapshot,
-  busy,
-  confirmDelete,
-  setConfirmDelete,
-  onDelete,
-}: {
+function TradeLedger(props: {
   snapshot: DraftSnapshot;
+  playersByID: Map<string, Player>;
+  ledgerSeason: string;
+  setLedgerSeason: (season: string) => void;
   busy: boolean;
   confirmDelete: number | null;
   setConfirmDelete: (id: number | null) => void;
   onDelete: (trade: DraftPickTrade) => Promise<void>;
+  onResolve: DraftPickTradesProps["onResolve"];
 }) {
+  const {
+    snapshot,
+    playersByID,
+    ledgerSeason,
+    setLedgerSeason,
+    busy,
+    confirmDelete,
+    setConfirmDelete,
+    onDelete,
+    onResolve,
+  } = props;
+  const seasons = [...new Set(snapshot.pickTrades.map((trade) => trade.season))].sort((a, b) => b - a);
+  const visibleTrades =
+    ledgerSeason === "all"
+      ? snapshot.pickTrades
+      : snapshot.pickTrades.filter((trade) => trade.season === Number(ledgerSeason));
   const currentSlots = new Map(
     snapshot.pickSlots
       .filter((slot) => slot.overallNumber > 0)
@@ -296,17 +425,51 @@ function TradeLedger({
   );
   return (
     <section className="trade-ledger" aria-labelledby="trade-ledger-title">
-      <h4 id="trade-ledger-title">Trade ledger</h4>
-      {snapshot.pickTrades.length ? (
+      <div className="trade-heading">
+        <h4 id="trade-ledger-title">Trade ledger</h4>
+        {snapshot.leagueFormat === "dynasty" && seasons.length > 0 ? (
+          <label>
+            <span>Trade season</span>
+            <select value={ledgerSeason} onChange={(event) => setLedgerSeason(event.target.value)}>
+              <option value="all">All seasons</option>
+              {seasons.map((season) => (
+                <option key={season} value={season}>
+                  {season}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+      </div>
+      {visibleTrades.length ? (
         <ol>
-          {snapshot.pickTrades.map((trade) => (
+          {visibleTrades.map((trade) => (
             <li key={trade.id}>
+              <p className="eyebrow">Recorded in {trade.season}</p>
               <TradeSummary
                 firstName={trade.teamOneName}
                 secondName={trade.teamTwoName}
-                firstAssets={storedTradeAssets(trade, true, currentSlots, snapshot.leagueFormat)}
-                secondAssets={storedTradeAssets(trade, false, currentSlots, snapshot.leagueFormat)}
+                firstAssets={storedTradeAssets(trade, true, currentSlots, playersByID, snapshot.leagueFormat)}
+                secondAssets={storedTradeAssets(trade, false, currentSlots, playersByID, snapshot.leagueFormat)}
               />
+              {pendingConditions(trade).map((pick) => (
+                <div
+                  className="conditional-pick-actions"
+                  key={pickKeyFromFuture(pick)}
+                  role="group"
+                  aria-label={`Resolve condition for ${futurePickLabel(pick)}`}
+                >
+                  <p>
+                    <strong>Pending:</strong> {pick.condition}
+                  </p>
+                  <Button type="button" disabled={busy} onClick={() => void onResolve(trade, pick, "met")}>
+                    Mark condition met
+                  </Button>
+                  <Button type="button" disabled={busy} onClick={() => void onResolve(trade, pick, "not-met")}>
+                    Mark condition not met
+                  </Button>
+                </div>
+              ))}
               {confirmDelete === trade.id ? (
                 <div
                   className="trade-reversal"
@@ -315,25 +478,16 @@ function TradeLedger({
                 >
                   <p>Reverse this entire trade? This restores every eligible asset to its previous owner.</p>
                   <div className="trade-actions">
-                    <Button
-                      type="button"
-                      variant="danger"
-                      disabled={busy}
-                      onClick={() =>
-                        void onDelete(trade)
-                          .then(() => setConfirmDelete(null))
-                          .catch(() => undefined)
-                      }
-                    >
+                    <Button type="button" variant="danger" disabled={busy} onClick={() => void onDelete(trade)}>
                       Confirm reversal
                     </Button>
-                    <Button type="button" variant="secondary" disabled={busy} onClick={() => setConfirmDelete(null)}>
+                    <Button type="button" disabled={busy} onClick={() => setConfirmDelete(null)}>
                       Keep trade
                     </Button>
                   </div>
                 </div>
               ) : (
-                <Button type="button" variant="secondary" disabled={busy} onClick={() => setConfirmDelete(trade.id)}>
+                <Button type="button" disabled={busy} onClick={() => setConfirmDelete(trade.id)}>
                   Reverse trade
                 </Button>
               )}
@@ -341,7 +495,7 @@ function TradeLedger({
           ))}
         </ol>
       ) : (
-        <p className="empty-state">No draft trades recorded.</p>
+        <p className="empty-state">No draft trades recorded for this season filter.</p>
       )}
     </section>
   );
@@ -380,7 +534,7 @@ function currentPicks(slots: DraftPickSlot[]) {
   return slots.filter((pick) => pick.overallNumber > 0).map((pick) => pick.overallNumber);
 }
 
-function futurePicks(slots: DraftPickSlot[]): FutureDraftPick[] {
+function futurePicks(slots: DraftPickSlot[], condition: string): FutureDraftPick[] {
   return slots
     .filter((pick) => pick.overallNumber === 0)
     .map((pick) => ({
@@ -388,58 +542,105 @@ function futurePicks(slots: DraftPickSlot[]): FutureDraftPick[] {
       round: pick.round,
       originalTeamNumber: pick.originalTeamNumber,
       originalTeamName: pick.originalTeamName,
+      condition: condition.trim(),
+      conditionStatus: "",
     }));
 }
 
-function assetLabels(slots: DraftPickSlot[], budget: number, format: DraftSnapshot["leagueFormat"]) {
-  const labels = slots.map((pick) => pickLabel(pick, format));
-  if (budget > 0) labels.push(`$${budget.toFixed(0)} auction budget`);
-  return labels;
+function updateBudget(budgets: BudgetAsset[], kind: BudgetAsset["kind"], season: number, amount: number) {
+  const remaining = budgets.filter((asset) => asset.kind !== kind || asset.season !== season);
+  return amount > 0 ? [...remaining, { kind, season, amount }] : remaining;
+}
+
+function assetLabels(
+  slots: DraftPickSlot[],
+  players: string[],
+  budgets: BudgetAsset[],
+  playersByID: Map<string, Player>,
+  format: DraftSnapshot["leagueFormat"],
+  condition: string,
+) {
+  return [
+    ...slots.map((pick) => {
+      const label = pickLabel(pick, format);
+      return pick.overallNumber === 0 && condition.trim() ? `${label} (condition: ${condition.trim()})` : label;
+    }),
+    ...players.map((id) => playersByID.get(id)?.name ?? `Player ${id}`),
+    ...budgets.map(budgetLabel),
+  ];
 }
 
 function storedTradeAssets(
   trade: DraftPickTrade,
   first: boolean,
   currentSlots: Map<string, DraftPickSlot>,
+  playersByID: Map<string, Player>,
   format: DraftSnapshot["leagueFormat"],
 ) {
   const current = first ? trade.teamOneReceives : trade.teamTwoReceives;
   const future = first ? trade.teamOneFuturePicks : trade.teamTwoFuturePicks;
-  const budget = first ? trade.teamOneAuctionBudget : trade.teamTwoAuctionBudget;
+  const players = first ? trade.teamOnePlayers : trade.teamTwoPlayers;
+  const budgets = first ? trade.teamOneBudgets : trade.teamTwoBudgets;
   const labels = current.map((number) => {
     const slot = currentSlots.get(`${trade.season}:${number}`);
     return slot ? pickLabel(slot, format) : `${trade.season} overall pick ${number}`;
   });
-  labels.push(...future.map((pick) => `${pick.season}, round ${pick.round}, ${pick.originalTeamName} original pick`));
-  if (budget > 0) labels.push(`$${budget.toFixed(0)} auction budget`);
+  labels.push(...future.map(futurePickLabel));
+  labels.push(...players.map((id) => playersByID.get(id)?.name ?? `Player ${id}`));
+  labels.push(...budgets.map(budgetLabel));
+  if (!budgets.length) {
+    if (first && trade.teamOneAuctionBudget > 0)
+      labels.push(`$${trade.teamOneAuctionBudget.toFixed(0)} ${trade.season} auction budget`);
+    if (!first && trade.teamTwoAuctionBudget > 0)
+      labels.push(`$${trade.teamTwoAuctionBudget.toFixed(0)} ${trade.season} auction budget`);
+  }
   return labels;
 }
 
-function tradeHelp(snapshot: DraftSnapshot) {
-  if (snapshot.leagueFormat === "redraft") {
-    return snapshot.draftType === "auction"
-      ? "This redraft league shows only auction budget enabled by its rules; future picks stay out of the way."
-      : `This redraft league shows only unused ${snapshot.season} picks. Future seasons stay out of the way.`;
-  }
-  return `This dynasty league tracks unused ${snapshot.season} assets and future rookie picks across seasons.`;
+function pendingConditions(trade: DraftPickTrade) {
+  return [...trade.teamOneFuturePicks, ...trade.teamTwoFuturePicks].filter(
+    (pick) => pick.conditionStatus === "pending",
+  );
 }
 
+function futurePickLabel(pick: FutureDraftPick) {
+  const base = `${pick.season}, round ${pick.round}, ${pick.originalTeamName} original pick`;
+  if (!pick.condition) return base;
+  const status =
+    pick.conditionStatus === "not-met"
+      ? "condition not met; transfer void"
+      : pick.conditionStatus === "met"
+        ? "condition met"
+        : "condition pending";
+  return `${base} (${status}: ${pick.condition})`;
+}
+
+function budgetLabel(asset: BudgetAsset) {
+  return `$${asset.amount.toFixed(0)} ${asset.season} ${asset.kind === "faab" ? "FAAB" : "auction budget"}`;
+}
 function teamName(snapshot: DraftSnapshot, teamNumber: number) {
   return snapshot.teams.find((team) => team.number === teamNumber)?.name ?? `Team ${teamNumber}`;
 }
-
 function pickKey(pick: DraftPickSlot) {
   return pick.overallNumber > 0
     ? `${pick.season}:overall:${pick.overallNumber}`
     : `${pick.season}:round:${pick.round}:team:${pick.originalTeamNumber}`;
 }
-
+function pickKeyFromFuture(pick: FutureDraftPick) {
+  return `${pick.season}:round:${pick.round}:team:${pick.originalTeamNumber}`;
+}
 function groupLabel(pick: DraftPickSlot, format: DraftSnapshot["leagueFormat"]) {
   return format === "dynasty" ? `${pick.season} round ${pick.round}` : `Round ${pick.round}`;
 }
-
 function pickLabel(pick: DraftPickSlot, format: DraftSnapshot["leagueFormat"]) {
   if (pick.overallNumber === 0) return `${pick.season}, round ${pick.round}, ${pick.originalTeamName} original pick`;
   const current = `Round ${pick.round}, pick ${pick.pickInRound}, overall ${pick.overallNumber}`;
   return format === "dynasty" ? `${pick.season}, ${current.toLowerCase()}` : current;
+}
+function tradeHelp(snapshot: DraftSnapshot) {
+  if (snapshot.leagueFormat === "redraft")
+    return snapshot.draftType === "auction"
+      ? "This redraft league shows only auction budget enabled by its rules; future assets stay out of the way."
+      : `This redraft league shows only unused ${snapshot.season} picks. Future seasons stay out of the way.`;
+  return `This dynasty league tracks players, unused ${snapshot.season} assets, future rookie picks, and enabled budgets across seasons.`;
 }

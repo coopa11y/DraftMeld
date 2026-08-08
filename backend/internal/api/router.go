@@ -10,6 +10,7 @@ import (
 
 	"github.com/coopa11y/DraftMeld/backend/internal/application"
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/draft"
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/league"
 	"github.com/coopa11y/DraftMeld/backend/internal/webui"
 )
 
@@ -44,15 +45,34 @@ type sleeperSyncRequest struct {
 }
 
 type pickTradeRequest struct {
-	LeagueID             string             `json:"leagueId"`
-	TeamOneNumber        int                `json:"teamOneNumber"`
-	TeamTwoNumber        int                `json:"teamTwoNumber"`
-	TeamOneReceives      []int              `json:"teamOneReceives"`
-	TeamTwoReceives      []int              `json:"teamTwoReceives"`
-	TeamOneFuturePicks   []draft.FuturePick `json:"teamOneFuturePicks"`
-	TeamTwoFuturePicks   []draft.FuturePick `json:"teamTwoFuturePicks"`
-	TeamOneAuctionBudget float64            `json:"teamOneAuctionBudget"`
-	TeamTwoAuctionBudget float64            `json:"teamTwoAuctionBudget"`
+	LeagueID             string              `json:"leagueId"`
+	TeamOneNumber        int                 `json:"teamOneNumber"`
+	TeamTwoNumber        int                 `json:"teamTwoNumber"`
+	TeamOneReceives      []int               `json:"teamOneReceives"`
+	TeamTwoReceives      []int               `json:"teamTwoReceives"`
+	TeamOneFuturePicks   []draft.FuturePick  `json:"teamOneFuturePicks"`
+	TeamTwoFuturePicks   []draft.FuturePick  `json:"teamTwoFuturePicks"`
+	TeamOneAuctionBudget float64             `json:"teamOneAuctionBudget"`
+	TeamTwoAuctionBudget float64             `json:"teamTwoAuctionBudget"`
+	TeamOnePlayers       []string            `json:"teamOnePlayers"`
+	TeamTwoPlayers       []string            `json:"teamTwoPlayers"`
+	TeamOneBudgets       []draft.BudgetAsset `json:"teamOneBudgets"`
+	TeamTwoBudgets       []draft.BudgetAsset `json:"teamTwoBudgets"`
+}
+
+type tradeConditionRequest struct {
+	LeagueID           string `json:"leagueId"`
+	Season             int    `json:"season"`
+	Round              int    `json:"round"`
+	OriginalTeamNumber int    `json:"originalTeamNumber"`
+	Status             string `json:"status"`
+}
+
+type seasonRolloverRequest struct {
+	LeagueID   string           `json:"leagueId"`
+	Season     int              `json:"season"`
+	DraftType  league.DraftType `json:"draftType"`
+	DraftOrder []int            `json:"draftOrder"`
 }
 
 func NewRouter(
@@ -123,8 +143,9 @@ func NewRouter(
 			writeError(response, http.StatusBadRequest, "The draft asset trade was not valid.")
 			return
 		}
-		snapshot, err := draftService.CreatePickTrade(request.Context(), input.LeagueID, input.TeamOneNumber, input.TeamTwoNumber,
+		snapshot, err := draftService.CreateDraftTrade(request.Context(), input.LeagueID, input.TeamOneNumber, input.TeamTwoNumber,
 			input.TeamOneReceives, input.TeamTwoReceives, input.TeamOneFuturePicks, input.TeamTwoFuturePicks,
+			input.TeamOnePlayers, input.TeamTwoPlayers, input.TeamOneBudgets, input.TeamTwoBudgets,
 			input.TeamOneAuctionBudget, input.TeamTwoAuctionBudget)
 		if errors.Is(err, application.ErrLeagueNotFound) {
 			writeError(response, http.StatusNotFound, "That league was not found.")
@@ -135,6 +156,33 @@ func NewRouter(
 			return
 		}
 		writeJSON(response, http.StatusCreated, snapshot)
+	})
+	mux.HandleFunc("PUT /api/v1/draft/trades/{tradeId}/condition", func(response http.ResponseWriter, request *http.Request) {
+		tradeID, parseErr := strconv.ParseInt(request.PathValue("tradeId"), 10, 64)
+		var input tradeConditionRequest
+		if parseErr != nil || tradeID < 1 || json.NewDecoder(request.Body).Decode(&input) != nil || input.LeagueID == "" {
+			writeError(response, http.StatusBadRequest, "A valid trade condition is required.")
+			return
+		}
+		snapshot, err := draftService.ResolveTradeCondition(request.Context(), input.LeagueID, tradeID, input.Season, input.Round, input.OriginalTeamNumber, input.Status)
+		if err != nil {
+			writeError(response, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(response, http.StatusOK, snapshot)
+	})
+	mux.HandleFunc("POST /api/v1/draft/seasons", func(response http.ResponseWriter, request *http.Request) {
+		var input seasonRolloverRequest
+		if json.NewDecoder(request.Body).Decode(&input) != nil || input.LeagueID == "" {
+			writeError(response, http.StatusBadRequest, "The next-season setup was not valid.")
+			return
+		}
+		snapshot, err := draftService.AdvanceSeason(request.Context(), input.LeagueID, input.Season, input.DraftType, input.DraftOrder)
+		if err != nil {
+			writeError(response, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(response, http.StatusOK, snapshot)
 	})
 	mux.HandleFunc("DELETE /api/v1/draft/trades/{tradeId}", func(response http.ResponseWriter, request *http.Request) {
 		leagueID := request.URL.Query().Get("leagueId")

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/draft"
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/league"
@@ -16,12 +17,30 @@ type DraftPickTradeRepository interface {
 	DeletePickTrade(context.Context, string, int64) (bool, error)
 }
 
+type DraftTradeUpdateRepository interface {
+	UpdatePickTrade(context.Context, draft.PickTrade) error
+}
+
 func (service *DraftService) CreatePickTrade(
 	ctx context.Context,
 	leagueID string,
 	teamOne, teamTwo int,
 	teamOneReceives, teamTwoReceives []int,
 	teamOneFuture, teamTwoFuture []draft.FuturePick,
+	teamOneBudget, teamTwoBudget float64,
+) (draft.Snapshot, error) {
+	return service.CreateDraftTrade(ctx, leagueID, teamOne, teamTwo, teamOneReceives, teamTwoReceives,
+		teamOneFuture, teamTwoFuture, nil, nil, nil, nil, teamOneBudget, teamTwoBudget)
+}
+
+func (service *DraftService) CreateDraftTrade(
+	ctx context.Context,
+	leagueID string,
+	teamOne, teamTwo int,
+	teamOneReceives, teamTwoReceives []int,
+	teamOneFuture, teamTwoFuture []draft.FuturePick,
+	teamOnePlayers, teamTwoPlayers []string,
+	teamOneBudgets, teamTwoBudgets []draft.BudgetAsset,
 	teamOneBudget, teamTwoBudget float64,
 ) (draft.Snapshot, error) {
 	service.mu.Lock()
@@ -37,7 +56,7 @@ func (service *DraftService) CreatePickTrade(
 	if teamOne < 1 || teamOne > configuration.Rules.TeamCount || teamTwo < 1 || teamTwo > configuration.Rules.TeamCount || teamOne == teamTwo {
 		return draft.Snapshot{}, errors.New("choose two different league teams")
 	}
-	if len(teamOneReceives)+len(teamTwoReceives)+len(teamOneFuture)+len(teamTwoFuture) == 0 && teamOneBudget == 0 && teamTwoBudget == 0 {
+	if len(teamOneReceives)+len(teamTwoReceives)+len(teamOneFuture)+len(teamTwoFuture)+len(teamOnePlayers)+len(teamTwoPlayers)+len(teamOneBudgets)+len(teamTwoBudgets) == 0 && teamOneBudget == 0 && teamTwoBudget == 0 {
 		return draft.Snapshot{}, errors.New("add at least one draft asset to the trade")
 	}
 	if configuration.Rules.DraftType == league.DraftTypeAuction && len(teamOneReceives)+len(teamTwoReceives) > 0 {
@@ -46,11 +65,22 @@ func (service *DraftService) CreatePickTrade(
 	if configuration.Rules.LeagueFormat == league.LeagueFormatRedraft && len(teamOneFuture)+len(teamTwoFuture) > 0 {
 		return draft.Snapshot{}, errors.New("redraft leagues cannot trade future-season picks")
 	}
+	if configuration.Rules.LeagueFormat != league.LeagueFormatDynasty && len(teamOnePlayers)+len(teamTwoPlayers) > 0 {
+		return draft.Snapshot{}, errors.New("player assets are only available in dynasty leagues")
+	}
 	if (teamOneBudget != 0 || teamTwoBudget != 0) && (configuration.Rules.DraftType != league.DraftTypeAuction || !configuration.Rules.AuctionBudgetTrades) {
 		return draft.Snapshot{}, errors.New("auction budget trading is not enabled for this league")
 	}
 	if teamOneBudget < 0 || teamTwoBudget < 0 {
 		return draft.Snapshot{}, errors.New("auction budget amounts cannot be negative")
+	}
+	teamOneFuture = normalizeConditionalPicks(teamOneFuture)
+	teamTwoFuture = normalizeConditionalPicks(teamTwoFuture)
+	if teamOneBudget > 0 {
+		teamOneBudgets = append(slices.Clone(teamOneBudgets), draft.BudgetAsset{Kind: "auction", Season: configuration.Rules.Season, Amount: teamOneBudget})
+	}
+	if teamTwoBudget > 0 {
+		teamTwoBudgets = append(slices.Clone(teamTwoBudgets), draft.BudgetAsset{Kind: "auction", Season: configuration.Rules.Season, Amount: teamTwoBudget})
 	}
 	events, err := service.listDraftEvents(ctx, leagueID, configuration.Rules.Season)
 	if err != nil {
@@ -70,14 +100,18 @@ func (service *DraftService) CreatePickTrade(
 		return draft.Snapshot{}, err
 	}
 	futureOwners := futurePickOwnership(configuration.Rules, trades)
+	lockedFuturePicks := pendingConditionalPicks(trades)
 	futureSeen := make(map[string]bool, len(teamOneFuture)+len(teamTwoFuture))
-	if err = validateFuturePicks(teamOneFuture, teamTwo, teamOne, futureOwners, futureSeen, configuration.Rules); err != nil {
+	if err = validateFuturePicks(teamOneFuture, teamTwo, teamOne, futureOwners, futureSeen, lockedFuturePicks, configuration.Rules); err != nil {
 		return draft.Snapshot{}, err
 	}
-	if err = validateFuturePicks(teamTwoFuture, teamOne, teamTwo, futureOwners, futureSeen, configuration.Rules); err != nil {
+	if err = validateFuturePicks(teamTwoFuture, teamOne, teamTwo, futureOwners, futureSeen, lockedFuturePicks, configuration.Rules); err != nil {
 		return draft.Snapshot{}, err
 	}
-	if err = validateAuctionBudgetTrade(events, trades, teamOne, teamTwo, teamOneBudget, teamTwoBudget, configuration.Rules); err != nil {
+	if err = service.validateTradePlayers(ctx, leagueID, trades, teamOne, teamTwo, teamOnePlayers, teamTwoPlayers, configuration.Rules); err != nil {
+		return draft.Snapshot{}, err
+	}
+	if err = validateTradeBudgets(events, trades, teamOne, teamTwo, teamOneBudgets, teamTwoBudgets, configuration.Rules); err != nil {
 		return draft.Snapshot{}, err
 	}
 	trade := draft.PickTrade{
@@ -85,6 +119,8 @@ func (service *DraftService) CreatePickTrade(
 		TeamOneReceives: slices.Clone(teamOneReceives), TeamTwoReceives: slices.Clone(teamTwoReceives),
 		TeamOneFuturePicks: slices.Clone(teamOneFuture), TeamTwoFuturePicks: slices.Clone(teamTwoFuture),
 		TeamOneAuctionBudget: teamOneBudget, TeamTwoAuctionBudget: teamTwoBudget, Season: configuration.Rules.Season,
+		TeamOnePlayers: slices.Clone(teamOnePlayers), TeamTwoPlayers: slices.Clone(teamTwoPlayers),
+		TeamOneBudgets: slices.Clone(teamOneBudgets), TeamTwoBudgets: slices.Clone(teamTwoBudgets),
 	}
 	if _, err = repository.SavePickTrade(ctx, trade); err != nil {
 		return draft.Snapshot{}, err
@@ -143,11 +179,18 @@ func (service *DraftService) DeletePickTrade(ctx context.Context, leagueID strin
 		if futureTradesOverlap(*selected, trade) {
 			return draft.Snapshot{}, errors.New("trade cannot be reversed because one of its future picks was traded again later")
 		}
-		if (selected.TeamOneAuctionBudget != 0 || selected.TeamTwoAuctionBudget != 0) &&
-			(trade.TeamOneAuctionBudget != 0 || trade.TeamTwoAuctionBudget != 0) &&
-			(trade.TeamOneNumber == selected.TeamOneNumber || trade.TeamOneNumber == selected.TeamTwoNumber || trade.TeamTwoNumber == selected.TeamOneNumber || trade.TeamTwoNumber == selected.TeamTwoNumber) {
-			return draft.Snapshot{}, errors.New("trade cannot be reversed because its auction budget was traded again later")
+		if playerTradesOverlap(*selected, trade) {
+			return draft.Snapshot{}, errors.New("trade cannot be reversed because one of its players was traded again later")
 		}
+	}
+	remainingTrades := make([]draft.PickTrade, 0, len(trades)-1)
+	for _, trade := range trades {
+		if trade.ID != selected.ID {
+			remainingTrades = append(remainingTrades, trade)
+		}
+	}
+	if budgetReversalWouldOverdraw(configuration.Rules, events, remainingTrades) {
+		return draft.Snapshot{}, errors.New("trade cannot be reversed because a later budget transfer depends on it")
 	}
 	deleted, err := repository.DeletePickTrade(ctx, leagueID, tradeID)
 	if err != nil {
@@ -157,6 +200,101 @@ func (service *DraftService) DeletePickTrade(ctx context.Context, leagueID strin
 		return draft.Snapshot{}, errors.New("that draft-pick trade was not found")
 	}
 	return service.Snapshot(ctx, leagueID)
+}
+
+func budgetReversalWouldOverdraw(rules league.Rules, events []draft.Event, trades []draft.PickTrade) bool {
+	for _, remaining := range tradeBudgetBalances(rules, events, trades) {
+		if remaining < 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func playerTradesOverlap(first, second draft.PickTrade) bool {
+	players := make(map[string]bool)
+	for _, playerID := range append(slices.Clone(first.TeamOnePlayers), first.TeamTwoPlayers...) {
+		players[playerID] = true
+	}
+	for _, playerID := range append(slices.Clone(second.TeamOnePlayers), second.TeamTwoPlayers...) {
+		if players[playerID] {
+			return true
+		}
+	}
+	return false
+}
+
+func (service *DraftService) ResolveTradeCondition(ctx context.Context, leagueID string, tradeID int64, season, round, originalTeam int, status string) (draft.Snapshot, error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	configuration, err := service.configuration(ctx, leagueID)
+	if err != nil {
+		return draft.Snapshot{}, err
+	}
+	if configuration.Rules.LeagueFormat != league.LeagueFormatDynasty || (status != "met" && status != "not-met") {
+		return draft.Snapshot{}, errors.New("choose whether the dynasty pick condition was met or not met")
+	}
+	repository, ok := service.repository.(DraftPickTradeRepository)
+	if !ok {
+		return draft.Snapshot{}, errors.New("draft trade storage is unavailable")
+	}
+	updater, ok := service.repository.(DraftTradeUpdateRepository)
+	if !ok {
+		return draft.Snapshot{}, errors.New("conditional pick updates are unavailable")
+	}
+	trades, err := repository.ListPickTrades(ctx, leagueID)
+	if err != nil {
+		return draft.Snapshot{}, err
+	}
+	for index := range trades {
+		if trades[index].ID != tradeID {
+			continue
+		}
+		updated := false
+		resolve := func(picks []draft.FuturePick) {
+			for pickIndex := range picks {
+				pick := &picks[pickIndex]
+				if pick.Season == season && pick.Round == round && pick.OriginalTeamNumber == originalTeam && pick.Condition != "" && pick.ConditionStatus == "pending" {
+					pick.ConditionStatus = status
+					updated = true
+				}
+			}
+		}
+		resolve(trades[index].TeamOneFuturePicks)
+		resolve(trades[index].TeamTwoFuturePicks)
+		if !updated {
+			return draft.Snapshot{}, errors.New("that pending pick condition was not found")
+		}
+		if season < configuration.Rules.Season {
+			return draft.Snapshot{}, errors.New("conditions from a completed season cannot be changed")
+		}
+		if season == configuration.Rules.Season {
+			events, listErr := service.listDraftEvents(ctx, leagueID, season)
+			if listErr != nil {
+				return draft.Snapshot{}, listErr
+			}
+			if conditionalPickHasBeenUsed(configuration.Rules, season, round, originalTeam, len(replay(events).activeEvents)) {
+				return draft.Snapshot{}, errors.New("that condition cannot be changed after its draft pick was used")
+			}
+		}
+		if err = updater.UpdatePickTrade(ctx, trades[index]); err != nil {
+			return draft.Snapshot{}, err
+		}
+		return service.Snapshot(ctx, leagueID)
+	}
+	return draft.Snapshot{}, errors.New("that draft trade was not found")
+}
+
+func conditionalPickHasBeenUsed(rules league.Rules, season, round, originalTeam, used int) bool {
+	if season != rules.Season || rules.DraftType == league.DraftTypeAuction {
+		return false
+	}
+	for overall := 1; overall <= totalDraftPicks(rules); overall++ {
+		if (overall-1)/rules.TeamCount+1 == round && pickOwner(overall, rules) == originalTeam {
+			return overall <= used
+		}
+	}
+	return false
 }
 
 func futureTradesOverlap(first, second draft.PickTrade) bool {
@@ -189,12 +327,18 @@ func validateTradePicks(picks []int, expectedOwner, newOwner, used int, owners m
 	return nil
 }
 
-func validateFuturePicks(picks []draft.FuturePick, expectedOwner, newOwner int, owners map[string]int, seen map[string]bool, rules league.Rules) error {
+func validateFuturePicks(picks []draft.FuturePick, expectedOwner, newOwner int, owners map[string]int, seen, locked map[string]bool, rules league.Rules) error {
 	for _, pick := range picks {
 		if pick.Season <= rules.Season || pick.Season > rules.Season+rules.FuturePickSeasons || pick.Round < 1 || pick.Round > rules.RookieDraftRounds || pick.OriginalTeamNumber < 1 || pick.OriginalTeamNumber > rules.TeamCount {
 			return fmt.Errorf("%d round %d is not a tradeable future pick in this league", pick.Season, pick.Round)
 		}
 		key := futurePickKey(pick.Season, pick.Round, pick.OriginalTeamNumber)
+		if locked[key] {
+			return fmt.Errorf("%d round %d pick from %s is locked by an unresolved condition", pick.Season, pick.Round, teamName(rules, pick.OriginalTeamNumber))
+		}
+		if len(strings.TrimSpace(pick.Condition)) > 300 {
+			return errors.New("conditional pick descriptions cannot exceed 300 characters")
+		}
 		if seen[key] {
 			return fmt.Errorf("%d round %d pick from %s appears more than once", pick.Season, pick.Round, teamName(rules, pick.OriginalTeamNumber))
 		}
@@ -205,6 +349,63 @@ func validateFuturePicks(picks []draft.FuturePick, expectedOwner, newOwner int, 
 		owners[key] = newOwner
 	}
 	return nil
+}
+
+func pendingConditionalPicks(trades []draft.PickTrade) map[string]bool {
+	locked := make(map[string]bool)
+	for _, trade := range trades {
+		for _, pick := range append(slices.Clone(trade.TeamOneFuturePicks), trade.TeamTwoFuturePicks...) {
+			if pick.Condition != "" && pick.ConditionStatus == "pending" {
+				locked[futurePickKey(pick.Season, pick.Round, pick.OriginalTeamNumber)] = true
+			}
+		}
+	}
+	return locked
+}
+
+func normalizeConditionalPicks(picks []draft.FuturePick) []draft.FuturePick {
+	result := slices.Clone(picks)
+	for index := range result {
+		if result[index].Condition != "" {
+			result[index].ConditionStatus = "pending"
+		} else {
+			result[index].ConditionStatus = ""
+		}
+	}
+	return result
+}
+
+func (service *DraftService) validateTradePlayers(ctx context.Context, leagueID string, trades []draft.PickTrade, teamOne, teamTwo int, teamOneReceives, teamTwoReceives []string, rules league.Rules) error {
+	if len(teamOneReceives)+len(teamTwoReceives) == 0 {
+		return nil
+	}
+	events, err := service.repository.List(ctx, leagueID)
+	if err != nil {
+		return err
+	}
+	events, err = resolveDraftEventAliases(ctx, service.repository, events)
+	if err != nil {
+		return err
+	}
+	owners := dynastyPlayerOwnership(events, trades)
+	seen := make(map[string]bool, len(teamOneReceives)+len(teamTwoReceives))
+	validate := func(players []string, expected, receiver int) error {
+		for _, playerID := range players {
+			if playerID == "" || seen[playerID] {
+				return errors.New("each player can appear only once in a trade")
+			}
+			seen[playerID] = true
+			if owners[playerID] != expected {
+				return fmt.Errorf("player %s is currently owned by %s", playerID, teamName(rules, owners[playerID]))
+			}
+			owners[playerID] = receiver
+		}
+		return nil
+	}
+	if err = validate(teamOneReceives, teamTwo, teamOne); err != nil {
+		return err
+	}
+	return validate(teamTwoReceives, teamOne, teamTwo)
 }
 
 func validateAuctionBudgetTrade(events []draft.Event, trades []draft.PickTrade, teamOne, teamTwo int, teamOneReceives, teamTwoReceives float64, rules league.Rules) error {
@@ -221,6 +422,121 @@ func validateAuctionBudgetTrade(events []draft.Event, trades []draft.PickTrade, 
 		return fmt.Errorf("%s does not have enough auction budget for this trade", teamName(rules, teamTwo))
 	}
 	return nil
+}
+
+func validateTradeBudgets(events []draft.Event, trades []draft.PickTrade, teamOne, teamTwo int, teamOneReceives, teamTwoReceives []draft.BudgetAsset, rules league.Rules) error {
+	if len(teamOneReceives)+len(teamTwoReceives) == 0 {
+		return nil
+	}
+	balances := tradeBudgetBalances(rules, events, trades)
+	seen := make(map[string]bool, len(teamOneReceives)+len(teamTwoReceives))
+	apply := func(assets []draft.BudgetAsset, source, receiver int) error {
+		for _, asset := range assets {
+			if asset.Amount <= 0 {
+				return errors.New("trade budget amounts must be positive")
+			}
+			if asset.Season != rules.Season && (rules.LeagueFormat != league.LeagueFormatDynasty || asset.Season <= rules.Season || asset.Season > rules.Season+rules.FuturePickSeasons) {
+				return fmt.Errorf("%d budget is outside this league's tradeable seasons", asset.Season)
+			}
+			switch asset.Kind {
+			case "auction":
+				if rules.DraftType != league.DraftTypeAuction || !rules.AuctionBudgetTrades {
+					return errors.New("auction budget trading is not enabled for this league")
+				}
+			case "faab":
+				if !rules.FAABTrades || rules.FAABBudget <= 0 {
+					return errors.New("FAAB trading is not enabled for this league")
+				}
+			default:
+				return fmt.Errorf("unsupported trade budget kind: %q", asset.Kind)
+			}
+			key := budgetKey(asset.Kind, asset.Season, source)
+			requestKey := fmt.Sprintf("%s:%d:%d", asset.Kind, asset.Season, receiver)
+			if seen[requestKey] {
+				return fmt.Errorf("combine duplicate %s budget entries for %d", asset.Kind, asset.Season)
+			}
+			seen[requestKey] = true
+			if balances[key] < asset.Amount {
+				return fmt.Errorf("%s does not have enough %d %s budget", teamName(rules, source), asset.Season, strings.ToUpper(asset.Kind))
+			}
+			balances[key] -= asset.Amount
+			balances[budgetKey(asset.Kind, asset.Season, receiver)] += asset.Amount
+		}
+		return nil
+	}
+	if err := apply(teamOneReceives, teamTwo, teamOne); err != nil {
+		return err
+	}
+	return apply(teamTwoReceives, teamOne, teamTwo)
+}
+
+func budgetKey(kind string, season, team int) string {
+	return fmt.Sprintf("%s:%d:%d", kind, season, team)
+}
+
+func tradeBudgetBalances(rules league.Rules, events []draft.Event, trades []draft.PickTrade) map[string]float64 {
+	balances := make(map[string]float64)
+	lastSeason := rules.Season
+	if rules.LeagueFormat == league.LeagueFormatDynasty {
+		lastSeason += rules.FuturePickSeasons
+	}
+	for season := rules.Season; season <= lastSeason; season++ {
+		for team := 1; team <= rules.TeamCount; team++ {
+			if rules.DraftType == league.DraftTypeAuction {
+				balances[budgetKey("auction", season, team)] = rules.AuctionBudget
+			}
+			if rules.FAABBudget > 0 {
+				balances[budgetKey("faab", season, team)] = rules.FAABBudget
+			}
+		}
+	}
+	balances[budgetKey("auction", rules.Season, userTeamNumber(rules))] -= rules.MyKeeperSpend
+	for _, event := range replay(events).activeEvents {
+		balances[budgetKey("auction", rules.Season, event.TeamNumber)] -= event.Cost
+	}
+	for _, trade := range trades {
+		oneBudgets, twoBudgets := tradeBudgetAssets(trade)
+		for _, asset := range oneBudgets {
+			balances[budgetKey(asset.Kind, asset.Season, trade.TeamTwoNumber)] -= asset.Amount
+			balances[budgetKey(asset.Kind, asset.Season, trade.TeamOneNumber)] += asset.Amount
+		}
+		for _, asset := range twoBudgets {
+			balances[budgetKey(asset.Kind, asset.Season, trade.TeamOneNumber)] -= asset.Amount
+			balances[budgetKey(asset.Kind, asset.Season, trade.TeamTwoNumber)] += asset.Amount
+		}
+	}
+	return balances
+}
+
+func draftBudgetBalances(rules league.Rules, events []draft.Event, trades []draft.PickTrade) []draft.BudgetBalance {
+	balances := tradeBudgetBalances(rules, events, trades)
+	result := make([]draft.BudgetBalance, 0, len(balances))
+	lastSeason := rules.Season
+	if rules.LeagueFormat == league.LeagueFormatDynasty {
+		lastSeason += rules.FuturePickSeasons
+	}
+	for season := rules.Season; season <= lastSeason; season++ {
+		for team := 1; team <= rules.TeamCount; team++ {
+			if rules.DraftType == league.DraftTypeAuction && rules.AuctionBudgetTrades {
+				result = append(result, draft.BudgetBalance{TeamNumber: team, Season: season, Kind: "auction", Remaining: balances[budgetKey("auction", season, team)]})
+			}
+			if rules.FAABTrades && rules.FAABBudget > 0 {
+				result = append(result, draft.BudgetBalance{TeamNumber: team, Season: season, Kind: "faab", Remaining: balances[budgetKey("faab", season, team)]})
+			}
+		}
+	}
+	return result
+}
+
+func tradeBudgetAssets(trade draft.PickTrade) ([]draft.BudgetAsset, []draft.BudgetAsset) {
+	one, two := slices.Clone(trade.TeamOneBudgets), slices.Clone(trade.TeamTwoBudgets)
+	if len(one) == 0 && trade.TeamOneAuctionBudget > 0 {
+		one = append(one, draft.BudgetAsset{Kind: "auction", Season: trade.Season, Amount: trade.TeamOneAuctionBudget})
+	}
+	if len(two) == 0 && trade.TeamTwoAuctionBudget > 0 {
+		two = append(two, draft.BudgetAsset{Kind: "auction", Season: trade.Season, Amount: trade.TeamTwoAuctionBudget})
+	}
+	return one, two
 }
 
 func (service *DraftService) pickTrades(ctx context.Context, leagueID string) ([]draft.PickTrade, error) {
@@ -310,7 +626,7 @@ func ownerForPick(pick int, rules league.Rules, trades []draft.PickTrade) int {
 
 func nextUserPickWithTrades(current int, rules league.Rules, trades []draft.PickTrade) int {
 	for pick := current + 1; pick <= totalDraftPicks(rules); pick++ {
-		if ownerForPick(pick, rules, trades) == rules.DraftPosition {
+		if ownerForPick(pick, rules, trades) == userTeamNumber(rules) {
 			return pick
 		}
 	}
@@ -318,7 +634,7 @@ func nextUserPickWithTrades(current int, rules league.Rules, trades []draft.Pick
 }
 
 func applyFuturePickToCurrentOwners(owners map[int]int, pick draft.FuturePick, owner int, rules league.Rules) {
-	if pick.Season != rules.Season || rules.DraftType == league.DraftTypeAuction {
+	if pick.Season != rules.Season || rules.DraftType == league.DraftTypeAuction || pick.ConditionStatus == "not-met" {
 		return
 	}
 	for overall := 1; overall <= totalDraftPicks(rules); overall++ {
@@ -344,10 +660,32 @@ func futurePickOwnership(rules league.Rules, trades []draft.PickTrade) map[strin
 	}
 	for _, trade := range trades {
 		for _, pick := range trade.TeamOneFuturePicks {
-			owners[futurePickKey(pick.Season, pick.Round, pick.OriginalTeamNumber)] = trade.TeamOneNumber
+			if pick.ConditionStatus != "not-met" {
+				owners[futurePickKey(pick.Season, pick.Round, pick.OriginalTeamNumber)] = trade.TeamOneNumber
+			}
 		}
 		for _, pick := range trade.TeamTwoFuturePicks {
-			owners[futurePickKey(pick.Season, pick.Round, pick.OriginalTeamNumber)] = trade.TeamTwoNumber
+			if pick.ConditionStatus != "not-met" {
+				owners[futurePickKey(pick.Season, pick.Round, pick.OriginalTeamNumber)] = trade.TeamTwoNumber
+			}
+		}
+	}
+	return owners
+}
+
+func dynastyPlayerOwnership(events []draft.Event, trades []draft.PickTrade) map[string]int {
+	owners := make(map[string]int)
+	for _, event := range replay(events).activeEvents {
+		if event.TeamNumber > 0 {
+			owners[event.PlayerID] = event.TeamNumber
+		}
+	}
+	for _, trade := range trades {
+		for _, playerID := range trade.TeamOnePlayers {
+			owners[playerID] = trade.TeamOneNumber
+		}
+		for _, playerID := range trade.TeamTwoPlayers {
+			owners[playerID] = trade.TeamTwoNumber
 		}
 	}
 	return owners
@@ -356,11 +694,19 @@ func futurePickOwnership(rules league.Rules, trades []draft.PickTrade) map[strin
 func auctionBudgetAdjustments(trades []draft.PickTrade, season int) map[int]float64 {
 	adjustments := make(map[int]float64)
 	for _, trade := range trades {
-		if trade.Season != 0 && trade.Season != season {
-			continue
+		one, two := tradeBudgetAssets(trade)
+		for _, asset := range one {
+			if asset.Kind == "auction" && asset.Season == season {
+				adjustments[trade.TeamOneNumber] += asset.Amount
+				adjustments[trade.TeamTwoNumber] -= asset.Amount
+			}
 		}
-		adjustments[trade.TeamOneNumber] += trade.TeamOneAuctionBudget - trade.TeamTwoAuctionBudget
-		adjustments[trade.TeamTwoNumber] += trade.TeamTwoAuctionBudget - trade.TeamOneAuctionBudget
+		for _, asset := range two {
+			if asset.Kind == "auction" && asset.Season == season {
+				adjustments[trade.TeamTwoNumber] += asset.Amount
+				adjustments[trade.TeamOneNumber] -= asset.Amount
+			}
+		}
 	}
 	return adjustments
 }
@@ -371,7 +717,7 @@ func auctionTeamBudgets(rules league.Rules, events []draft.Event, trades []draft
 	for team := 1; team <= rules.TeamCount; team++ {
 		budgets[team] = rules.AuctionBudget + adjustments[team]
 	}
-	budgets[rules.DraftPosition] -= rules.MyKeeperSpend
+	budgets[userTeamNumber(rules)] -= rules.MyKeeperSpend
 	for _, event := range replay(events).activeEvents {
 		budgets[event.TeamNumber] -= event.Cost
 	}

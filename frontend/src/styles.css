@@ -1393,6 +1393,51 @@ tbody tr:focus-within {
   color: var(--color-text-muted);
   font-weight: 400;
 }
+.trade-asset-details,
+.draft-order-editor {
+  margin-block: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.55rem;
+}
+.trade-asset-details > summary,
+.draft-order-editor > summary {
+  cursor: pointer;
+  font-weight: 750;
+}
+.trade-player-list,
+.trade-budget-grid {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+.trade-player-list label {
+  display: flex;
+  gap: 0.6rem;
+  align-items: start;
+}
+.trade-condition-field {
+  display: grid;
+  gap: 0.35rem;
+  margin-block: 0.75rem;
+}
+.trade-condition-field textarea {
+  min-height: 5rem;
+  resize: vertical;
+}
+.conditional-pick-actions,
+.season-rollover-form {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+  padding: 0.85rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.55rem;
+}
+.season-warning {
+  padding: 0.75rem;
+  border-left: 0.25rem solid var(--color-danger-border);
+}
 .pick-trade-form legend,
 .trade-pick-selector > legend {
   padding: 0 0.35rem;
