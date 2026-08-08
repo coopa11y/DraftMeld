@@ -9,8 +9,10 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/draft"
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/player"
 )
 
 func (service *DraftService) MockToNextTurn(ctx context.Context, leagueID string) (draft.Snapshot, error) {
@@ -21,6 +23,10 @@ func (service *DraftService) MockToNextTurn(ctx context.Context, leagueID string
 		return draft.Snapshot{}, err
 	}
 	events, err := service.repository.List(ctx, leagueID)
+	if err != nil {
+		return draft.Snapshot{}, err
+	}
+	events, err = resolveDraftEventAliases(ctx, service.repository, events)
 	if err != nil {
 		return draft.Snapshot{}, err
 	}
@@ -76,8 +82,9 @@ func mockSelection(players []draft.Player, pick int) int {
 }
 
 type sleeperPick struct {
-	PickNumber int `json:"pick_no"`
-	RosterID   int `json:"roster_id"`
+	PickNumber int    `json:"pick_no"`
+	RosterID   int    `json:"roster_id"`
+	PlayerID   string `json:"player_id"`
 	Metadata   struct {
 		FirstName string `json:"first_name"`
 		LastName  string `json:"last_name"`
@@ -137,6 +144,10 @@ func (service *DraftService) SyncSleeper(ctx context.Context, leagueID, sleeperD
 	if err != nil {
 		return SleeperSyncResult{}, err
 	}
+	events, err = resolveDraftEventAliases(ctx, service.repository, events)
+	if err != nil {
+		return SleeperSyncResult{}, err
+	}
 	state := replay(events)
 	previous := make(map[string]draft.Action, len(state.playerActions))
 	for playerID, action := range state.playerActions {
@@ -148,7 +159,28 @@ func (service *DraftService) SyncSleeper(ctx context.Context, leagueID, sleeperD
 	sort.Slice(picks, func(left, right int) bool { return picks[left].PickNumber < picks[right].PickNumber })
 	for _, pick := range picks {
 		name := strings.TrimSpace(pick.Metadata.FirstName + " " + pick.Metadata.LastName)
-		playerID := playerIDByIdentity[canonicalRankingKey(name, pick.Metadata.Position, pick.Metadata.Team)]
+		identityKey := canonicalRankingKey(name, pick.Metadata.Position, pick.Metadata.Team)
+		playerID := ""
+		if directory, ok := service.repository.(PlayerDirectoryRepository); ok && pick.PlayerID != "" {
+			proposedID, idErr := newCanonicalPlayerID()
+			if idErr != nil {
+				return SleeperSyncResult{}, idErr
+			}
+			resolved, resolveErr := directory.ResolvePlayer(ctx, player.Candidate{
+				IdentityKey: identityKey, LegacyKey: identityKey, Name: name,
+				Position: normalizePosition(pick.Metadata.Position), Team: pick.Metadata.Team,
+				Provider: "sleeper", ProviderID: pick.PlayerID, ObservedAt: time.Now().UTC(),
+			}, proposedID)
+			if resolveErr != nil {
+				return SleeperSyncResult{}, resolveErr
+			}
+			if _, known := playerByID[resolved.ID]; known {
+				playerID = resolved.ID
+			}
+		}
+		if playerID == "" {
+			playerID = playerIDByIdentity[identityKey]
+		}
 		if _, known := playerByID[playerID]; !known {
 			result.Unmatched++
 			continue

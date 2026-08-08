@@ -14,6 +14,14 @@ import (
 const maxRankingCSVBytes = 10 << 20
 
 func registerRankingRoutes(mux *http.ServeMux, service *application.RankingService, leagues *application.LeagueService) {
+	mux.HandleFunc("GET /api/v1/player-directory/status", func(response http.ResponseWriter, request *http.Request) {
+		status, err := service.PlayerDirectoryStatus(request.Context())
+		if err != nil {
+			writeError(response, http.StatusInternalServerError, "Unable to load the player directory.")
+			return
+		}
+		writeJSON(response, http.StatusOK, status)
+	})
 	mux.HandleFunc("GET /api/v1/ranking-identities", func(response http.ResponseWriter, request *http.Request) {
 		issues, err := service.IdentityIssues(request.Context())
 		if err != nil {

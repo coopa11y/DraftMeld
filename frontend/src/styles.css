@@ -1075,6 +1075,27 @@ tbody tr:focus-within {
   border: 1px solid var(--color-border-subtle);
   border-radius: 0.6rem;
 }
+.directory-status {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0 1.4rem 1.4rem;
+}
+.directory-status div {
+  padding: 0.85rem 1rem;
+  background: var(--color-surface-deep);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.65rem;
+}
+.directory-status dt {
+  color: var(--color-text-muted);
+}
+.directory-status dd {
+  margin: 0.2rem 0 0;
+  font-size: 1.25rem;
+  font-weight: 850;
+}
 .compact-data-list span,
 .identity-list p {
   color: var(--color-text-muted);
@@ -1246,6 +1267,9 @@ tbody tr:focus-within {
   .identity-list li {
     align-items: stretch;
     flex-direction: column;
+  }
+  .directory-status {
+    grid-template-columns: minmax(0, 1fr);
   }
   .coverage-list {
     grid-template-columns: minmax(0, 1fr);

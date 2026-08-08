@@ -15,12 +15,13 @@ import (
 )
 
 var rankingCSVHeaderAliases = map[string][]string{
-	"name":     {"name", "player", "playername", "playerfullname"},
-	"rank":     {"rank", "overallrank", "rk"},
-	"position": {"position", "pos"},
-	"team":     {"team", "nflteam", "tm"},
-	"adp":      {"adp", "averagedraftposition"},
-	"tier":     {"tier"},
+	"name":       {"name", "player", "playername", "playerfullname"},
+	"rank":       {"rank", "overallrank", "rk"},
+	"position":   {"position", "pos"},
+	"team":       {"team", "nflteam", "tm"},
+	"adp":        {"adp", "averagedraftposition"},
+	"tier":       {"tier"},
+	"providerId": {"providerid", "playerid", "id"},
 }
 
 func (service *RankingService) ImportCSV(ctx context.Context, name string, input io.Reader, mapping map[string]string) (ranking.SourceStatus, error) {
@@ -89,6 +90,9 @@ func (service *RankingService) ImportCSV(ctx context.Context, name string, input
 				return ranking.SourceStatus{}, fmt.Errorf("ranking row %d has invalid tier", rowIndex+2)
 			}
 		}
+		if index, exists := columns["providerId"]; exists {
+			record.ProviderID = value(row, index)
+		}
 		if current, exists := recordsByPlayer[record.PlayerKey]; !exists || record.Rank < current.Rank {
 			recordsByPlayer[record.PlayerKey] = record
 		}
@@ -106,12 +110,16 @@ func (service *RankingService) ImportCSV(ctx context.Context, name string, input
 		}
 		return records[left].Rank < records[right].Rank
 	})
+	refreshed := time.Now().UTC()
+	records, err = resolveRankingPlayers(ctx, service.repository, records, refreshed)
+	if err != nil {
+		return ranking.SourceStatus{}, err
+	}
 	definition := ranking.SourceDefinition{
 		ID: sourceID, Name: name, Description: "Private ranking CSV uploaded by the user.",
 		Methodology: "User-supplied ordinal player ranking", License: "Private user data",
 		DefaultWeight: 1, ImportMode: "csv-upload", Role: "ranking", IsCustom: true,
 	}
-	refreshed := time.Now().UTC()
 	if err = service.repository.ReplaceRankings(ctx, definition, records, "Private CSV import", refreshed); err != nil {
 		return ranking.SourceStatus{}, err
 	}
@@ -120,7 +128,7 @@ func (service *RankingService) ImportCSV(ctx context.Context, name string, input
 
 func rankingCSVColumnIndexes(headers map[string]int, mapping map[string]string) map[string]int {
 	indexes := make(map[string]int)
-	for _, column := range []string{"name", "rank", "position", "team", "adp", "tier"} {
+	for _, column := range []string{"name", "rank", "position", "team", "adp", "tier", "providerId"} {
 		if sourceHeader, explicitlyMapped := mapping[column]; explicitlyMapped {
 			if index, exists := headers[normalizeCSVHeader(sourceHeader)]; exists && sourceHeader != "" {
 				indexes[column] = index

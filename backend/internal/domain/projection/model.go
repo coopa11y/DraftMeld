@@ -3,14 +3,15 @@ package projection
 import "time"
 
 type Record struct {
-	SourceID  string             `json:"sourceId"`
-	PlayerKey string             `json:"playerKey"`
-	Name      string             `json:"name"`
-	Position  string             `json:"position"`
-	Team      string             `json:"team"`
-	ByeWeek   int                `json:"byeWeek"`
-	ADP       float64            `json:"adp"`
-	Stats     map[string]float64 `json:"stats"`
+	SourceID   string             `json:"sourceId"`
+	PlayerKey  string             `json:"playerKey"`
+	Name       string             `json:"name"`
+	Position   string             `json:"position"`
+	Team       string             `json:"team"`
+	ByeWeek    int                `json:"byeWeek"`
+	ADP        float64            `json:"adp"`
+	Stats      map[string]float64 `json:"stats"`
+	ProviderID string             `json:"-"`
 }
 
 type SourceStatus struct {

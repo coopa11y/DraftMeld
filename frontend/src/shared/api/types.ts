@@ -17,5 +17,6 @@ export type RankingSourcePreference = components["schemas"]["RankingSourcePrefer
 export type WatchlistPlayer = components["schemas"]["WatchlistPlayer"];
 export type ProjectionSource = components["schemas"]["ProjectionSource"];
 export type IdentityIssue = components["schemas"]["IdentityIssue"];
+export type PlayerDirectoryStatus = components["schemas"]["PlayerDirectoryStatus"];
 export type SleeperSyncResult = components["schemas"]["SleeperSyncResult"];
 export type DraftAction = DraftActionRequest["action"];

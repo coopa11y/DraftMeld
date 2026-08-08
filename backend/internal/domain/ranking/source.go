@@ -17,14 +17,15 @@ type SourceDefinition struct {
 }
 
 type Record struct {
-	SourceID  string
-	PlayerKey string
-	Name      string
-	Position  string
-	Team      string
-	Rank      int
-	ADP       float64
-	Tier      int
+	SourceID   string
+	PlayerKey  string
+	Name       string
+	Position   string
+	Team       string
+	Rank       int
+	ADP        float64
+	Tier       int
+	ProviderID string
 }
 
 type SourceStatus struct {

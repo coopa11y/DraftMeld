@@ -23,11 +23,12 @@ var projectionStatColumns = []string{
 var nonCSVHeaderCharacter = regexp.MustCompile(`[^a-z0-9]+`)
 
 var projectionHeaderAliases = map[string][]string{
-	"name":     {"name", "player", "playername", "playerfullname"},
-	"position": {"position", "pos"},
-	"team":     {"team", "nflteam", "tm"},
-	"adp":      {"adp", "averagedraftposition"},
-	"byeWeek":  {"byeweek", "bye"},
+	"name":       {"name", "player", "playername", "playerfullname"},
+	"position":   {"position", "pos"},
+	"team":       {"team", "nflteam", "tm"},
+	"adp":        {"adp", "averagedraftposition"},
+	"byeWeek":    {"byeweek", "bye"},
+	"providerId": {"providerid", "playerid", "id"},
 }
 
 type ProjectionRepository interface {
@@ -77,6 +78,9 @@ func (service *ProjectionService) ImportCSV(ctx context.Context, name string, in
 		}
 		seen[key] = true
 		record := projection.Record{SourceID: sourceID, PlayerKey: key, Name: nameValue, Position: position, Team: team, Stats: make(map[string]float64)}
+		if index, exists := columnIndexes["providerId"]; exists {
+			record.ProviderID = value(row, index)
+		}
 		if index, exists := columnIndexes["byeWeek"]; exists {
 			record.ByeWeek, _ = strconv.Atoi(value(row, index))
 		}
@@ -97,7 +101,12 @@ func (service *ProjectionService) ImportCSV(ctx context.Context, name string, in
 	if len(records) == 0 {
 		return projection.SourceStatus{}, errors.New("projection CSV contained no usable players")
 	}
-	status := projection.SourceStatus{ID: sourceID, Name: name, RecordCount: len(records), ImportedAt: time.Now().UTC()}
+	importedAt := time.Now().UTC()
+	records, err = resolveProjectionPlayers(ctx, service.repository, records, importedAt)
+	if err != nil {
+		return projection.SourceStatus{}, err
+	}
+	status := projection.SourceStatus{ID: sourceID, Name: name, RecordCount: len(records), ImportedAt: importedAt}
 	if err = service.repository.ReplaceProjections(ctx, status, records); err != nil {
 		return projection.SourceStatus{}, err
 	}
@@ -112,7 +121,7 @@ func firstMapping(mappings []map[string]string) map[string]string {
 }
 
 func projectionColumnIndexes(headers map[string]int, mapping map[string]string) map[string]int {
-	columns := append([]string{"name", "position", "team", "adp", "byeWeek"}, projectionStatColumns...)
+	columns := append([]string{"name", "position", "team", "adp", "byeWeek", "providerId"}, projectionStatColumns...)
 	indexes := make(map[string]int)
 	for _, canonical := range columns {
 		if sourceHeader, explicitlyMapped := mapping[canonical]; explicitlyMapped {

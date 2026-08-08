@@ -44,7 +44,7 @@ Mock opponents are deterministic and combine ADP with a small rotating position 
 
 ## Identity review
 
-Player names, common suffixes, positions, and NFL defense aliases are normalized into canonical keys. Similar names sharing a team and position are surfaced in the identity-review queue for a human decision. A user can keep candidates separate or merge aliases under one selected canonical player; ranking and projection signals then resolve through the persisted alias map.
+Ranking and projection imports resolve into a persistent canonical player directory. Stable DraftMeld player IDs survive source-name changes, normalized names remain aliases for compatibility, and optional provider player IDs offer the strongest match when a source supplies them. Similar names sharing a team and position are surfaced in the identity-review queue for a human decision. A user can keep candidates separate or merge aliases under one selected canonical player; the merge also redirects stored provider identifiers.
 
 ## Validation scenarios
 

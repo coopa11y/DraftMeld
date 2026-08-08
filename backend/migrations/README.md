@@ -19,3 +19,7 @@ Use a zero-padded numeric prefix such as `0002_leagues.sql`. Migrations must be 
 `0008_identity_aliases.sql` stores explicit alias-to-canonical player mappings used by rankings and projections.
 
 `0009_league_draft_settings.sql` persists consensus selection, player preferences, and calibrated auction/keeper settings that were previously defaulted at load time.
+
+`0010_custom_ranking_sources.sql` stores user-imported ordinal source metadata plus optional ADP and tier values.
+
+`0011_player_directory.sql` stores stable canonical players, normalized identity keys, and provider-specific player identifiers.

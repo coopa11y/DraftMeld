@@ -121,12 +121,12 @@ func TestRankingCSVImportCreatesAWeightablePrivateSource(t *testing.T) {
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	_ = writer.WriteField("name", "Marcus rankings")
-	_ = writer.WriteField("mapping", `{"rank":"RK","name":"Player","position":"POS","team":"TM","adp":"ADP","tier":"Tier"}`)
+	_ = writer.WriteField("mapping", `{"rank":"RK","name":"Player","position":"POS","team":"TM","adp":"ADP","tier":"Tier","providerId":"Player ID"}`)
 	file, err := writer.CreateFormFile("file", "rankings.csv")
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _ = file.Write([]byte("RK,Player,POS,TM,ADP,Tier\n1,Custom Runner,RB,ATL,4.2,1\n2,Custom Receiver,WR,DAL,9.5,2\n"))
+	_, _ = file.Write([]byte("RK,Player,POS,TM,ADP,Tier,Player ID\n1,Custom Runner,RB,ATL,4.2,1,runner-1\n2,Custom Receiver,WR,DAL,9.5,2,receiver-2\n"))
 	_ = writer.Close()
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/ranking-sources/import-csv", &body)
 	request.Header.Set("Content-Type", writer.FormDataContentType())
@@ -149,6 +149,11 @@ func TestRankingCSVImportCreatesAWeightablePrivateSource(t *testing.T) {
 	router.ServeHTTP(sourcesResponse, httptest.NewRequest(http.MethodGet, "/api/v1/ranking-sources", nil))
 	if sourcesResponse.Code != http.StatusOK || !strings.Contains(sourcesResponse.Body.String(), `"name":"Marcus rankings"`) {
 		t.Fatalf("custom source was not persisted: %d %s", sourcesResponse.Code, sourcesResponse.Body.String())
+	}
+	directoryResponse := httptest.NewRecorder()
+	router.ServeHTTP(directoryResponse, httptest.NewRequest(http.MethodGet, "/api/v1/player-directory/status", nil))
+	if directoryResponse.Code != http.StatusOK || !strings.Contains(directoryResponse.Body.String(), `"playerCount":2`) || !strings.Contains(directoryResponse.Body.String(), `"providerIdCount":2`) {
+		t.Fatalf("unexpected player directory status: %d %s", directoryResponse.Code, directoryResponse.Body.String())
 	}
 }
 

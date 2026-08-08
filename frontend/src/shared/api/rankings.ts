@@ -3,6 +3,7 @@ import type {
   ConsensusRanking,
   ErrorResponse,
   IdentityIssue,
+  PlayerDirectoryStatus,
   ProjectionSource,
   RankingPDFImport,
   RankingSource,
@@ -70,6 +71,11 @@ export async function importProjectionCSV(
 
 export async function listIdentityIssues(): Promise<IdentityIssue[]> {
   const { data, error, response } = await apiClient.GET("/ranking-identities");
+  return unwrap(data, error, response);
+}
+
+export async function getPlayerDirectoryStatus(): Promise<PlayerDirectoryStatus> {
+  const { data, error, response } = await apiClient.GET("/player-directory/status");
   return unwrap(data, error, response);
 }
 

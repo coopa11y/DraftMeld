@@ -98,6 +98,10 @@ func (service *DraftService) Snapshot(ctx context.Context, leagueID string) (dra
 	if err != nil {
 		return draft.Snapshot{}, fmt.Errorf("list draft events: %w", err)
 	}
+	events, err = resolveDraftEventAliases(ctx, service.repository, events)
+	if err != nil {
+		return draft.Snapshot{}, err
+	}
 	players, playerByID, dataMode, projectionCount, err := service.playersForLeague(ctx, configuration)
 	if err != nil {
 		return draft.Snapshot{}, err
@@ -131,6 +135,10 @@ func (service *DraftService) Record(ctx context.Context, leagueID, playerID stri
 		return draft.Snapshot{}, fmt.Errorf("unknown player: %s", playerID)
 	}
 	events, err := service.repository.List(ctx, leagueID)
+	if err != nil {
+		return draft.Snapshot{}, err
+	}
+	events, err = resolveDraftEventAliases(ctx, service.repository, events)
 	if err != nil {
 		return draft.Snapshot{}, err
 	}
@@ -176,6 +184,10 @@ func (service *DraftService) Undo(ctx context.Context, leagueID string) (draft.S
 		return draft.Snapshot{}, err
 	}
 	events, err := service.repository.List(ctx, leagueID)
+	if err != nil {
+		return draft.Snapshot{}, err
+	}
+	events, err = resolveDraftEventAliases(ctx, service.repository, events)
 	if err != nil {
 		return draft.Snapshot{}, err
 	}
