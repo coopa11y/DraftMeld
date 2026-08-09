@@ -3,13 +3,11 @@ import { readFile } from "node:fs/promises";
 const expected = (await readFile(new URL("../VERSION", import.meta.url), "utf8")).trim();
 const rootPackage = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 const frontendPackage = JSON.parse(await readFile(new URL("../frontend/package.json", import.meta.url), "utf8"));
-const webPackage = JSON.parse(await readFile(new URL("../apps/web/package.json", import.meta.url), "utf8"));
 const openapi = await readFile(new URL("../contracts/openapi.yaml", import.meta.url), "utf8");
 
 const versions = new Map([
   ["root package", rootPackage.version],
   ["frontend package", frontendPackage.version],
-  ["public website package", webPackage.version],
   ["OpenAPI contract", openapi.match(/^  version: (.+)$/m)?.[1]],
 ]);
 

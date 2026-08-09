@@ -45,7 +45,6 @@ DraftMeld is in active `0.3.0` development. It includes an accessible live board
 
 ```text
 frontend/       React and TypeScript application
-apps/web/       Public product and project website
 backend/        Go API, domain, application, and adapters
 contracts/      Language-independent OpenAPI contract
 deployments/    Docker and Compose definitions
@@ -111,8 +110,6 @@ docker compose -f deployments/compose.yaml -f deployments/compose.build.yaml up 
 ```
 
 Tagged releases publish versioned multi-architecture images in GitHub Container Registry. Signed Windows and Linux packages are planned as optional official supported builds; source, Docker, and all product features remain free. See the [community and official distribution policy](docs/distribution.md) and [release guide](docs/releasing.md).
-
-Run the public website locally with `npm --prefix apps/web run dev`.
 
 ## Principles
 

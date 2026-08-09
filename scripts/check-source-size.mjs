@@ -6,7 +6,6 @@ const repositoryRoot = path.resolve(import.meta.dirname, "..");
 const policies = [
   { directory: "backend", extensions: new Set([".go"]), maximum: 500 },
   { directory: "frontend/src", extensions: new Set([".ts", ".tsx"]), maximum: 425 },
-  { directory: "apps/web/src", extensions: new Set([".ts", ".tsx"]), maximum: 300 },
 ];
 
 function filesBelow(directory) {
