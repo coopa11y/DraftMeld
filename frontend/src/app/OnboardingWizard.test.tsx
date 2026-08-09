@@ -35,9 +35,11 @@ describe("resumable onboarding wizard", () => {
     await user.clear(name);
     await user.type(name, "Night League");
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    expect(await screen.findByRole("heading", { name: "Scoring" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Scoring" })).toHaveFocus();
     await user.click(screen.getByRole("button", { name: "Save and finish later" }));
-    expect(first.props.onClose).toHaveBeenCalledOnce();
+    expect(first.props.onClose).toHaveBeenCalledWith(
+      "Setup progress saved. Resume the setup guide whenever you are ready.",
+    );
     expect(loadOnboardingDraft()?.step).toBe(1);
 
     cleanup();
@@ -114,6 +116,7 @@ describe("resumable onboarding wizard", () => {
     await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(screen.getByRole("spinbutton", { name: "Points per passing touchdown" })).toHaveValue(6);
     await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("heading", { name: "League basics" })).toHaveFocus();
     await user.click(screen.getByRole("button", { name: "Undo all imported values" }));
     expect(screen.getByRole("textbox", { name: "League name" })).toHaveValue("My League");
     expect(screen.getByRole("spinbutton", { name: "Number of teams" })).toHaveValue(12);

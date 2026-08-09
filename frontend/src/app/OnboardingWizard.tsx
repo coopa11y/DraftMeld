@@ -15,9 +15,10 @@ import { OnboardingScoringStep } from "./OnboardingScoringStep";
 import { LeagueBasicsStep, OnboardingReviewStep } from "./OnboardingSteps";
 
 const steps = ["League basics", "Scoring", "Review"] as const;
+const stepHeadingIds = ["league-basics-title", "scoring-step-title", "review-step-title"] as const;
 
 interface OnboardingWizardProps {
-  onClose: () => void;
+  onClose: (message?: string) => void;
   onCreate: (rules: LeagueRules) => Promise<League>;
   onOpenDraft: (leagueId: string) => void;
   onOpenRankings: (leagueId: string) => void;
@@ -33,14 +34,20 @@ export function OnboardingWizard({ onClose, onCreate, onOpenDraft, onOpenRanking
   const [error, setError] = useState("");
   const [created, setCreated] = useState<League | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
+  const initialFocusSet = useRef(false);
 
   useEffect(() => {
     if (!created) saveOnboardingDraft(step, rules, importReview);
   }, [created, importReview, rules, step]);
 
   useEffect(() => {
-    heading.current?.focus();
-  }, [manual, step]);
+    if (manual || created || (!initialFocusSet.current && step === 0)) {
+      heading.current?.focus();
+    } else {
+      document.getElementById(stepHeadingIds[step])?.focus();
+    }
+    initialFocusSet.current = true;
+  }, [created, manual, step]);
 
   async function create(rulesToSave: LeagueRules) {
     setBusy(true);
@@ -62,6 +69,10 @@ export function OnboardingWizard({ onClose, onCreate, onOpenDraft, onOpenRanking
     onClose();
   }
 
+  function saveAndClose() {
+    onClose("Setup progress saved. Resume the setup guide whenever you are ready.");
+  }
+
   if (created) {
     return (
       <main className="onboarding-layout">
@@ -79,7 +90,7 @@ export function OnboardingWizard({ onClose, onCreate, onOpenDraft, onOpenRanking
               Configure ranking sources
             </Button>
             <Button onClick={() => onOpenDraft(created.id)}>Open draft board</Button>
-            <Button onClick={onClose}>Finish for now</Button>
+            <Button onClick={() => onClose()}>Finish for now</Button>
           </div>
         </Panel>
       </main>
@@ -91,7 +102,7 @@ export function OnboardingWizard({ onClose, onCreate, onOpenDraft, onOpenRanking
       <main className="onboarding-layout">
         <Panel variant="form" className="onboarding-panel" aria-labelledby="manual-setup-title">
           <div className="onboarding-utility-actions">
-            <Button onClick={onClose}>Save and finish later</Button>
+            <Button onClick={saveAndClose}>Save and finish later</Button>
             <Button variant="dangerText" onClick={skipGuide}>
               Skip setup guide
             </Button>
@@ -124,7 +135,7 @@ export function OnboardingWizard({ onClose, onCreate, onOpenDraft, onOpenRanking
             <p>Your progress is saved on this device after every step.</p>
           </div>
           <div className="onboarding-utility-actions">
-            <Button onClick={onClose}>Save and finish later</Button>
+            <Button onClick={saveAndClose}>Save and finish later</Button>
             <Button onClick={() => setManual(true)}>Configure manually</Button>
             <Button variant="dangerText" onClick={skipGuide}>
               Skip setup guide

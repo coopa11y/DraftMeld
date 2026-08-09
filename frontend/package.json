@@ -13,7 +13,8 @@
     "format:check": "prettier --config ../.prettierrc.json --ignore-path ../.prettierignore --check \"src/**/*.{ts,tsx,css}\" \"*.{ts,js,json}\" \"../package.json\" \"../scripts/**/*.{js,mjs,cjs,json}\" \"../contracts/**/*.{yaml,yml,json}\" \"../.github/**/*.{yaml,yml,json}\"",
     "lint": "eslint . --max-warnings=0",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "draftmeld": "file:..",
@@ -31,6 +32,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.0.5",
+    "@vitest/coverage-v8": "^4.1.10",
     "eslint": "9.39.5",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-jsx-a11y": "6.10.2",

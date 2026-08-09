@@ -33,7 +33,9 @@ export function LeagueBasicsStep({
 
   return (
     <section aria-labelledby="league-basics-title">
-      <h2 id="league-basics-title">League basics</h2>
+      <h2 id="league-basics-title" tabIndex={-1}>
+        League basics
+      </h2>
       <p>Start with the few details DraftMeld needs. Every setting can be changed later.</p>
       <LeagueRulesImport
         rules={rules}
@@ -111,7 +113,9 @@ export function OnboardingReviewStep({ rules }: { rules: LeagueRules }) {
     .reduce((total, slot) => total + slot.count, 0);
   return (
     <section aria-labelledby="review-step-title">
-      <h2 id="review-step-title">Review and create</h2>
+      <h2 id="review-step-title" tabIndex={-1}>
+        Review and create
+      </h2>
       <p>Nothing is created until you choose Create league.</p>
       <dl className="setup-review">
         <div>

@@ -55,6 +55,24 @@ func TestLeagueServiceEnsuresDefaultOnlyWhenEmpty(t *testing.T) {
 	}
 }
 
+func TestMemoryLeagueRepositoryDoesNotExposeStoredCollections(t *testing.T) {
+	original := DemoLeagueConfiguration()
+	original.Rules.TeamNames = []string{"Marcus", "Team 2"}
+	repository := NewMemoryLeagueRepository(original)
+	loaded, found, err := repository.GetLeague(t.Context(), original.ID)
+	if err != nil || !found {
+		t.Fatalf("load league: found=%v err=%v", found, err)
+	}
+	loaded.Rules.TeamNames[0] = "Mutated"
+	loaded.Rules.RosterSlots[0].Positions[0] = "WR"
+	loaded.Rules.ScoringRules["reception"] = 0
+
+	reloaded, found, err := repository.GetLeague(t.Context(), original.ID)
+	if err != nil || !found || reloaded.Rules.TeamNames[0] == "Mutated" || reloaded.Rules.RosterSlots[0].Positions[0] == "WR" || reloaded.Rules.ScoringRules["reception"] == 0 {
+		t.Fatalf("repository exposed mutable stored state: %#v found=%v err=%v", reloaded.Rules, found, err)
+	}
+}
+
 func TestLeagueServiceDefaultsUnknownTeamNamesAroundUserDraftPosition(t *testing.T) {
 	repository := NewMemoryLeagueRepository()
 	service := NewLeagueService(repository)

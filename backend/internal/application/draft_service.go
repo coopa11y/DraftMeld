@@ -60,7 +60,7 @@ func NewDraftService(
 	}
 	seenLeagueIDs := make(map[string]struct{}, len(configurations))
 	for index := range configurations {
-		configurations[index].Rules = withDefaultSourcePreferences(configurations[index].Rules)
+		configurations[index].Rules = withLeagueDefaults(configurations[index].Rules)
 		configuration := configurations[index]
 		if err := configuration.Validate(); err != nil {
 			return nil, err
@@ -289,7 +289,7 @@ func (service *DraftService) configuration(ctx context.Context, leagueID string)
 	if !exists {
 		return LeagueConfiguration{}, fmt.Errorf("%w: %s", ErrLeagueNotFound, leagueID)
 	}
-	configuration.Rules = withDefaultSourcePreferences(configuration.Rules)
+	configuration.Rules = withLeagueDefaults(configuration.Rules)
 	return configuration, nil
 }
 

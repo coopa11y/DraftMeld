@@ -3,7 +3,9 @@ package league
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"math"
+	"slices"
 	"strings"
 )
 
@@ -59,6 +61,23 @@ type Rules struct {
 	KeeperBudgetSpent   float64                            `json:"keeperBudgetSpent"`
 	MyKeeperSpend       float64                            `json:"myKeeperSpend"`
 	KeeperValueRemoved  float64                            `json:"keeperValueRemoved"`
+}
+
+// Clone returns an independent copy of every mutable collection in Rules.
+// Keeping this next to the model prevents application and persistence layers
+// from each inventing subtly different copy behavior.
+func (rules Rules) Clone() Rules {
+	cloned := rules
+	cloned.TeamNames = slices.Clone(rules.TeamNames)
+	cloned.DraftOrder = slices.Clone(rules.DraftOrder)
+	cloned.RosterSlots = slices.Clone(rules.RosterSlots)
+	for index := range cloned.RosterSlots {
+		cloned.RosterSlots[index].Positions = slices.Clone(rules.RosterSlots[index].Positions)
+	}
+	cloned.ScoringRules = maps.Clone(rules.ScoringRules)
+	cloned.SourcePreferences = maps.Clone(rules.SourcePreferences)
+	cloned.PlayerPreferences = maps.Clone(rules.PlayerPreferences)
+	return cloned
 }
 
 type RecommendationPolicy struct {

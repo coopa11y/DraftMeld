@@ -1,4 +1,5 @@
 import type { LeagueRules, RosterSlot } from "../shared/api/types";
+import { cloneLeagueRules } from "../shared/domain/leagueRules";
 import { defaultScoringRules } from "./scoring";
 
 export const playerPositions = ["QB", "RB", "WR", "TE", "K", "DST"] as const;
@@ -45,16 +46,4 @@ export function defaultLeagueRules(): LeagueRules {
   };
 }
 
-export function cloneLeagueRules(rules: LeagueRules): LeagueRules {
-  return {
-    ...rules,
-    teamNames: [...rules.teamNames],
-    draftOrder: [...rules.draftOrder],
-    rosterSlots: rules.rosterSlots.map((slot) => ({ ...slot, positions: [...slot.positions] })),
-    scoringRules: { ...rules.scoringRules },
-    sourcePreferences: Object.fromEntries(
-      Object.entries(rules.sourcePreferences).map(([sourceId, preference]) => [sourceId, { ...preference }]),
-    ),
-    playerPreferences: { ...rules.playerPreferences },
-  };
-}
+export { cloneLeagueRules };
