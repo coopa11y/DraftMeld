@@ -1034,10 +1034,13 @@ components:
     RankingPDFImport:
       type: object
       additionalProperties: false
-      required: [source, pageCount]
+      required: [source, pageCount, ocrApplied]
       properties:
         source: { $ref: "#/components/schemas/RankingSource" }
         pageCount: { type: integer, minimum: 1 }
+        ocrApplied:
+          type: boolean
+          description: True when the PDF had no selectable text and local OCR was used.
     ConsensusRanking:
       type: object
       additionalProperties: false

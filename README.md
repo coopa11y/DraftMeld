@@ -85,6 +85,8 @@ On first launch, DraftMeld creates a customizable demo league. The resumable set
 
 The **Export and backup center** under Manage leagues downloads versioned league backups, consensus ranking CSVs, and draft results. Restores always create a new league rather than overwriting existing data. See [data portability](docs/data-portability.md) for formats and compatibility guarantees.
 
+PDF imports read selectable text first and use local OCR for scanned pages when Poppler and Tesseract are available. The Docker image includes both tools. See [local PDF OCR](docs/ocr.md) for native setup, limits, and privacy behavior.
+
 Use **Ranking sources** to review each feed's method, license, weight, freshness, and project link before refreshing the local data or privately importing a supported PDF. See [docs/ranking-sources.md](docs/ranking-sources.md) for the source set, supported PDF formats, and current matching limitations.
 
 Run the same contract, type, unit-test, vet, and production-build checks used for pull requests:

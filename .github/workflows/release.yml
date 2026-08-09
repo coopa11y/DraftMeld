@@ -15,6 +15,8 @@ on:
       - "scripts/release-notes.mjs"
       - "scripts/smoke-release.sh"
       - "scripts/zip-directory.go"
+      - "deployments/docker/Dockerfile"
+      - "backend/internal/document/**"
   workflow_dispatch:
 
 concurrency:
@@ -113,18 +115,30 @@ jobs:
         run: |
           container_id="$(docker run --detach --publish 18080:8080 draftmeld:release-smoke)"
           trap 'docker rm --force "$container_id" >/dev/null 2>&1 || true' EXIT
+          healthy=false
           for attempt in $(seq 1 30); do
             if response="$(curl --fail --silent http://127.0.0.1:18080/api/v1/health)"; then
               HEALTH_RESPONSE="$response" EXPECTED_VERSION="$(cat VERSION)" node -e '
                 const health = JSON.parse(process.env.HEALTH_RESPONSE);
                 if (health.status !== "ok" || health.version !== process.env.EXPECTED_VERSION) process.exit(1);
               '
-              exit 0
+              healthy=true
+              break
             fi
             sleep 1
           done
-          docker logs "$container_id"
-          exit 1
+          if [ "$healthy" != true ]; then
+            docker logs "$container_id"
+            exit 1
+          fi
+          ocr_response="$(curl --fail --silent \
+            --form 'file=@backend/internal/document/testdata/scanned-league-rules.pdf;type=application/pdf' \
+            http://127.0.0.1:18080/api/v1/leagues/rules/import)"
+          OCR_RESPONSE="$ocr_response" node -e '
+            const imported = JSON.parse(process.env.OCR_RESPONSE);
+            if (imported.settings.name !== "OCR Test League" || imported.settings.teamCount !== 10) process.exit(1);
+            if (imported.rules.passingTouchdown !== 6 || !imported.warnings.some((warning) => warning.includes("OCR"))) process.exit(1);
+          '
       - name: Log in to GitHub Container Registry
         if: github.event_name == 'push'
         uses: docker/login-action@v4

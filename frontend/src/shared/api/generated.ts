@@ -751,6 +751,8 @@ export interface components {
         RankingPDFImport: {
             source: components["schemas"]["RankingSource"];
             pageCount: number;
+            /** @description True when the PDF had no selectable text and local OCR was used. */
+            ocrApplied: boolean;
         };
         ConsensusRanking: {
             playerKey: string;

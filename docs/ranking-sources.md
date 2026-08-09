@@ -17,7 +17,7 @@ Users can also add any number of private ordinal ranking CSVs. These sources are
 ## Import behavior
 
 - Online data is fetched from fixed public source URLs only when a user selects **Refresh all sources**. PDF sources are excluded from automatic refresh.
-- PDF uploads are limited to 20 MiB and 200 pages, processed in memory, and discarded immediately after text extraction. DraftMeld stores only normalized player records and source status.
+- PDF uploads are limited to 20 MiB and 200 pages for selectable text. PDFs with no selectable text can use local English OCR for up to 25 pages. Temporary OCR files are removed after each attempt, and DraftMeld stores only normalized player records and source status.
 - Ranking CSV uploads are limited to 10 MiB. Player name, overall rank, and position are required; team, ADP, and tier are optional. Reimporting the same source name replaces that source atomically.
 - The importer detects a supported provider and document type from the extracted document text. Users do not need to choose column mappings or a parser.
 - Provider columns are converted to a small common record: source, normalized player key, display name, position, team, and ordinal rank.
@@ -38,11 +38,11 @@ PDF mechanics live in `backend/internal/document`; ranking-specific interpretati
 3. Register a source definition with `ImportMode: "pdf-upload"` and register the parser in `defaultPDFRankingParsers`.
 4. Add synthetic parser tests and an optional local-file integration test. Never commit proprietary fixtures.
 
-This separation keeps file validation, size/page limits, panic recovery, and text extraction shared across every provider. Provider adapters remain focused on one document layout.
+This separation keeps file validation, size/page limits, panic recovery, selectable-text extraction, and bounded OCR fallback shared across every provider. Provider adapters remain focused on one document layout.
 
 ## Known limitations
 
-DraftMeld resolves imported players into a persistent canonical directory before storing new ranking and projection data. Each player receives an opaque stable DraftMeld ID; normalized names remain searchable identity keys, and an optional source player ID can bind renamed records from the same provider. Existing normalized keys are retained as aliases so upgraded databases continue to match prior rankings and draft history. Uncertain matches enter the identity review queue, where a merge redirects name aliases and provider IDs to the selected canonical player. Team defenses remain canonicalized by NFL team. Scanned PDFs are rejected because DraftMeld does not bundle OCR. ESPN's projection guide and positional-only PPR sheet are intentionally rejected because they do not provide the supported overall-ranking layout.
+DraftMeld resolves imported players into a persistent canonical directory before storing new ranking and projection data. Each player receives an opaque stable DraftMeld ID; normalized names remain searchable identity keys, and an optional source player ID can bind renamed records from the same provider. Existing normalized keys are retained as aliases so upgraded databases continue to match prior rankings and draft history. Uncertain matches enter the identity review queue, where a merge redirects name aliases and provider IDs to the selected canonical player. Team defenses remain canonicalized by NFL team. OCR can recover text from scanned pages, but provider adapters still reject unsupported layouts. ESPN's projection guide and positional-only PPR sheet are intentionally rejected because they do not provide the supported overall-ranking layout.
 
 Source terms and upstream availability can change. Maintainers should verify licenses and attribution before adding a connector, and should never commit or redistribute paid rankings.
 

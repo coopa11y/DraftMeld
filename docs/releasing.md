@@ -35,7 +35,7 @@ Never move or reuse a published release tag. If a release fails after publicatio
 
 ## Installation
 
-Extract the archive for the operating system, then run `draftmeld.exe` on Windows or `./draftmeld` on Linux. DraftMeld stores its SQLite data under `./data` unless `DRAFTMELD_DATA_DIR` is set.
+Extract the archive for the operating system, then run `draftmeld.exe` on Windows or `./draftmeld` on Linux. DraftMeld stores its SQLite data under `./data` unless `DRAFTMELD_DATA_DIR` is set. Selectable-text PDFs work with no additional software. Scanned-PDF OCR in a native installation requires Poppler's `pdftoppm` and Tesseract on `PATH`; see [local PDF OCR](ocr.md).
 
 The container image is versioned in GitHub Container Registry:
 
@@ -44,3 +44,5 @@ docker run --rm -p 8080:8080 -v draftmeld-data:/data ghcr.io/coopa11y/draftmeld:
 ```
 
 Open `http://localhost:8080` after the application reports that it has started.
+
+The container includes Poppler, Tesseract, and English recognition data, so scanned-PDF OCR works without installing host tools.

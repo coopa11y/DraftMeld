@@ -694,7 +694,11 @@ describe("accessible draft board", () => {
       }
       if (path.endsWith("/ranking-sources/import-pdf") && request.method === "POST")
         return jsonResponse(
-          { source: { ...rankingSources[5], recordCount: 245, publishedAt: "2026-08-02" }, pageCount: 1 },
+          {
+            source: { ...rankingSources[5], recordCount: 245, publishedAt: "2026-08-02" },
+            pageCount: 1,
+            ocrApplied: true,
+          },
           201,
         );
       if (path.endsWith("/ranking-sources/refresh") && request.method === "POST") return jsonResponse(rankingSources);
@@ -757,7 +761,11 @@ describe("accessible draft board", () => {
     const pdf = new File(["%PDF-test"], "espn-rankings.pdf", { type: "application/pdf" });
     await user.upload(screen.getByLabelText("Import a ranking PDF"), pdf);
     await user.click(screen.getByRole("button", { name: "Import PDF" }));
-    expect(await screen.findByText("ESPN PPR Top 300 PDF imported: 245 players from 1 page.")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "ESPN PPR Top 300 PDF imported: 245 players from 1 page. Scanned pages were recognized locally with OCR; review the imported rankings carefully.",
+      ),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Refresh all sources" }));
     expect(await screen.findByRole("table", { name: "Top 25 blended player rankings" })).toBeInTheDocument();

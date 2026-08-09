@@ -2,12 +2,15 @@ package document
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
 
 	readerpdf "github.com/ledongthuc/pdf"
 )
+
+var ErrNoSelectablePDFText = errors.New("no selectable text found")
 
 const (
 	MaxPDFBytes  = 20 << 20
@@ -16,8 +19,9 @@ const (
 )
 
 type TextDocument struct {
-	Text      string
-	PageCount int
+	Text       string
+	PageCount  int
+	OCRApplied bool
 }
 
 type PDFExtractor interface {
@@ -59,7 +63,7 @@ func (NativePDFExtractor) Extract(contents []byte) (result TextDocument, err err
 		return TextDocument{}, fmt.Errorf("extract PDF text: extracted text exceeds 10 MiB")
 	}
 	if strings.TrimSpace(string(text)) == "" {
-		return TextDocument{}, fmt.Errorf("extract PDF text: no selectable text found; scanned PDFs require OCR")
+		return TextDocument{}, fmt.Errorf("extract PDF text: %w", ErrNoSelectablePDFText)
 	}
 	return TextDocument{Text: string(text), PageCount: pageCount}, nil
 }

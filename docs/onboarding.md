@@ -8,11 +8,11 @@ After a league is created, the guide recommends configuring ranking sources befo
 
 ## League rule import
 
-The league-basics step accepts one PDF or CSV file up to 20 MiB. Uploads are processed in memory and discarded after extraction. DraftMeld returns a preview containing the canonical setting, value, confidence, and detected source text. Recognized values are applied to the unsaved league draft and can be edited or undone before creation. Unrecognized settings never erase existing values.
+The league-basics step accepts one PDF or CSV file up to 20 MiB. Uploads stay on the DraftMeld host and are discarded after extraction. DraftMeld returns a preview containing the canonical setting, value, confidence, and detected source text. Recognized values are applied to the unsaved league draft and can be edited or undone before creation. Unrecognized settings never erase existing values.
 
 DraftMeld can recognize league name, team count, redraft or dynasty format, snake, linear, or auction draft format, future-pick seasons, rookie rounds, FAAB and auction budgets, budget-trading options, common roster slots, and supported scoring rules. A zero-count roster setting removes that position from the default roster. User-specific draft position, franchise names, full draft order, keeper spend, and ranking-source preferences remain manual because a general league document cannot reliably identify them.
 
-PDF files must contain selectable text. Scanned documents need OCR before upload. Because provider layouts and wording vary, every imported value must be compared with the original league settings.
+DraftMeld first reads selectable PDF text. When a PDF contains no selectable text, it can recognize up to 25 scanned pages with local English OCR. OCR imports carry a prominent review warning because recognition and provider wording can be imperfect. See [local PDF OCR](ocr.md) for installation, limits, and privacy behavior.
 
 CSV supports a Setting/Value list:
 
