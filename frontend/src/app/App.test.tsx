@@ -337,6 +337,46 @@ afterEach(() => {
 });
 
 describe("accessible draft board", () => {
+  it("offers useful league actions when only the demo league exists", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = input instanceof Request ? input.url : input.toString();
+        return jsonResponse(new URL(url).pathname.endsWith("/leagues") ? [demoLeague] : snapshot());
+      }),
+    );
+    const user = userEvent.setup();
+    render(<App />);
+
+    const selector = await screen.findByRole("combobox", { name: "Active league" });
+    expect(selector).toHaveValue("demo");
+    expect(within(selector).getByRole("option", { name: "Create a league…" })).toBeInTheDocument();
+    expect(within(selector).getByRole("option", { name: "Manage leagues…" })).toBeInTheDocument();
+
+    await user.selectOptions(selector, "__manage_leagues__");
+    expect(screen.getByRole("heading", { name: "Your leagues" })).toBeInTheDocument();
+
+    await user.selectOptions(selector, "__create_league__");
+    expect(screen.getByRole("heading", { name: "Set up your draft workspace" })).toBeInTheDocument();
+  });
+
+  it("keeps league creation available when no leagues exist", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => jsonResponse([])),
+    );
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+
+    const selector = await screen.findByRole("combobox", { name: "Active league" });
+    expect(selector).toHaveValue("");
+    expect(within(selector).getByRole("option", { name: "No active league" })).toBeDisabled();
+
+    await user.selectOptions(selector, "__create_league__");
+    expect(screen.getByRole("heading", { name: "Set up your draft workspace" })).toBeInTheDocument();
+    expect((await axe(container)).violations).toHaveLength(0);
+  });
+
   it("offers non-blocking first-run guidance and a resumable setup entry point", async () => {
     vi.stubGlobal(
       "fetch",

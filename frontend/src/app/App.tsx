@@ -10,6 +10,8 @@ import { RankingSources } from "./RankingSources";
 import { completeOnboarding, loadOnboardingDraft, onboardingComplete } from "./onboarding";
 
 const ACTIVE_LEAGUE_KEY = "draftmeld.active-league.v1";
+const CREATE_LEAGUE_OPTION = "__create_league__";
+const MANAGE_LEAGUES_OPTION = "__manage_leagues__";
 
 export function App() {
   const [leagues, setLeagues] = useState<League[]>([]);
@@ -84,6 +86,24 @@ export function App() {
     setNotice(message ?? "");
   }
 
+  function openOnboarding() {
+    setNotice("");
+    setOnboardingOpen(true);
+  }
+
+  function handleLeagueSelection(value: string) {
+    if (value === CREATE_LEAGUE_OPTION) {
+      openOnboarding();
+      return;
+    }
+    if (value === MANAGE_LEAGUES_OPTION) {
+      setView("leagues");
+      return;
+    }
+    selectLeague(value);
+    setView("draft");
+  }
+
   const activeLeague = leagues.find((league) => league.id === activeLeagueId);
 
   if (loading) {
@@ -104,24 +124,25 @@ export function App() {
           <span className="version">v{__APP_VERSION__}</span>
         </div>
         <nav className="league-navigation" aria-label="DraftMeld navigation">
-          {leagues.length > 0 ? (
-            <label>
-              <span>Active league</span>
-              <select
-                value={activeLeagueId}
-                onChange={(event) => {
-                  selectLeague(event.target.value);
-                  setView("draft");
-                }}
-              >
-                {leagues.map((league) => (
-                  <option key={league.id} value={league.id}>
-                    {league.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
+          <label>
+            <span>Active league</span>
+            <select value={activeLeague?.id ?? ""} onChange={(event) => handleLeagueSelection(event.target.value)}>
+              {!activeLeague ? (
+                <option value="" disabled>
+                  No active league
+                </option>
+              ) : null}
+              {leagues.map((league) => (
+                <option key={league.id} value={league.id}>
+                  {league.name}
+                </option>
+              ))}
+              <optgroup label="League actions">
+                <option value={CREATE_LEAGUE_OPTION}>Create a league…</option>
+                <option value={MANAGE_LEAGUES_OPTION}>Manage leagues…</option>
+              </optgroup>
+            </select>
+          </label>
           {view !== "leagues" ? <Button onClick={() => setView("leagues")}>Manage leagues</Button> : null}
           {view !== "rankings" ? (
             <Button onClick={() => setView("rankings")} disabled={!activeLeague}>
@@ -134,14 +155,7 @@ export function App() {
             </Button>
           ) : null}
           {!onboardingDone && !onboardingOpen ? (
-            <Button
-              onClick={() => {
-                setNotice("");
-                setOnboardingOpen(true);
-              }}
-            >
-              {hasOnboardingDraft ? "Resume setup" : "Setup guide"}
-            </Button>
+            <Button onClick={openOnboarding}>{hasOnboardingDraft ? "Resume setup" : "Setup guide"}</Button>
           ) : null}
         </nav>
       </header>
@@ -166,13 +180,7 @@ export function App() {
             </p>
           </div>
           <div className="onboarding-prompt-actions">
-            <Button
-              variant="primary"
-              onClick={() => {
-                setNotice("");
-                setOnboardingOpen(true);
-              }}
-            >
+            <Button variant="primary" onClick={openOnboarding}>
               {hasOnboardingDraft ? "Resume setup" : "Start setup"}
             </Button>
             <Button
