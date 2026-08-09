@@ -27,6 +27,7 @@ import { StatusMessage } from "../shared/ui/StatusMessage";
 import { DraftSidebar } from "./DraftSidebar";
 import { DraftOverview } from "./DraftOverview";
 import { PlayerBoard } from "./PlayerBoard";
+import { draftTeamName } from "./draftTradePresentation";
 
 interface DraftWorkspaceProps {
   leagueId: string;
@@ -171,7 +172,7 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
       const updated = await startDraftSession(leagueId);
       setSnapshot(updated);
       setSelectedTeamNumber(defaultSelectedTeam(updated));
-      setAnnouncement(`Draft started. ${teamName(updated, updated.onClockTeamNumber)} is on the clock.`);
+      setAnnouncement(`Draft started. ${draftTeamName(updated, updated.onClockTeamNumber)} is on the clock.`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to start the draft.");
     } finally {
@@ -246,7 +247,7 @@ export function DraftWorkspace({ leagueId }: DraftWorkspaceProps) {
       setSnapshot(updated);
       setSelectedTeamNumber(defaultSelectedTeam(updated));
       setAnnouncement(
-        `Trade confirmed between ${teamName(updated, teamOne)} and ${teamName(updated, teamTwo)} with ${assetCount(teamOneReceives, teamOneFuture, teamOnePlayers, teamOneBudgets)} and ${assetCount(teamTwoReceives, teamTwoFuture, teamTwoPlayers, teamTwoBudgets)} recorded.`,
+        `Trade confirmed between ${draftTeamName(updated, teamOne)} and ${draftTeamName(updated, teamTwo)} with ${assetCount(teamOneReceives, teamOneFuture, teamOnePlayers, teamOneBudgets)} and ${assetCount(teamTwoReceives, teamTwoFuture, teamTwoPlayers, teamTwoBudgets)} recorded.`,
       );
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to save the draft asset trade.");
@@ -407,10 +408,6 @@ function sessionStatusLabel(snapshot: DraftSnapshot) {
 function defaultSelectedTeam(snapshot: DraftSnapshot): number {
   if (snapshot.draftType !== "auction") return snapshot.onClockTeamNumber;
   return snapshot.teams.find((team) => !team.isUser)?.number ?? 0;
-}
-
-function teamName(snapshot: DraftSnapshot, teamNumber: number) {
-  return snapshot.teams.find((team) => team.number === teamNumber)?.name ?? `Team ${teamNumber}`;
 }
 
 function assetCount(current: number[], future: FutureDraftPick[], players: string[], budgets: BudgetAsset[]) {

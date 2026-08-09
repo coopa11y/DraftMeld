@@ -12,6 +12,24 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
-    testTimeout: 10_000,
+    testTimeout: 20_000,
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json-summary"],
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: [
+        "src/**/*.test.{ts,tsx}",
+        "src/shared/api/generated.ts",
+        "src/main.tsx",
+        "src/test/**",
+        "src/vite-env.d.ts",
+      ],
+      thresholds: {
+        statements: 75,
+        branches: 65,
+        functions: 75,
+        lines: 78,
+      },
+    },
   },
 });

@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -124,19 +123,7 @@ func registerLeagueRuleImportRoute(mux *http.ServeMux, service *application.Leag
 }
 
 func decodeLeagueRules(response http.ResponseWriter, request *http.Request) (league.Rules, bool) {
-	request.Body = http.MaxBytesReader(response, request.Body, 64*1024)
-	decoder := json.NewDecoder(request.Body)
-	decoder.DisallowUnknownFields()
-	var rules league.Rules
-	if err := decoder.Decode(&rules); err != nil {
-		writeError(response, http.StatusBadRequest, "The league settings were not valid JSON.")
-		return league.Rules{}, false
-	}
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		writeError(response, http.StatusBadRequest, "The request must contain one league configuration.")
-		return league.Rules{}, false
-	}
-	return rules, true
+	return decodeJSON[league.Rules](response, request, "The league settings were not valid JSON.")
 }
 
 func writeLeagueServiceError(response http.ResponseWriter, err error) bool {

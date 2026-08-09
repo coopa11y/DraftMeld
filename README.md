@@ -60,6 +60,8 @@ The formulas, projection CSV schema, draft-day integrations, and current limitat
 
 Accessibility requirements and current limitations are documented in [docs/accessibility.md](docs/accessibility.md).
 
+Code ownership boundaries, source-size limits, coverage floors, and review expectations are documented in the [maintainability guide](docs/maintainability.md).
+
 ## Development
 
 Run the frontend development server:

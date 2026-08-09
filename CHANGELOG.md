@@ -61,6 +61,9 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 
 ### Changed
 
+- Backend draft trades, HTTP routes, and frontend trade workflows are split into cohesive feature modules with shared strict JSON decoding and presentation helpers
+- League-rule cloning is centralized in the domain model and repository boundaries now protect mutable stored collections
+- Verification now enforces maintained-source size limits and backend/frontend coverage floors
 - DraftMeld now separates ordinal rankings, contextual market and usage signals, and granular projections
 - Common player suffixes and defense aliases normalize into more stable canonical identities
 - The ranking workspace now exposes consensus methodology, source roles, projection inputs, identity exceptions, and uncertainty

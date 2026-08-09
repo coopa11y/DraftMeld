@@ -55,7 +55,7 @@ func (service *LeagueService) List(ctx context.Context) ([]LeagueConfiguration, 
 		return nil, err
 	}
 	for index := range configurations {
-		configurations[index].Rules = withDefaultSourcePreferences(configurations[index].Rules)
+		configurations[index].Rules = withLeagueDefaults(configurations[index].Rules)
 	}
 	return configurations, nil
 }
@@ -68,7 +68,7 @@ func (service *LeagueService) Get(ctx context.Context, id string) (LeagueConfigu
 	if !found {
 		return LeagueConfiguration{}, fmt.Errorf("%w: %s", ErrLeagueNotFound, id)
 	}
-	configuration.Rules = withDefaultSourcePreferences(configuration.Rules)
+	configuration.Rules = withLeagueDefaults(configuration.Rules)
 	return configuration, nil
 }
 
@@ -84,7 +84,7 @@ func (service *LeagueService) create(ctx context.Context, rules league.Rules, re
 	service.mu.Lock()
 	defer service.mu.Unlock()
 
-	rules = withDefaultSourcePreferences(rules)
+	rules = withLeagueDefaults(rules)
 	configuration := LeagueConfiguration{
 		ID: slugify(rules.Name), Rules: rules, Recommendation: recommendation,
 	}
@@ -113,7 +113,7 @@ func (service *LeagueService) Update(ctx context.Context, id string, rules leagu
 	if configuration.Rules.LeagueFormat == league.LeagueFormatDynasty && rules.Season != configuration.Rules.Season {
 		return LeagueConfiguration{}, fmt.Errorf("%w: use the guided season rollover to change a dynasty league's season", ErrInvalidLeague)
 	}
-	updatedRules := withDefaultSourcePreferences(rules)
+	updatedRules := withLeagueDefaults(rules)
 	locked, lockErr := service.draftStructureLocked(ctx, id, configuration.Rules.Season)
 	if lockErr != nil {
 		return LeagueConfiguration{}, lockErr
@@ -165,12 +165,8 @@ func (service *LeagueService) Duplicate(ctx context.Context, id string) (LeagueC
 	if err != nil {
 		return LeagueConfiguration{}, err
 	}
-	rules := source.Rules
+	rules := source.Rules.Clone()
 	rules.Name = "Copy of " + rules.Name
-	rules.RosterSlots = cloneRosterSlots(rules.RosterSlots)
-	rules.ScoringRules = cloneScoringRules(rules.ScoringRules)
-	rules.SourcePreferences = cloneSourcePreferences(rules.SourcePreferences)
-	rules.PlayerPreferences = clonePlayerPreferences(rules.PlayerPreferences)
 	if rules.ConsensusMethod == "" {
 		rules.ConsensusMethod = "weighted-median"
 	}
@@ -207,7 +203,7 @@ func (service *LeagueService) SetPlayerPreference(ctx context.Context, id, playe
 	if playerID == "" || (preference != "" && preference != "target" && preference != "avoid") {
 		return LeagueConfiguration{}, fmt.Errorf("%w: player preference must be target, avoid, or empty", ErrInvalidLeague)
 	}
-	configuration.Rules.PlayerPreferences = clonePlayerPreferences(configuration.Rules.PlayerPreferences)
+	configuration.Rules = configuration.Rules.Clone()
 	if preference == "" {
 		delete(configuration.Rules.PlayerPreferences, playerID)
 	} else {
@@ -246,40 +242,8 @@ func slugify(name string) string {
 	return slug
 }
 
-func cloneRosterSlots(slots []league.RosterSlot) []league.RosterSlot {
-	cloned := make([]league.RosterSlot, len(slots))
-	for index, slot := range slots {
-		cloned[index] = slot
-		cloned[index].Positions = append([]string(nil), slot.Positions...)
-	}
-	return cloned
-}
-
-func cloneScoringRules(rules map[string]float64) map[string]float64 {
-	cloned := make(map[string]float64, len(rules))
-	for name, value := range rules {
-		cloned[name] = value
-	}
-	return cloned
-}
-
-func cloneSourcePreferences(preferences map[string]league.RankingSourcePreference) map[string]league.RankingSourcePreference {
-	cloned := make(map[string]league.RankingSourcePreference, len(preferences))
-	for sourceID, preference := range preferences {
-		cloned[sourceID] = preference
-	}
-	return cloned
-}
-
-func clonePlayerPreferences(preferences map[string]string) map[string]string {
-	cloned := make(map[string]string, len(preferences))
-	for playerID, preference := range preferences {
-		cloned[playerID] = preference
-	}
-	return cloned
-}
-
-func withDefaultSourcePreferences(rules league.Rules) league.Rules {
+func withLeagueDefaults(rules league.Rules) league.Rules {
+	rules = rules.Clone()
 	if rules.UserTeamNumber == 0 {
 		rules.UserTeamNumber = rules.DraftPosition
 	}
@@ -294,7 +258,9 @@ func withDefaultSourcePreferences(rules league.Rules) league.Rules {
 	}
 	rules.TeamNames = normalizedTeamNames(rules.TeamNames, rules.TeamCount, rules.UserTeamNumber)
 	defaults := DefaultRankingSourcePreferences()
-	rules.SourcePreferences = cloneSourcePreferences(rules.SourcePreferences)
+	if rules.SourcePreferences == nil {
+		rules.SourcePreferences = make(map[string]league.RankingSourcePreference)
+	}
 	for sourceID, preference := range defaults {
 		if _, exists := rules.SourcePreferences[sourceID]; !exists {
 			rules.SourcePreferences[sourceID] = preference

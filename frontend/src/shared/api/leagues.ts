@@ -1,4 +1,5 @@
 import type { League, LeagueBackup, LeagueRuleImport, LeagueRules } from "./types";
+import { cloneLeagueRules } from "../domain/leagueRules";
 import { apiClient, ensureSuccess, postMultipart, unwrap } from "./client";
 
 export async function listLeagues(): Promise<League[]> {
@@ -78,15 +79,5 @@ export async function downloadLeagueExport(id: string, kind: LeagueExportKind): 
 
 export function leagueToRules(league: League): LeagueRules {
   const { id: _id, ...rules } = league;
-  return {
-    ...rules,
-    rosterSlots: rules.rosterSlots.map((slot) => ({ ...slot, positions: [...slot.positions] })),
-    teamNames: [...rules.teamNames],
-    draftOrder: [...rules.draftOrder],
-    scoringRules: { ...rules.scoringRules },
-    sourcePreferences: Object.fromEntries(
-      Object.entries(rules.sourcePreferences).map(([sourceId, preference]) => [sourceId, { ...preference }]),
-    ),
-    playerPreferences: { ...rules.playerPreferences },
-  };
+  return cloneLeagueRules(rules);
 }
