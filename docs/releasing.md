@@ -1,48 +1,53 @@
 # Releasing DraftMeld
 
-DraftMeld releases use the version in `VERSION` as the single application version. A semantic tag such as `v0.3.0` starts the release workflow only after the corresponding commit has reached `main`.
+DraftMeld uses the version in `VERSION` as its single application version. A semantic tag starts publishing only when it points to a commit already on `main`.
 
-## Release outputs
+## Version policy
 
-Each tagged release publishes:
+Before `1.0.0`, DraftMeld uses minor versions for feature sets and possible breaking changes, patch versions for compatible fixes, and prerelease suffixes for release candidates:
 
-- a Windows x64 ZIP;
-- Linux x64 and ARM64 tarballs;
-- a SHA-256 checksum manifest;
-- build-provenance attestations for the downloadable archives;
-- versioned Linux x64 and ARM64 images in GitHub Container Registry;
-- a GitHub prerelease populated from the matching changelog section.
+- `0.4.0` — features or initial-development breaking changes;
+- `0.4.1` — compatible fixes on the `0.4` line;
+- `0.5.0-rc.1` — a release candidate for the next feature line.
 
-Manual runs of the release workflow build, package, and smoke-test the native and container outputs without publishing a release or container image.
+Docker tags follow the same model:
+
+- `edge` tracks accepted work on `dev` and may be unstable;
+- `0.4.0` identifies one immutable release;
+- `0.4` follows compatible patch releases on that minor line;
+- `latest` identifies the newest stable tagged container release.
+
+## Public outputs
+
+The public release workflow publishes multi-architecture container images to GitHub Container Registry with build-provenance attestations. The production Dockerfile, Compose configuration, source archives, release notes, and complete application remain public under the AGPL.
+
+The workflow also builds and smoke-tests native Windows and Linux packages as a release-integrity check. It does not upload those convenience packages to public Actions artifacts or GitHub Releases.
+
+## Official supported builds
+
+Signed Windows and Linux packages will be delivered separately when a third-party fulfillment provider and signing process are ready. They must be built from the corresponding public source, include required license/source notices, and use the exact public semantic version. See [community and official distribution](distribution.md).
+
+Never add payment-provider secrets, signing keys, customer records, or entitlement lists to this repository or its public Actions logs.
 
 ## Release checklist
 
-1. Merge feature PRs into `dev`, then promote `dev` to `main` through a green PR.
-2. Set `VERSION` and every package version to the intended semantic version.
-3. Change the matching changelog heading from `Unreleased` to the release date.
-4. Run `npm run verify` and `npm run release:check`.
-5. Optionally run the release workflow manually from `main` as a non-publishing dry run.
-6. Create and push the exact tag from the current `main` commit:
+1. Merge feature pull requests into `dev`.
+2. Open and merge a separate green promotion pull request from `dev` to `main`.
+3. Set `VERSION` and every package version to the intended semantic version.
+4. Change the matching changelog heading from `Unreleased` to the release date.
+5. Run `npm run verify` and `npm run release:check`.
+6. Optionally run the release workflow manually from `main` as a non-publishing dry run.
+7. Create and push the exact tag from the current `main` commit.
+8. Confirm container tags, provenance, source release notes, and the private official-build fulfillment job if applicable.
 
-   ```bash
-   git tag -a v0.3.0 -m "DraftMeld 0.3.0"
-   git push origin v0.3.0
-   ```
+Never move or reuse a published release tag. Correct a failed published release with a new semantic version.
 
-7. Confirm that the native artifacts, checksums, attestations, container image, and GitHub prerelease were published successfully.
+## Community installation
 
-Never move or reuse a published release tag. If a release fails after publication, correct the problem with a new semantic version.
-
-## Installation
-
-Extract the archive for the operating system, then run `draftmeld.exe` on Windows or `./draftmeld` on Linux. DraftMeld stores its SQLite data under `./data` unless `DRAFTMELD_DATA_DIR` is set. Selectable-text PDFs work with no additional software. Scanned-PDF OCR in a native installation requires Poppler's `pdftoppm` and Tesseract on `PATH`; see [local PDF OCR](ocr.md).
-
-The container image is versioned in GitHub Container Registry:
+Copy `deployments/compose.yaml`, optionally copy `.env.example` to `.env`, and run:
 
 ```bash
-docker run --rm -p 8080:8080 -v draftmeld-data:/data ghcr.io/coopa11y/draftmeld:0.3.0
+docker compose up -d
 ```
 
-Open `http://localhost:8080` after the application reports that it has started.
-
-The container includes Poppler, Tesseract, and English recognition data, so scanned-PDF OCR works without installing host tools.
+Open `http://localhost:8080`. The image includes Poppler, Tesseract, and English recognition data for scanned-PDF OCR. To build locally from source, combine `compose.yaml` with `compose.build.yaml`.

@@ -2,5 +2,7 @@ node_modules/
 frontend/src/shared/api/generated.ts
 frontend/coverage/
 frontend/dist/
+apps/web/coverage/
+apps/web/dist/
 backend/internal/webui/dist/
 **/*.tsbuildinfo

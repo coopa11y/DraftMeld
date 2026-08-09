@@ -2,6 +2,8 @@
 
 DraftMeld is early in development. Contributions should strengthen the product model, data correctness, accessibility, tests, or documentation without obscuring how recommendations are calculated.
 
+Meaningful accepted contributions—including documentation, translations, testing, ranking adapters, and accessibility work—may qualify for access to future official supported builds. This recognition is discretionary and is described in [docs/distribution.md](docs/distribution.md).
+
 ## Before contributing
 
 1. Search existing issues and discussions.
