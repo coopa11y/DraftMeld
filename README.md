@@ -97,13 +97,19 @@ Run the same contract, type, unit-test, vet, and production-build checks used fo
 npm run verify
 ```
 
-Run the complete application with Docker:
+Run the published community image with Docker:
 
 ```bash
-docker compose -f deployments/compose.yaml up --build
+docker compose -f deployments/compose.yaml up -d
 ```
 
-Tagged releases provide Windows and Linux archives, SHA-256 checksums, build provenance, and versioned multi-architecture images in GitHub Container Registry. See the [release and installation guide](docs/releasing.md).
+To build the same image from your checkout, add the build override:
+
+```bash
+docker compose -f deployments/compose.yaml -f deployments/compose.build.yaml up --build
+```
+
+Tagged releases publish versioned multi-architecture images in GitHub Container Registry. Signed Windows and Linux packages are planned as optional official supported builds; source, Docker, and all product features remain free. See the [community and official distribution policy](docs/distribution.md) and [release guide](docs/releasing.md).
 
 ## Principles
 
@@ -117,9 +123,13 @@ Tagged releases provide Windows and Linux archives, SHA-256 checksums, build pro
 
 DraftMeld welcomes ideas and contributions. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a change. Please report security concerns through the process in [SECURITY.md](SECURITY.md).
 
+Accepted code, documentation, translation, testing, ranking-adapter, and accessibility work may qualify for contributor access to future official supported builds. The criteria are documented in the [distribution policy](docs/distribution.md).
+
 ## License
 
 DraftMeld is licensed under the GNU Affero General Public License v3.0. See [LICENSE](LICENSE).
+
+Use of the DraftMeld name and official-build designation is covered by [TRADEMARKS.md](TRADEMARKS.md).
 
 ## Versioning
 

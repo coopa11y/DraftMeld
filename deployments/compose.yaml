@@ -1,13 +1,27 @@
 services:
   draftmeld:
-    build:
-      context: ..
-      dockerfile: deployments/docker/Dockerfile
-    image: draftmeld:local
+    image: ghcr.io/coopa11y/draftmeld:${DRAFTMELD_VERSION:-latest}
+    container_name: draftmeld
     ports:
-      - "8080:8080"
+      - "${DRAFTMELD_PORT:-8080}:8080"
     volumes:
       - draftmeld-data:/data
+    environment:
+      DRAFTMELD_ADDRESS: ":8080"
+      DRAFTMELD_DATA_DIR: /data
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
 
 volumes:

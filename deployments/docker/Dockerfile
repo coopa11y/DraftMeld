@@ -24,7 +24,7 @@ RUN VERSION="$(cat /src/VERSION)" && \
 
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update && \
-    apt-get install --yes --no-install-recommends ca-certificates poppler-utils tesseract-ocr tesseract-ocr-eng && \
+    apt-get install --yes --no-install-recommends ca-certificates curl poppler-utils tesseract-ocr tesseract-ocr-eng && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd --system --gid 65532 draftmeld && \
     useradd --system --uid 65532 --gid draftmeld --home-dir /nonexistent --shell /usr/sbin/nologin draftmeld && \

@@ -2,6 +2,8 @@ name: Release
 
 on:
   push:
+    branches:
+      - dev
     tags:
       - "v*.*.*"
   pull_request:
@@ -32,13 +34,11 @@ env:
 
 jobs:
   artifacts:
-    name: Native release artifacts
+    name: Native packaging validation
+    if: github.ref != 'refs/heads/dev'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
-      attestations: write
-      artifact-metadata: write
     steps:
       - uses: actions/checkout@v6
         with:
@@ -58,7 +58,7 @@ jobs:
         run: |
           version="$(cat VERSION)"
           echo "value=$version" >> "$GITHUB_OUTPUT"
-          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
             node scripts/check-release.mjs "$GITHUB_REF_NAME"
             git fetch --no-tags origin main
             git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
@@ -74,17 +74,8 @@ jobs:
         run: ./scripts/package-release.sh
       - name: Smoke-test the Linux archive
         run: ./scripts/smoke-release.sh
-      - name: Attest native release artifacts
-        if: github.event_name == 'push'
-        uses: actions/attest@v4
-        with:
-          subject-checksums: outputs/release/draftmeld_${{ steps.version.outputs.value }}_checksums.txt
-      - uses: actions/upload-artifact@v7
-        with:
-          name: draftmeld-native-${{ github.sha }}
-          path: outputs/release/*
-          if-no-files-found: error
-          retention-days: 14
+      - name: Confirm native package manifest
+        run: test -s outputs/release/draftmeld_${{ steps.version.outputs.value }}_checksums.txt
 
   container:
     name: Container release
@@ -153,8 +144,10 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=edge,enable=${{ github.ref == 'refs/heads/dev' }}
+            type=semver,pattern={{version}},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-') }}
       - name: Build and publish multi-architecture image
         if: github.event_name == 'push'
         id: publish
@@ -175,8 +168,8 @@ jobs:
           push-to-registry: true
 
   release:
-    name: GitHub prerelease
-    if: github.event_name == 'push'
+    name: Source release
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: [artifacts, container]
     runs-on: ubuntu-latest
     permissions:
@@ -187,19 +180,14 @@ jobs:
         with:
           node-version-file: .nvmrc
           package-manager-cache: false
-      - uses: actions/download-artifact@v8
-        with:
-          name: draftmeld-native-${{ github.sha }}
-          path: outputs/release
       - name: Create release notes
-        run: node scripts/release-notes.mjs > outputs/release/release-notes.md
-      - name: Publish GitHub prerelease
+        run: mkdir -p outputs/release && node scripts/release-notes.mjs > outputs/release/release-notes.md
+      - name: Publish source release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >-
           gh release create "$GITHUB_REF_NAME"
-          outputs/release/draftmeld_*
           --verify-tag
-          --prerelease
+          ${{ contains(github.ref_name, '-') && '--prerelease' || '' }}
           --title "DraftMeld $(cat VERSION)"
           --notes-file outputs/release/release-notes.md

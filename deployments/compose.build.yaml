@@ -1,0 +1,6 @@
+services:
+  draftmeld:
+    build:
+      context: ..
+      dockerfile: deployments/docker/Dockerfile
+    image: draftmeld:local
