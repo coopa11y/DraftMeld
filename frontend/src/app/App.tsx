@@ -21,6 +21,12 @@ export function App() {
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [onboardingDone, setOnboardingDone] = useState(onboardingComplete);
   const [hasOnboardingDraft, setHasOnboardingDraft] = useState(() => loadOnboardingDraft() !== null);
+  const [notice, setNotice] = useState("");
+  const noticeRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (notice) noticeRef.current?.focus();
+  }, [notice]);
 
   useEffect(() => {
     let active = true;
@@ -71,10 +77,11 @@ export function App() {
     return saved;
   }
 
-  function closeOnboarding() {
+  function closeOnboarding(message?: string) {
     setOnboardingOpen(false);
     setOnboardingDone(onboardingComplete());
     setHasOnboardingDraft(loadOnboardingDraft() !== null);
+    setNotice(message ?? "");
   }
 
   const activeLeague = leagues.find((league) => league.id === activeLeagueId);
@@ -127,7 +134,12 @@ export function App() {
             </Button>
           ) : null}
           {!onboardingDone && !onboardingOpen ? (
-            <Button onClick={() => setOnboardingOpen(true)}>
+            <Button
+              onClick={() => {
+                setNotice("");
+                setOnboardingOpen(true);
+              }}
+            >
               {hasOnboardingDraft ? "Resume setup" : "Setup guide"}
             </Button>
           ) : null}
@@ -135,6 +147,11 @@ export function App() {
       </header>
 
       {error ? <StatusMessage tone="error">Unable to load leagues. {error}</StatusMessage> : null}
+      {notice ? (
+        <StatusMessage tone="success" ref={noticeRef} tabIndex={-1}>
+          {notice}
+        </StatusMessage>
+      ) : null}
       {!onboardingDone && !onboardingOpen ? (
         <section className="onboarding-prompt" aria-labelledby="onboarding-prompt-title">
           <div>
@@ -149,7 +166,13 @@ export function App() {
             </p>
           </div>
           <div className="onboarding-prompt-actions">
-            <Button variant="primary" onClick={() => setOnboardingOpen(true)}>
+            <Button
+              variant="primary"
+              onClick={() => {
+                setNotice("");
+                setOnboardingOpen(true);
+              }}
+            >
               {hasOnboardingDraft ? "Resume setup" : "Start setup"}
             </Button>
             <Button
@@ -192,7 +215,7 @@ export function App() {
           }}
         />
       ) : (
-        <DraftWorkspace key={activeLeagueId} leagueId={activeLeagueId} />
+        <DraftWorkspace key={activeLeagueId} leagueId={activeLeagueId} autoFocusHeading={!notice} />
       )}
     </>
   );

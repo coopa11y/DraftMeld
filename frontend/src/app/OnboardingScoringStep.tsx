@@ -12,7 +12,9 @@ interface OnboardingScoringStepProps {
 export function OnboardingScoringStep({ rules, setRules }: OnboardingScoringStepProps) {
   return (
     <section aria-labelledby="scoring-step-title">
-      <h2 id="scoring-step-title">Scoring</h2>
+      <h2 id="scoring-step-title" tabIndex={-1}>
+        Scoring
+      </h2>
       <p>Choose a familiar reception format or adjust any scoring value manually.</p>
       <FormField label="Reception scoring preset" help="This changes only reception and TE-premium values.">
         <select

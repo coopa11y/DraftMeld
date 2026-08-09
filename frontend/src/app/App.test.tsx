@@ -355,8 +355,14 @@ describe("accessible draft board", () => {
     expect(screen.getByRole("heading", { name: "Set up your draft workspace" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Continue" }));
     await user.click(screen.getByRole("button", { name: "Save and finish later" }));
+    const savedNotice = screen.getByText("Setup progress saved. Resume the setup guide whenever you are ready.");
+    expect(savedNotice).toHaveAttribute("role", "status");
+    await waitFor(() => expect(savedNotice).toHaveFocus());
     expect(screen.getAllByRole("button", { name: "Resume setup" }).length).toBeGreaterThan(0);
     expect(screen.getByText("Draft not started")).toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: "Resume setup" })[0]);
+    expect(screen.queryByText("Setup progress saved. Resume the setup guide whenever you are ready.")).toBeNull();
+    expect(await screen.findByRole("heading", { name: "Scoring" })).toHaveFocus();
   });
 
   it("starts, safely resets, and restores a draft session", async () => {

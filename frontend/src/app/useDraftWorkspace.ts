@@ -20,14 +20,14 @@ export interface DraftWorkspaceController {
   snapshot: DraftSnapshot | null;
 }
 
-export function useDraftWorkspace(leagueId: string): DraftWorkspaceController {
+export function useDraftWorkspace(leagueId: string, autoFocusHeading = true): DraftWorkspaceController {
   const [snapshot, setSnapshot] = useState<DraftSnapshot | null>(null);
   const [busy, setBusy] = useState(false);
   const [announcement, setAnnouncement] = useState("Draft board loading.");
   const [error, setError] = useState("");
   const [selectedTeamNumber, setSelectedTeamNumber] = useState(0);
   const [pendingFocus, setPendingFocus] = useState<string | null>(null);
-  const boardHeading = useViewHeadingFocus<HTMLHeadingElement>(snapshot !== null);
+  const boardHeading = useViewHeadingFocus<HTMLHeadingElement>(snapshot !== null && autoFocusHeading);
   const errorAlert = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
