@@ -27,5 +27,12 @@ export default tseslint.config(
       "jsx-a11y/no-noninteractive-tabindex": ["error", { roles: ["region"] }],
     },
   },
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/**/*.test.{ts,tsx}", "src/test/**", "src/shared/api/generated.ts"],
+    rules: {
+      "max-lines-per-function": ["error", { max: 250, skipBlankLines: true, skipComments: true }],
+    },
+  },
   eslintConfigPrettier,
 );

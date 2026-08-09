@@ -61,6 +61,7 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 
 ### Changed
 
+- Split draft-workspace and ranking-source orchestration from their presentation components, added function-size enforcement, and raised coverage regression floors.
 - Backend draft trades, HTTP routes, and frontend trade workflows are split into cohesive feature modules with shared strict JSON decoding and presentation helpers
 - League-rule cloning is centralized in the domain model and repository boundaries now protect mutable stored collections
 - Verification now enforces maintained-source size limits and backend/frontend coverage floors

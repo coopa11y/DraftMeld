@@ -6,7 +6,7 @@ import process from "node:process";
 const repositoryRoot = path.resolve(import.meta.dirname, "..");
 const backendDirectory = path.join(repositoryRoot, "backend");
 const profile = path.join(backendDirectory, ".coverage.out");
-const minimum = 67;
+const minimum = 68;
 
 function runGo(arguments_, options = {}) {
   const result = spawnSync(process.platform === "win32" ? "go.exe" : "go", arguments_, {

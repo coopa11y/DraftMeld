@@ -24,7 +24,12 @@ export async function postMultipart<T>(path: string, form: FormData): Promise<T>
     method: "POST",
     body: form,
   });
-  const body: unknown = await response.json();
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    throw new Error(`Request failed with ${response.status}`);
+  }
   if (!response.ok) {
     const message =
       typeof body === "object" && body !== null && "error" in body && typeof body.error === "string"

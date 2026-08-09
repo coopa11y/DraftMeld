@@ -31,11 +31,12 @@ The draft trade feature, for example, separates its composer, asset selector, le
 - Prettier, ESLint, TypeScript, gofmt, and Go vet;
 - a 500-line maximum for maintained production Go files;
 - a 425-line maximum for maintained production TypeScript and TSX files;
-- backend statement coverage of at least 67%;
-- frontend coverage of at least 75% statements, 65% branches, 75% functions, and 78% lines;
+- a 250-line maximum for maintained TypeScript and TSX functions and components, excluding blank lines and comments;
+- backend statement coverage of at least 68%;
+- frontend coverage of at least 80% statements, 73% branches, 80% functions, and 82% lines;
 - backend, frontend, SQLite integrity, accessibility, and production-build tests.
 
-Tests and generated files are excluded from source-size limits. Generated OpenAPI code and test harness files are excluded from frontend coverage because they are not maintained production logic.
+Tests and generated files are excluded from source-size and function-size limits. Generated OpenAPI code and test harness files are excluded from frontend coverage because they are not maintained production logic.
 
 Coverage thresholds are regression floors, not finish lines. Changed business logic should cover successful behavior, expected validation failures, dependency failures where practical, and preservation of stored data after a failed operation. A higher percentage does not replace assertions about data integrity.
 
