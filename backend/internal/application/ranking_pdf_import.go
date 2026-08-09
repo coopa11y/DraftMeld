@@ -17,8 +17,9 @@ import (
 var ErrUnsupportedRankingPDF = errors.New("unsupported ranking PDF")
 
 type PDFImportResult struct {
-	Source    ranking.SourceStatus `json:"source"`
-	PageCount int                  `json:"pageCount"`
+	Source     ranking.SourceStatus `json:"source"`
+	PageCount  int                  `json:"pageCount"`
+	OCRApplied bool                 `json:"ocrApplied"`
 }
 
 type pdfRankingParser interface {
@@ -94,10 +95,14 @@ func (service *RankingService) ImportPDF(ctx context.Context, contents []byte) (
 			return PDFImportResult{}, fmt.Errorf("PDF parser returned an unknown source")
 		}
 		refreshed := time.Now().UTC()
+		records, err = resolveRankingPlayers(ctx, service.repository, records, refreshed)
+		if err != nil {
+			return PDFImportResult{}, err
+		}
 		if err = service.repository.ReplaceRankings(ctx, source, records, published, refreshed); err != nil {
 			return PDFImportResult{}, err
 		}
-		return PDFImportResult{Source: ranking.SourceStatus{SourceDefinition: source, RecordCount: len(records), RefreshedAt: &refreshed, PublishedAt: published}, PageCount: extracted.PageCount}, nil
+		return PDFImportResult{Source: ranking.SourceStatus{SourceDefinition: source, RecordCount: len(records), RefreshedAt: &refreshed, PublishedAt: published}, PageCount: extracted.PageCount, OCRApplied: extracted.OCRApplied}, nil
 	}
 	return PDFImportResult{}, fmt.Errorf("%w: upload an ESPN PPR Top 300 or ESPN Dynasty Cheat Sheet; projection and positional-only PDFs are not ranking imports", ErrUnsupportedRankingPDF)
 }

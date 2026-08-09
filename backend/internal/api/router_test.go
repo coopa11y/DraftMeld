@@ -115,6 +115,48 @@ func TestRankingPDFImportRejectsMultipleFiles(t *testing.T) {
 	}
 }
 
+func TestRankingCSVImportCreatesAWeightablePrivateSource(t *testing.T) {
+	router, closeStore := testRouter(t)
+	defer closeStore()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	_ = writer.WriteField("name", "Marcus rankings")
+	_ = writer.WriteField("mapping", `{"rank":"RK","name":"Player","position":"POS","team":"TM","adp":"ADP","tier":"Tier","providerId":"Player ID"}`)
+	file, err := writer.CreateFormFile("file", "rankings.csv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = file.Write([]byte("RK,Player,POS,TM,ADP,Tier,Player ID\n1,Custom Runner,RB,ATL,4.2,1,runner-1\n2,Custom Receiver,WR,DAL,9.5,2,receiver-2\n"))
+	_ = writer.Close()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/ranking-sources/import-csv", &body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("ranking import failed: %d %s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), `"id":"custom-marcus-rankings"`) || !strings.Contains(response.Body.String(), `"isCustom":true`) {
+		t.Fatalf("unexpected import response: %s", response.Body.String())
+	}
+
+	rankingsResponse := httptest.NewRecorder()
+	router.ServeHTTP(rankingsResponse, httptest.NewRequest(http.MethodGet, "/api/v1/rankings?leagueId=demo", nil))
+	if rankingsResponse.Code != http.StatusOK || !strings.Contains(rankingsResponse.Body.String(), `"name":"Custom Runner"`) || !strings.Contains(rankingsResponse.Body.String(), `"adp":4.2`) {
+		t.Fatalf("custom source did not reach consensus: %d %s", rankingsResponse.Code, rankingsResponse.Body.String())
+	}
+
+	sourcesResponse := httptest.NewRecorder()
+	router.ServeHTTP(sourcesResponse, httptest.NewRequest(http.MethodGet, "/api/v1/ranking-sources", nil))
+	if sourcesResponse.Code != http.StatusOK || !strings.Contains(sourcesResponse.Body.String(), `"name":"Marcus rankings"`) {
+		t.Fatalf("custom source was not persisted: %d %s", sourcesResponse.Code, sourcesResponse.Body.String())
+	}
+	directoryResponse := httptest.NewRecorder()
+	router.ServeHTTP(directoryResponse, httptest.NewRequest(http.MethodGet, "/api/v1/player-directory/status", nil))
+	if directoryResponse.Code != http.StatusOK || !strings.Contains(directoryResponse.Body.String(), `"playerCount":2`) || !strings.Contains(directoryResponse.Body.String(), `"providerIdCount":2`) {
+		t.Fatalf("unexpected player directory status: %d %s", directoryResponse.Code, directoryResponse.Body.String())
+	}
+}
+
 func TestDraftActionAndUndoEndpoints(t *testing.T) {
 	router, closeStore := testRouter(t)
 	defer closeStore()
@@ -146,6 +188,59 @@ func TestDraftActionAndUndoEndpoints(t *testing.T) {
 	}
 	if len(afterUndo.MyTeam) != 0 || len(afterUndo.Available) != len(draft.DemoCatalog()) {
 		t.Fatalf("undo endpoint did not restore draft state")
+	}
+}
+
+func TestDraftSessionEndpoints(t *testing.T) {
+	router, closeStore, _ := testRouterWithDraftService(t)
+	defer closeStore()
+
+	resetResponse := httptest.NewRecorder()
+	router.ServeHTTP(resetResponse, httptest.NewRequest(http.MethodPost, "/api/v1/draft/session/reset", bytes.NewBufferString(`{"leagueId":"demo","confirmation":"Demo League"}`)))
+	if resetResponse.Code != http.StatusOK {
+		t.Fatalf("reset draft status = %d: %s", resetResponse.Code, resetResponse.Body.String())
+	}
+	var reset draft.Snapshot
+	if err := json.NewDecoder(resetResponse.Body).Decode(&reset); err != nil || reset.SessionStatus != draft.SessionNotStarted || !reset.CanUndoReset {
+		t.Fatalf("unexpected reset response: snapshot=%#v error=%v", reset, err)
+	}
+
+	undoResponse := httptest.NewRecorder()
+	router.ServeHTTP(undoResponse, httptest.NewRequest(http.MethodPost, "/api/v1/draft/session/undo-reset", bytes.NewBufferString(`{"leagueId":"demo"}`)))
+	if undoResponse.Code != http.StatusOK {
+		t.Fatalf("undo reset status = %d: %s", undoResponse.Code, undoResponse.Body.String())
+	}
+
+	resetAgain := httptest.NewRecorder()
+	router.ServeHTTP(resetAgain, httptest.NewRequest(http.MethodPost, "/api/v1/draft/session/reset", bytes.NewBufferString(`{"leagueId":"demo","confirmation":"Demo League"}`)))
+	startResponse := httptest.NewRecorder()
+	router.ServeHTTP(startResponse, httptest.NewRequest(http.MethodPost, "/api/v1/draft/session/start", bytes.NewBufferString(`{"leagueId":"demo"}`)))
+	if startResponse.Code != http.StatusOK {
+		t.Fatalf("start draft status = %d: %s", startResponse.Code, startResponse.Body.String())
+	}
+}
+
+func TestDraftPickTradeEndpointHandlesPickPackages(t *testing.T) {
+	router, closeStore := testRouter(t)
+	defer closeStore()
+	body := bytes.NewBufferString(`{"leagueId":"demo","teamOneNumber":12,"teamTwoNumber":1,"teamOneReceives":[1],"teamTwoReceives":[12,13]}`)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/draft/trades", body))
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected trade status %d, got %d: %s", http.StatusCreated, response.Code, response.Body.String())
+	}
+	var snapshot draft.Snapshot
+	if err := json.NewDecoder(response.Body).Decode(&snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.PickTrades) != 1 || snapshot.PickSlots[0].OwnerTeamNumber != 12 || snapshot.PickSlots[11].OwnerTeamNumber != 1 {
+		t.Fatalf("unexpected traded-pick snapshot: %#v", snapshot)
+	}
+
+	reverse := httptest.NewRecorder()
+	router.ServeHTTP(reverse, httptest.NewRequest(http.MethodDelete, "/api/v1/draft/trades/1?leagueId=demo", nil))
+	if reverse.Code != http.StatusOK || !strings.Contains(reverse.Body.String(), `"pickTrades":[]`) {
+		t.Fatalf("trade reversal failed: %d %s", reverse.Code, reverse.Body.String())
 	}
 }
 
@@ -206,6 +301,29 @@ func TestLeagueLifecycleEndpoints(t *testing.T) {
 	router.ServeHTTP(missingResponse, httptest.NewRequest(http.MethodGet, "/api/v1/leagues/work-league", nil))
 	if missingResponse.Code != http.StatusNotFound {
 		t.Fatalf("expected deleted league status %d, got %d", http.StatusNotFound, missingResponse.Code)
+	}
+}
+
+func TestLeagueRuleCSVImportReturnsAReviewablePreview(t *testing.T) {
+	router, closeStore := testRouter(t)
+	defer closeStore()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	file, err := writer.CreateFormFile("file", "league-rules.csv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = file.Write([]byte("Number of teams,Draft format,Passing touchdowns\n10,Snake,6\n"))
+	_ = writer.Close()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/leagues/rules/import", &body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("league rule import failed: %d %s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), `"passingTouchdown":6`) || !strings.Contains(response.Body.String(), `"teamCount":10`) || !strings.Contains(response.Body.String(), `"confidence":"high"`) {
+		t.Fatalf("unexpected import preview: %s", response.Body.String())
 	}
 }
 
@@ -342,6 +460,9 @@ func testRouterWithDraftService(t *testing.T) (http.Handler, func(), *applicatio
 	service, err := application.NewDraftServiceWithLeagues(store, store, draft.DemoCatalog())
 	if err != nil {
 		t.Fatalf("create persisted draft service: %v", err)
+	}
+	if _, err = service.StartDraft(t.Context(), "demo"); err != nil {
+		t.Fatalf("start test draft: %v", err)
 	}
 	rankingService := application.NewRankingService(store)
 	projectionService := application.NewProjectionService(store)

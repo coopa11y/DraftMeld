@@ -9,15 +9,19 @@ import (
 )
 
 func (service *DraftService) playersForLeague(ctx context.Context, configuration LeagueConfiguration) ([]draft.Player, map[string]draft.Player, string, int, error) {
+	preferences, err := resolvePlayerPreferences(ctx, service.repository, configuration.Rules.PlayerPreferences)
+	if err != nil {
+		return nil, nil, "", 0, err
+	}
 	if service.rankings == nil {
-		return staticPlayers(service.players, configuration.Rules.PlayerPreferences)
+		return staticPlayers(service.players, preferences)
 	}
 	consensus, err := service.rankings.Consensus(ctx, configuration.Rules.SourcePreferences, configuration.Rules.ConsensusMethod)
 	if err != nil {
 		return nil, nil, "", 0, err
 	}
 	if len(consensus) == 0 {
-		return staticPlayers(service.players, configuration.Rules.PlayerPreferences)
+		return staticPlayers(service.players, preferences)
 	}
 	values := make(map[string]leaguePlayerValue)
 	if service.projections != nil {
@@ -37,6 +41,9 @@ func (service *DraftService) playersForLeague(ctx context.Context, configuration
 		value := values[ranked.PlayerKey]
 		adp := value.adp
 		if adp <= 0 {
+			adp = ranked.ADP
+		}
+		if adp <= 0 {
 			adp = float64(ranked.Rank)
 		}
 		if value.points != 0 {
@@ -45,8 +52,8 @@ func (service *DraftService) playersForLeague(ctx context.Context, configuration
 		players = append(players, draft.Player{
 			ID: ranked.PlayerKey, Name: ranked.Name, NFLTeam: ranked.Team, Position: ranked.Position,
 			ByeWeek: value.byeWeek, OverallRank: ranked.Rank, PositionRank: positionCounts[ranked.Position], ADP: adp,
-			Tier: 1, ProjectedPoints: value.points, Confidence: ranked.Confidence, RankRange: ranked.RankRange,
-			Preference: configuration.Rules.PlayerPreferences[ranked.PlayerKey],
+			Tier: ranked.Tier, ProjectedPoints: value.points, Confidence: ranked.Confidence, RankRange: ranked.RankRange,
+			Preference: preferences[ranked.PlayerKey],
 		})
 	}
 	applyReplacementValues(players, configuration.Rules)
@@ -94,7 +101,9 @@ func applyReplacementValues(players []draft.Player, rules league.Rules) {
 	}
 	if projected == 0 {
 		for index := range players {
-			players[index].Tier = 1 + (players[index].PositionRank-1)/5
+			if players[index].Tier == 0 {
+				players[index].Tier = 1 + (players[index].PositionRank-1)/5
+			}
 		}
 		return
 	}
@@ -189,14 +198,12 @@ func nextUserPick(current int, rules league.Rules) int {
 	if rules.DraftType == league.DraftTypeAuction {
 		return 0
 	}
-	for pick := current + 1; pick <= current+rules.TeamCount*2; pick++ {
-		round := (pick - 1) / rules.TeamCount
-		slot := (pick-1)%rules.TeamCount + 1
-		owner := slot
-		if rules.DraftType == league.DraftTypeSnake && round%2 == 1 {
-			owner = rules.TeamCount - slot + 1
-		}
-		if owner == rules.DraftPosition {
+	lastPick := totalDraftPicks(rules)
+	if lastPick == 0 {
+		lastPick = current + rules.TeamCount*2
+	}
+	for pick := current + 1; pick <= min(current+rules.TeamCount*2, lastPick); pick++ {
+		if pickOwner(pick, rules) == userTeamNumber(rules) {
 			return pick
 		}
 	}
@@ -207,13 +214,7 @@ func isUserTurn(pick int, rules league.Rules) bool {
 	if rules.DraftType == league.DraftTypeAuction {
 		return true
 	}
-	round := (pick - 1) / rules.TeamCount
-	slot := (pick-1)%rules.TeamCount + 1
-	owner := slot
-	if rules.DraftType == league.DraftTypeSnake && round%2 == 1 {
-		owner = rules.TeamCount - slot + 1
-	}
-	return owner == rules.DraftPosition
+	return pickOwner(pick, rules) == userTeamNumber(rules)
 }
 
 func auctionState(rules league.Rules, history []draft.Pick, available []draft.Player, myRosterSize int) (float64, float64, float64) {

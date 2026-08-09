@@ -5,12 +5,23 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/application"
 	"github.com/coopa11y/DraftMeld/backend/internal/document"
 )
 
+const maxRankingCSVBytes = 10 << 20
+
 func registerRankingRoutes(mux *http.ServeMux, service *application.RankingService, leagues *application.LeagueService) {
+	mux.HandleFunc("GET /api/v1/player-directory/status", func(response http.ResponseWriter, request *http.Request) {
+		status, err := service.PlayerDirectoryStatus(request.Context())
+		if err != nil {
+			writeError(response, http.StatusInternalServerError, "Unable to load the player directory.")
+			return
+		}
+		writeJSON(response, http.StatusOK, status)
+	})
 	mux.HandleFunc("GET /api/v1/ranking-identities", func(response http.ResponseWriter, request *http.Request) {
 		issues, err := service.IdentityIssues(request.Context())
 		if err != nil {
@@ -101,6 +112,36 @@ func registerRankingRoutes(mux *http.ServeMux, service *application.RankingServi
 			return
 		}
 		writeJSON(response, http.StatusCreated, result)
+	})
+	mux.HandleFunc("POST /api/v1/ranking-sources/import-csv", func(response http.ResponseWriter, request *http.Request) {
+		request.Body = http.MaxBytesReader(response, request.Body, maxRankingCSVBytes+(1<<20))
+		if err := request.ParseMultipartForm(maxRankingCSVBytes); err != nil {
+			writeError(response, http.StatusBadRequest, "Upload a ranking CSV no larger than 10 MiB.")
+			return
+		}
+		if request.MultipartForm != nil {
+			defer request.MultipartForm.RemoveAll()
+		}
+		name := strings.TrimSpace(request.FormValue("name"))
+		file, _, err := request.FormFile("file")
+		if err != nil {
+			writeError(response, http.StatusBadRequest, "Choose a ranking CSV to import.")
+			return
+		}
+		defer file.Close()
+		mapping := make(map[string]string)
+		if rawMapping := strings.TrimSpace(request.FormValue("mapping")); rawMapping != "" {
+			if err = json.Unmarshal([]byte(rawMapping), &mapping); err != nil {
+				writeError(response, http.StatusBadRequest, "The ranking column mapping was not valid.")
+				return
+			}
+		}
+		status, err := service.ImportCSV(request.Context(), name, io.LimitReader(file, maxRankingCSVBytes+1), mapping)
+		if err != nil {
+			writeError(response, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(response, http.StatusCreated, status)
 	})
 	mux.HandleFunc("GET /api/v1/rankings", func(response http.ResponseWriter, request *http.Request) {
 		leagueID := request.URL.Query().Get("leagueId")

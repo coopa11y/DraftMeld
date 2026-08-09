@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/draft"
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/league"
 )
 
@@ -107,7 +110,18 @@ func (service *LeagueService) Update(ctx context.Context, id string, rules leagu
 	if err != nil {
 		return LeagueConfiguration{}, err
 	}
-	configuration.Rules = withDefaultSourcePreferences(rules)
+	if configuration.Rules.LeagueFormat == league.LeagueFormatDynasty && rules.Season != configuration.Rules.Season {
+		return LeagueConfiguration{}, fmt.Errorf("%w: use the guided season rollover to change a dynasty league's season", ErrInvalidLeague)
+	}
+	updatedRules := withDefaultSourcePreferences(rules)
+	locked, lockErr := service.draftStructureLocked(ctx, id, configuration.Rules.Season)
+	if lockErr != nil {
+		return LeagueConfiguration{}, lockErr
+	}
+	if locked && draftStructureChanged(configuration.Rules, updatedRules) {
+		return LeagueConfiguration{}, fmt.Errorf("%w: reset the current draft before changing its structure", ErrInvalidLeague)
+	}
+	configuration.Rules = updatedRules
 	if err = configuration.Validate(); err != nil {
 		return LeagueConfiguration{}, fmt.Errorf("%w: %v", ErrInvalidLeague, err)
 	}
@@ -115,6 +129,35 @@ func (service *LeagueService) Update(ctx context.Context, id string, rules leagu
 		return LeagueConfiguration{}, err
 	}
 	return configuration, nil
+}
+
+func (service *LeagueService) draftStructureLocked(ctx context.Context, leagueID string, season int) (bool, error) {
+	if sessions, ok := service.repository.(DraftSessionRepository); ok {
+		session, found, err := sessions.GetDraftSession(ctx, leagueID, season)
+		if err != nil {
+			return false, err
+		}
+		if found && (session.Status == draft.SessionInProgress || session.Status == draft.SessionComplete) {
+			return true, nil
+		}
+	}
+	if events, ok := service.repository.(seasonDraftEventRepository); ok {
+		seasonEvents, err := events.ListSeason(ctx, leagueID, season)
+		if err != nil {
+			return false, err
+		}
+		return len(replay(seasonEvents).activeEvents) > 0, nil
+	}
+	return false, nil
+}
+
+func draftStructureChanged(current, updated league.Rules) bool {
+	updated.Name = current.Name
+	updated.TeamNames = current.TeamNames
+	updated.SourcePreferences = current.SourcePreferences
+	updated.ConsensusMethod = current.ConsensusMethod
+	updated.PlayerPreferences = current.PlayerPreferences
+	return !reflect.DeepEqual(current, updated)
 }
 
 func (service *LeagueService) Duplicate(ctx context.Context, id string) (LeagueConfiguration, error) {
@@ -237,6 +280,19 @@ func clonePlayerPreferences(preferences map[string]string) map[string]string {
 }
 
 func withDefaultSourcePreferences(rules league.Rules) league.Rules {
+	if rules.UserTeamNumber == 0 {
+		rules.UserTeamNumber = rules.DraftPosition
+	}
+	if len(rules.DraftOrder) != rules.TeamCount {
+		rules.DraftOrder = make([]int, rules.TeamCount)
+		for index := range rules.DraftOrder {
+			rules.DraftOrder[index] = index + 1
+		}
+	}
+	if position := draftPositionForTeam(rules.DraftOrder, rules.UserTeamNumber); position > 0 {
+		rules.DraftPosition = position
+	}
+	rules.TeamNames = normalizedTeamNames(rules.TeamNames, rules.TeamCount, rules.UserTeamNumber)
 	defaults := DefaultRankingSourcePreferences()
 	rules.SourcePreferences = cloneSourcePreferences(rules.SourcePreferences)
 	for sourceID, preference := range defaults {
@@ -256,5 +312,50 @@ func withDefaultSourcePreferences(rules league.Rules) league.Rules {
 	if rules.AuctionMinimumBid <= 0 {
 		rules.AuctionMinimumBid = 1
 	}
+	if rules.LeagueFormat == "" {
+		rules.LeagueFormat = league.LeagueFormatRedraft
+	}
+	if rules.Season == 0 {
+		rules.Season = time.Now().UTC().Year()
+	}
+	if rules.InitialSeason == 0 {
+		rules.InitialSeason = rules.Season
+	}
+	if rules.LeagueFormat == league.LeagueFormatRedraft {
+		rules.FuturePickSeasons = 0
+	} else if rules.FuturePickSeasons == 0 {
+		rules.FuturePickSeasons = 3
+	}
+	if rules.RookieDraftRounds == 0 {
+		rules.RookieDraftRounds = 4
+	}
+	if rules.LeagueFormat == league.LeagueFormatDynasty && rules.FAABBudget == 0 {
+		rules.FAABBudget = 100
+	}
 	return rules
+}
+
+func draftPositionForTeam(order []int, teamNumber int) int {
+	for index, team := range order {
+		if team == teamNumber {
+			return index + 1
+		}
+	}
+	return 0
+}
+
+func normalizedTeamNames(names []string, teamCount, userPosition int) []string {
+	result := make([]string, teamCount)
+	for index := range result {
+		if index < len(names) {
+			result[index] = strings.TrimSpace(names[index])
+		}
+		if result[index] == "" {
+			result[index] = fmt.Sprintf("Team %d", index+1)
+		}
+	}
+	if userPosition >= 1 && userPosition <= teamCount && (len(names) < userPosition || strings.TrimSpace(names[userPosition-1]) == "") {
+		result[userPosition-1] = "My Team"
+	}
+	return result
 }

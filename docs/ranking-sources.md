@@ -2,6 +2,8 @@
 
 DraftMeld starts with seven transparent ranking signals. Four come from two open-data ecosystems; CBS is retrieved from its public provider page on demand. The two ESPN signals are imported only from PDFs supplied by the user. Proprietary source files are never committed or redistributed by DraftMeld.
 
+Users can also add any number of private ordinal ranking CSVs. These sources are named by the user, mapped interactively, stored only as normalized records, and exposed to the same per-league inclusion and influence controls as built-in sources.
+
 | DraftMeld source | Signal | Project and license |
 | --- | --- | --- |
 | Redraft expert consensus | Current overall expert consensus across supported fantasy positions | [DynastyProcess data](https://github.com/dynastyprocess/data), GPL-3.0 repository with upstream FantasyPros attribution |
@@ -15,12 +17,13 @@ DraftMeld starts with seven transparent ranking signals. Four come from two open
 ## Import behavior
 
 - Online data is fetched from fixed public source URLs only when a user selects **Refresh all sources**. PDF sources are excluded from automatic refresh.
-- PDF uploads are limited to 20 MiB and 200 pages, processed in memory, and discarded immediately after text extraction. DraftMeld stores only normalized player records and source status.
+- PDF uploads are limited to 20 MiB and 200 pages for selectable text. PDFs with no selectable text can use local English OCR for up to 25 pages. Temporary OCR files are removed after each attempt, and DraftMeld stores only normalized player records and source status.
+- Ranking CSV uploads are limited to 10 MiB. Player name, overall rank, and position are required; team, ADP, and tier are optional. Reimporting the same source name replaces that source atomically.
 - The importer detects a supported provider and document type from the extracted document text. Users do not need to choose column mappings or a parser.
 - Provider columns are converted to a small common record: source, normalized player key, display name, position, team, and ordinal rank.
 - Team defenses use canonical NFL team identities, so values such as `DEN`, `Denver Defense`, and `Broncos D/ST` contribute to the same consensus player.
 - Each source is replaced transactionally. A later source failing does not roll back sources that refreshed successfully earlier in the same request.
-- The current redraft feed anchors eligibility so prior-season or dynasty-only names cannot enter the draft board by themselves.
+- Ordinal ranking sources, including private CSVs, define draft-board eligibility. Contextual market and usage feeds enrich that pool without introducing prior-season or dynasty-only names by themselves.
 - The UI exposes methodology, license, project link, default weight, publication date, refresh time, and record count.
 - Each league can include or exclude a source and assign a positive influence from 0.1 to 10. Missing settings use the enabled published default, and at least one source must remain included.
 - A player's blended score is the weighted average of every included, imported source that ranks that player. Higher influence gives a source more pull, while equal values provide equal influence.
@@ -35,11 +38,11 @@ PDF mechanics live in `backend/internal/document`; ranking-specific interpretati
 3. Register a source definition with `ImportMode: "pdf-upload"` and register the parser in `defaultPDFRankingParsers`.
 4. Add synthetic parser tests and an optional local-file integration test. Never commit proprietary fixtures.
 
-This separation keeps file validation, size/page limits, panic recovery, and text extraction shared across every provider. Provider adapters remain focused on one document layout.
+This separation keeps file validation, size/page limits, panic recovery, selectable-text extraction, and bounded OCR fallback shared across every provider. Provider adapters remain focused on one document layout.
 
 ## Known limitations
 
-Individual offensive players still use a normalized player name because these feeds do not share one universal identifier. Suffixes, name changes, and collisions can prevent a valid match. Team defenses are canonicalized separately by NFL team. Scanned PDFs are rejected because DraftMeld does not bundle OCR. ESPN's projection guide and positional-only PPR sheet are intentionally rejected because they do not provide the supported overall-ranking layout. Future work will introduce a canonical player table, provider identifiers, a review queue for uncertain matches, and normalized/robust consensus methods.
+DraftMeld resolves imported players into a persistent canonical directory before storing new ranking and projection data. Each player receives an opaque stable DraftMeld ID; normalized names remain searchable identity keys, and an optional source player ID can bind renamed records from the same provider. Existing normalized keys are retained as aliases so upgraded databases continue to match prior rankings and draft history. Uncertain matches enter the identity review queue, where a merge redirects name aliases and provider IDs to the selected canonical player. Team defenses remain canonicalized by NFL team. OCR can recover text from scanned pages, but provider adapters still reject unsupported layouts. ESPN's projection guide and positional-only PPR sheet are intentionally rejected because they do not provide the supported overall-ranking layout.
 
 Source terms and upstream availability can change. Maintainers should verify licenses and attribution before adding a connector, and should never commit or redistribute paid rankings.
 

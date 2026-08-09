@@ -79,4 +79,11 @@ func TestIdentityMergeCombinesAliasesAcrossRankingsAndProjections(t *testing.T) 
 	if err != nil || values["tankdell"].ProjectedPoints != 80 {
 		t.Fatalf("projection alias did not resolve: %#v %v", values, err)
 	}
+	if _, err = projectionService.ImportCSV(t.Context(), "Canonical alias projections", strings.NewReader("name,position,team,reception\nTank Dell,WR,HOU,90\n")); err != nil {
+		t.Fatal(err)
+	}
+	values, err = projectionService.LeagueValues(t.Context(), map[string]float64{"reception": 1})
+	if err != nil || values["tankdell"].ProjectedPoints != 85 {
+		t.Fatalf("legacy canonical identity was not preserved: %#v %v", values, err)
+	}
 }

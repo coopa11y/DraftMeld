@@ -17,6 +17,7 @@ type RankingRepository interface {
 	ReplaceRankings(context.Context, ranking.SourceDefinition, []ranking.Record, string, time.Time) error
 	RankingRecords(context.Context) ([]ranking.Record, error)
 	RankingStatuses(context.Context) (map[string]ranking.SourceStatus, error)
+	CustomRankingSources(context.Context) ([]ranking.SourceDefinition, error)
 }
 
 type RankingService struct {
@@ -28,7 +29,7 @@ type RankingService struct {
 }
 
 func NewRankingService(repository RankingRepository) *RankingService {
-	return &RankingService{repository: repository, client: &http.Client{Timeout: 60 * time.Second}, sources: BuiltInRankingSources(), pdfExtractor: document.NativePDFExtractor{}, pdfParsers: defaultPDFRankingParsers()}
+	return &RankingService{repository: repository, client: &http.Client{Timeout: 60 * time.Second}, sources: BuiltInRankingSources(), pdfExtractor: document.NewPDFExtractor(), pdfParsers: defaultPDFRankingParsers()}
 }
 
 func (service *RankingService) Sources(ctx context.Context) ([]ranking.SourceStatus, error) {
@@ -36,13 +37,26 @@ func (service *RankingService) Sources(ctx context.Context) ([]ranking.SourceSta
 	if err != nil {
 		return nil, err
 	}
-	statuses := make([]ranking.SourceStatus, 0, len(service.sources))
-	for _, source := range service.sources {
+	definitions, err := service.definitions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	statuses := make([]ranking.SourceStatus, 0, len(definitions))
+	for _, source := range definitions {
 		status := stored[source.ID]
 		status.SourceDefinition = source
 		statuses = append(statuses, status)
 	}
 	return statuses, nil
+}
+
+func (service *RankingService) definitions(ctx context.Context) ([]ranking.SourceDefinition, error) {
+	custom, err := service.repository.CustomRankingSources(ctx)
+	if err != nil {
+		return nil, err
+	}
+	definitions := append([]ranking.SourceDefinition(nil), service.sources...)
+	return append(definitions, custom...), nil
 }
 
 func (service *RankingService) sourceByID(id string) (ranking.SourceDefinition, bool) {
@@ -56,6 +70,7 @@ func (service *RankingService) sourceByID(id string) (ranking.SourceDefinition, 
 
 func (service *RankingService) Refresh(ctx context.Context) ([]ranking.SourceStatus, error) {
 	downloads := make(map[string][]byte)
+	observedAt := time.Now().UTC()
 	for _, source := range service.sources {
 		if source.ImportMode != "download" {
 			continue
@@ -75,6 +90,10 @@ func (service *RankingService) Refresh(ctx context.Context) ([]ranking.SourceSta
 		}
 		if len(records) == 0 {
 			return nil, fmt.Errorf("parse %s: no usable players", source.Name)
+		}
+		records, err = resolveRankingPlayers(ctx, service.repository, records, observedAt)
+		if err != nil {
+			return nil, err
 		}
 		if err = service.repository.ReplaceRankings(ctx, source, records, published, time.Now().UTC()); err != nil {
 			return nil, err
@@ -127,16 +146,20 @@ func (service *RankingService) Consensus(ctx context.Context, preferences map[st
 	if err != nil {
 		return nil, err
 	}
-	if err = validateRankingSourcePreferences(service.sources, preferences); err != nil {
+	definitions, err := service.definitions(ctx)
+	if err != nil {
 		return nil, err
 	}
-	inputs := buildConsensusInputs(service.sources, resolveRankingRecords(records, aliases), preferences)
+	if err = validateRankingSourcePreferences(definitions, preferences); err != nil {
+		return nil, err
+	}
+	inputs := buildConsensusInputs(definitions, resolveRankingRecords(records, aliases), preferences)
 	method := requestedConsensusMethod(methods)
 	entries, err := ranking.Combine(inputs.sources, inputs.players, method)
 	if err != nil {
 		return nil, err
 	}
-	return playerRankings(entries, inputs, method), nil
+	return overlayCanonicalPlayerMetadata(ctx, service.repository, playerRankings(entries, inputs, method))
 }
 
 func effectiveSourcePreference(definition ranking.SourceDefinition, preferences map[string]league.RankingSourcePreference) league.RankingSourcePreference {

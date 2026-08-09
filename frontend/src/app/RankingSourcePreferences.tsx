@@ -118,9 +118,13 @@ export function RankingSourcePreferences({
                       onChange={(event) => updatePreference(source.id, { weight: Number(event.target.value) })}
                     />
                   </label>
-                  <a href={source.projectUrl} target="_blank" rel="noreferrer">
-                    View source website<span className="sr-only"> for {source.name} (opens in a new tab)</span>
-                  </a>
+                  {source.projectUrl ? (
+                    <a href={source.projectUrl} target="_blank" rel="noreferrer">
+                      View source website<span className="sr-only"> for {source.name} (opens in a new tab)</span>
+                    </a>
+                  ) : (
+                    <span className="source-private-label">Private upload</span>
+                  )}
                 </article>
               </li>
             );

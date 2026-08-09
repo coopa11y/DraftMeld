@@ -25,6 +25,8 @@ DraftMeld is in active `0.3.0` development. It includes an accessible live board
 ## Planned formats
 
 - Redraft and dynasty
+- Accessible draft-day and dynasty trades for picks, players, and configured auction/FAAB budgets
+- Guided dynasty season rollover with permanent franchise identities and season-specific draft order
 - Snake and linear drafts
 - Auction and salary-cap drafts
 - Keeper leagues
@@ -52,6 +54,8 @@ scripts/        Native build entrypoints
 
 See the [product brief](docs/product-brief.md) and [architecture overview](docs/architecture.md) for the initial direction.
 
+The remaining release-readiness work is tracked in the [feature-completeness roadmap](docs/roadmap.md).
+
 The formulas, projection CSV schema, draft-day integrations, and current limitations are documented in [draft intelligence](docs/draft-intelligence.md).
 
 Accessibility requirements and current limitations are documented in [docs/accessibility.md](docs/accessibility.md).
@@ -77,9 +81,11 @@ go run ./cmd/draftmeld
 
 The frontend proxies `/api` requests to `http://localhost:8080`. A production build compiles the frontend into the Go executable.
 
-On first launch, DraftMeld creates a customizable demo league. Use **Manage leagues** to create, edit, duplicate, or delete leagues and switch the active draft board.
+On first launch, DraftMeld creates a customizable demo league. The resumable setup guide can import common league, draft, roster, auction, dynasty, FAAB, and scoring settings from a PDF or CSV before creation. Use **Manage leagues** to create, edit, duplicate, or delete leagues and switch the active draft board.
 
 The **Export and backup center** under Manage leagues downloads versioned league backups, consensus ranking CSVs, and draft results. Restores always create a new league rather than overwriting existing data. See [data portability](docs/data-portability.md) for formats and compatibility guarantees.
+
+PDF imports read selectable text first and use local OCR for scanned pages when Poppler and Tesseract are available. The Docker image includes both tools. See [local PDF OCR](docs/ocr.md) for native setup, limits, and privacy behavior.
 
 Use **Ranking sources** to review each feed's method, license, weight, freshness, and project link before refreshing the local data or privately importing a supported PDF. See [docs/ranking-sources.md](docs/ranking-sources.md) for the source set, supported PDF formats, and current matching limitations.
 

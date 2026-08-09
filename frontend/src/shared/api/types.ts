@@ -2,6 +2,11 @@ import type { components } from "./generated";
 
 export type DraftActionRequest = components["schemas"]["DraftActionRequest"];
 export type DraftSnapshot = components["schemas"]["DraftSnapshot"];
+export type DraftPickSlot = components["schemas"]["DraftPickSlot"];
+export type DraftPickTrade = components["schemas"]["DraftPickTrade"];
+export type FutureDraftPick = components["schemas"]["FutureDraftPick"];
+export type BudgetAsset = components["schemas"]["BudgetAsset"];
+export type BudgetBalance = components["schemas"]["BudgetBalance"];
 export type ErrorResponse = components["schemas"]["ErrorResponse"];
 export type Pick = components["schemas"]["Pick"];
 export type Player = components["schemas"]["Player"];
@@ -9,6 +14,8 @@ export type Recommendation = components["schemas"]["Recommendation"];
 export type League = components["schemas"]["League"];
 export type LeagueRules = components["schemas"]["LeagueRules"];
 export type LeagueBackup = components["schemas"]["LeagueBackup"];
+export type LeagueRuleImport = components["schemas"]["LeagueRuleImport"];
+export type LeagueRuleMatch = components["schemas"]["LeagueRuleMatch"];
 export type RosterSlot = components["schemas"]["RosterSlot"];
 export type RankingSource = components["schemas"]["RankingSource"];
 export type ConsensusRanking = components["schemas"]["ConsensusRanking"];
@@ -17,5 +24,6 @@ export type RankingSourcePreference = components["schemas"]["RankingSourcePrefer
 export type WatchlistPlayer = components["schemas"]["WatchlistPlayer"];
 export type ProjectionSource = components["schemas"]["ProjectionSource"];
 export type IdentityIssue = components["schemas"]["IdentityIssue"];
+export type PlayerDirectoryStatus = components["schemas"]["PlayerDirectoryStatus"];
 export type SleeperSyncResult = components["schemas"]["SleeperSyncResult"];
 export type DraftAction = DraftActionRequest["action"];

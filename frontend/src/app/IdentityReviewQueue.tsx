@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { reviewIdentity } from "../shared/api/rankings";
-import type { IdentityIssue } from "../shared/api/types";
+import type { IdentityIssue, PlayerDirectoryStatus } from "../shared/api/types";
 import { Button } from "../shared/ui/Button";
 import { FormField } from "../shared/ui/FormField";
 import { Panel } from "../shared/ui/Panel";
@@ -8,15 +8,22 @@ import { Panel } from "../shared/ui/Panel";
 interface IdentityReviewQueueProps {
   busy: boolean;
   issues: IdentityIssue[];
+  status: PlayerDirectoryStatus;
   onBusyChange: (busy: boolean) => void;
   onReviewed: (issueKey: string, resolution: IdentityIssue["resolution"], canonicalPlayerKey?: string) => void;
   onError: (message: string) => void;
 }
 
-export function IdentityReviewQueue({ busy, issues, onBusyChange, onReviewed, onError }: IdentityReviewQueueProps) {
+export function IdentityReviewQueue({
+  busy,
+  issues,
+  status,
+  onBusyChange,
+  onReviewed,
+  onError,
+}: IdentityReviewQueueProps) {
   const [canonicalByIssue, setCanonicalByIssue] = useState<Record<string, string>>({});
   const unresolved = issues.filter((issue) => !issue.resolution);
-  if (issues.length === 0) return null;
 
   async function resolve(issue: IdentityIssue, resolution: "confirmed-separate" | "merged") {
     const canonical =
@@ -46,54 +53,72 @@ export function IdentityReviewQueue({ busy, issues, onBusyChange, onReviewed, on
         </div>
         <span className="count-badge">{unresolved.length} to review</span>
       </div>
-      <ul className="identity-list">
-        {issues.map((issue) => (
-          <li key={issue.issueKey} className={issue.resolution ? "reviewed" : ""}>
-            <div>
-              <strong>{issue.reason}</strong>
-              <p>
-                {issue.candidates
-                  .map((candidate) => `${candidate.name} (${candidate.position}, ${candidate.team})`)
-                  .join(" / ")}
-              </p>
-              {issue.resolution === "merged" ? (
-                <span>
-                  Merged as{" "}
-                  {issue.candidates.find((candidate) => candidate.playerKey === issue.canonicalPlayerKey)?.name ??
-                    issue.canonicalPlayerKey}
-                </span>
-              ) : null}
-            </div>
-            {issue.resolution ? (
-              <span>{issue.resolution === "merged" ? "Merged" : "Kept separate"}</span>
-            ) : (
-              <div className="identity-actions">
-                <FormField label="Canonical player">
-                  <select
-                    value={canonicalByIssue[issue.issueKey] ?? issue.candidates[0]?.playerKey ?? ""}
-                    onChange={(event) =>
-                      setCanonicalByIssue((current) => ({ ...current, [issue.issueKey]: event.target.value }))
-                    }
-                    disabled={busy}
-                  >
-                    {issue.candidates.map((candidate) => (
-                      <option key={candidate.playerKey} value={candidate.playerKey}>
-                        {candidate.name}
-                      </option>
-                    ))}
-                  </select>
-                </FormField>
-                <Button disabled={busy} onClick={() => void resolve(issue, "merged")}>
-                  Merge aliases
-                </Button>
-                <Button disabled={busy} onClick={() => void resolve(issue, "confirmed-separate")}>
-                  Keep separate
-                </Button>
+      <dl className="directory-status" aria-label="Canonical player directory status">
+        <div>
+          <dt>Players</dt>
+          <dd>{status.playerCount}</dd>
+        </div>
+        <div>
+          <dt>Known identities</dt>
+          <dd>{status.identityCount}</dd>
+        </div>
+        <div>
+          <dt>Provider IDs</dt>
+          <dd>{status.providerIdCount}</dd>
+        </div>
+      </dl>
+      {issues.length > 0 ? (
+        <ul className="identity-list">
+          {issues.map((issue) => (
+            <li key={issue.issueKey} className={issue.resolution ? "reviewed" : ""}>
+              <div>
+                <strong>{issue.reason}</strong>
+                <p>
+                  {issue.candidates
+                    .map((candidate) => `${candidate.name} (${candidate.position}, ${candidate.team})`)
+                    .join(" / ")}
+                </p>
+                {issue.resolution === "merged" ? (
+                  <span>
+                    Merged as{" "}
+                    {issue.candidates.find((candidate) => candidate.playerKey === issue.canonicalPlayerKey)?.name ??
+                      issue.canonicalPlayerKey}
+                  </span>
+                ) : null}
               </div>
-            )}
-          </li>
-        ))}
-      </ul>
+              {issue.resolution ? (
+                <span>{issue.resolution === "merged" ? "Merged" : "Kept separate"}</span>
+              ) : (
+                <div className="identity-actions">
+                  <FormField label="Canonical player">
+                    <select
+                      value={canonicalByIssue[issue.issueKey] ?? issue.candidates[0]?.playerKey ?? ""}
+                      onChange={(event) =>
+                        setCanonicalByIssue((current) => ({ ...current, [issue.issueKey]: event.target.value }))
+                      }
+                      disabled={busy}
+                    >
+                      {issue.candidates.map((candidate) => (
+                        <option key={candidate.playerKey} value={candidate.playerKey}>
+                          {candidate.name}
+                        </option>
+                      ))}
+                    </select>
+                  </FormField>
+                  <Button disabled={busy} onClick={() => void resolve(issue, "merged")}>
+                    Merge aliases
+                  </Button>
+                  <Button disabled={busy} onClick={() => void resolve(issue, "confirmed-separate")}>
+                    Keep separate
+                  </Button>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="empty-state panel-empty-state">No ambiguous player identities need review.</p>
+      )}
     </Panel>
   );
 }

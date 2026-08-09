@@ -9,11 +9,14 @@ import (
 	"time"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/league"
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/player"
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/ranking"
 )
 
 type rankingRepositoryStub struct {
 	records []ranking.Record
+	custom  []ranking.SourceDefinition
+	players map[string]player.Player
 }
 
 func TestRankingDownloadRetriesTransientServerFailure(t *testing.T) {
@@ -41,7 +44,11 @@ func TestRankingDownloadRetriesTransientServerFailure(t *testing.T) {
 	}
 }
 
-func (repository *rankingRepositoryStub) ReplaceRankings(context.Context, ranking.SourceDefinition, []ranking.Record, string, time.Time) error {
+func (repository *rankingRepositoryStub) ReplaceRankings(_ context.Context, source ranking.SourceDefinition, records []ranking.Record, _ string, _ time.Time) error {
+	repository.records = append([]ranking.Record(nil), records...)
+	if source.IsCustom {
+		repository.custom = []ranking.SourceDefinition{source}
+	}
 	return nil
 }
 
@@ -51,6 +58,34 @@ func (repository *rankingRepositoryStub) RankingRecords(context.Context) ([]rank
 
 func (repository *rankingRepositoryStub) RankingStatuses(context.Context) (map[string]ranking.SourceStatus, error) {
 	return map[string]ranking.SourceStatus{}, nil
+}
+
+func (repository *rankingRepositoryStub) CustomRankingSources(context.Context) ([]ranking.SourceDefinition, error) {
+	return repository.custom, nil
+}
+
+func (repository *rankingRepositoryStub) CanonicalPlayers(_ context.Context, ids []string) (map[string]player.Player, error) {
+	result := make(map[string]player.Player)
+	for _, id := range ids {
+		if current, exists := repository.players[id]; exists {
+			result[id] = current
+		}
+	}
+	return result, nil
+}
+
+func TestConsensusDisplaysCanonicalCurrentTeam(t *testing.T) {
+	repository := &rankingRepositoryStub{
+		records: []ranking.Record{
+			{SourceID: "redraft-ecr", PlayerKey: "player-traded", Name: "Traded Player", Position: "RB", Team: "DAL", Rank: 12},
+			{SourceID: "cbs-ppr", PlayerKey: "player-traded", Name: "Traded Player", Position: "RB", Team: "PIT", Rank: 14},
+		},
+		players: map[string]player.Player{"player-traded": {ID: "player-traded", Name: "Traded Player", Position: "RB", Team: "PIT"}},
+	}
+	consensus, err := NewRankingService(repository).Consensus(t.Context(), nil)
+	if err != nil || len(consensus) != 1 || consensus[0].Team != "PIT" {
+		t.Fatalf("expected canonical current team in consensus, got %#v %v", consensus, err)
+	}
 }
 
 func TestConsensusUsesCurrentRedraftPoolAsEligibilityAnchor(t *testing.T) {

@@ -18,16 +18,43 @@ var projectionStatColumns = []string{
 	"reception", "passingYard", "passingTouchdown", "interception", "rushingYard", "rushingTouchdown",
 	"receivingYard", "receivingTouchdown", "fieldGoalMade", "extraPointMade", "defenseSack",
 	"defenseInterception", "defenseFumbleRecovery", "defenseTouchdown", "defenseSafety",
+	"passingTwoPointConversion", "rushingTwoPointConversion", "receivingTwoPointConversion", "fumble", "fumbleLost",
+	"passing300YardGame", "passing400YardGame", "rushing100YardGame", "rushing200YardGame",
+	"receiving100YardGame", "receiving200YardGame", "fieldGoal0To39", "fieldGoal40To49", "fieldGoal50Plus",
+	"fieldGoalMissed", "extraPointMissed", "defenseBlockedKick", "defenseTwoPointReturn", "defensePointsAllowed0",
+	"defensePointsAllowed1To6", "defensePointsAllowed7To13", "defensePointsAllowed14To20",
+	"defensePointsAllowed21To27", "defensePointsAllowed28To34", "defensePointsAllowed35Plus",
 }
 
-var nonProjectionHeaderCharacter = regexp.MustCompile(`[^a-z0-9]+`)
+var nonCSVHeaderCharacter = regexp.MustCompile(`[^a-z0-9]+`)
 
 var projectionHeaderAliases = map[string][]string{
-	"name":     {"name", "player", "playername", "playerfullname"},
-	"position": {"position", "pos"},
-	"team":     {"team", "nflteam", "tm"},
-	"adp":      {"adp", "averagedraftposition"},
-	"byeWeek":  {"byeweek", "bye"},
+	"name":                        {"name", "player", "playername", "playerfullname"},
+	"position":                    {"position", "pos"},
+	"team":                        {"team", "nflteam", "tm"},
+	"adp":                         {"adp", "averagedraftposition"},
+	"byeWeek":                     {"byeweek", "bye"},
+	"providerId":                  {"providerid", "playerid", "id"},
+	"passingTwoPointConversion":   {"passingtwoPointconversion", "passing2pt", "pass2pt"},
+	"rushingTwoPointConversion":   {"rushingtwopointconversion", "rushing2pt", "rush2pt"},
+	"receivingTwoPointConversion": {"receivingtwopointconversion", "receiving2pt", "rec2pt"},
+	"fumbleLost":                  {"fumblelost", "fumbleslost", "fumlost"},
+	"passing300YardGame":          {"passing300yardgame", "pass300games"},
+	"passing400YardGame":          {"passing400yardgame", "pass400games"},
+	"rushing100YardGame":          {"rushing100yardgame", "rush100games"},
+	"rushing200YardGame":          {"rushing200yardgame", "rush200games"},
+	"receiving100YardGame":        {"receiving100yardgame", "rec100games"},
+	"receiving200YardGame":        {"receiving200yardgame", "rec200games"},
+	"fieldGoal0To39":              {"fieldgoal0to39", "fg0to39", "fg039"},
+	"fieldGoal40To49":             {"fieldgoal40to49", "fg40to49", "fg4049"},
+	"fieldGoal50Plus":             {"fieldgoal50plus", "fg50plus", "fg50"},
+	"defensePointsAllowed0":       {"defensepointsallowed0", "dstpa0"},
+	"defensePointsAllowed1To6":    {"defensepointsallowed1to6", "dstpa1to6"},
+	"defensePointsAllowed7To13":   {"defensepointsallowed7to13", "dstpa7to13"},
+	"defensePointsAllowed14To20":  {"defensepointsallowed14to20", "dstpa14to20"},
+	"defensePointsAllowed21To27":  {"defensepointsallowed21to27", "dstpa21to27"},
+	"defensePointsAllowed28To34":  {"defensepointsallowed28to34", "dstpa28to34"},
+	"defensePointsAllowed35Plus":  {"defensepointsallowed35plus", "dstpa35plus"},
 }
 
 type ProjectionRepository interface {
@@ -58,7 +85,7 @@ func (service *ProjectionService) ImportCSV(ctx context.Context, name string, in
 	}
 	headers := make(map[string]int, len(rows[0]))
 	for index, header := range rows[0] {
-		headers[normalizeProjectionHeader(header)] = index
+		headers[normalizeCSVHeader(header)] = index
 	}
 	columnIndexes := projectionColumnIndexes(headers, firstMapping(mappings))
 	for _, required := range []string{"name", "position", "team"} {
@@ -77,6 +104,9 @@ func (service *ProjectionService) ImportCSV(ctx context.Context, name string, in
 		}
 		seen[key] = true
 		record := projection.Record{SourceID: sourceID, PlayerKey: key, Name: nameValue, Position: position, Team: team, Stats: make(map[string]float64)}
+		if index, exists := columnIndexes["providerId"]; exists {
+			record.ProviderID = value(row, index)
+		}
 		if index, exists := columnIndexes["byeWeek"]; exists {
 			record.ByeWeek, _ = strconv.Atoi(value(row, index))
 		}
@@ -97,7 +127,12 @@ func (service *ProjectionService) ImportCSV(ctx context.Context, name string, in
 	if len(records) == 0 {
 		return projection.SourceStatus{}, errors.New("projection CSV contained no usable players")
 	}
-	status := projection.SourceStatus{ID: sourceID, Name: name, RecordCount: len(records), ImportedAt: time.Now().UTC()}
+	importedAt := time.Now().UTC()
+	records, err = resolveProjectionPlayers(ctx, service.repository, records, importedAt)
+	if err != nil {
+		return projection.SourceStatus{}, err
+	}
+	status := projection.SourceStatus{ID: sourceID, Name: name, RecordCount: len(records), ImportedAt: importedAt}
 	if err = service.repository.ReplaceProjections(ctx, status, records); err != nil {
 		return projection.SourceStatus{}, err
 	}
@@ -112,11 +147,11 @@ func firstMapping(mappings []map[string]string) map[string]string {
 }
 
 func projectionColumnIndexes(headers map[string]int, mapping map[string]string) map[string]int {
-	columns := append([]string{"name", "position", "team", "adp", "byeWeek"}, projectionStatColumns...)
+	columns := append([]string{"name", "position", "team", "adp", "byeWeek", "providerId"}, projectionStatColumns...)
 	indexes := make(map[string]int)
 	for _, canonical := range columns {
 		if sourceHeader, explicitlyMapped := mapping[canonical]; explicitlyMapped {
-			if index, exists := headers[normalizeProjectionHeader(sourceHeader)]; exists && sourceHeader != "" {
+			if index, exists := headers[normalizeCSVHeader(sourceHeader)]; exists && sourceHeader != "" {
 				indexes[canonical] = index
 			}
 			continue
@@ -126,7 +161,7 @@ func projectionColumnIndexes(headers map[string]int, mapping map[string]string) 
 			aliases = []string{canonical}
 		}
 		for _, alias := range aliases {
-			if index, exists := headers[normalizeProjectionHeader(alias)]; exists {
+			if index, exists := headers[normalizeCSVHeader(alias)]; exists {
 				indexes[canonical] = index
 				break
 			}
@@ -135,8 +170,8 @@ func projectionColumnIndexes(headers map[string]int, mapping map[string]string) 
 	return indexes
 }
 
-func normalizeProjectionHeader(value string) string {
-	return nonProjectionHeaderCharacter.ReplaceAllString(strings.ToLower(strings.TrimSpace(value)), "")
+func normalizeCSVHeader(value string) string {
+	return nonCSVHeaderCharacter.ReplaceAllString(strings.ToLower(strings.TrimSpace(value)), "")
 }
 
 func (service *ProjectionService) LeagueValues(ctx context.Context, scoring map[string]float64) (map[string]projection.LeagueValue, error) {
@@ -168,10 +203,7 @@ func (service *ProjectionService) LeagueValues(ctx context.Context, scoring map[
 		}
 	}
 	for _, record := range canonicalRecords {
-		points := 0.0
-		for stat, amount := range record.Stats {
-			points += amount * scoring[stat]
-		}
+		points := projectionPoints(record, scoring)
 		value := totals[record.PlayerKey]
 		value.ProjectedPoints += points
 		if record.ADP > 0 {
@@ -193,6 +225,17 @@ func (service *ProjectionService) LeagueValues(ctx context.Context, scoring map[
 		totals[playerID] = total
 	}
 	return totals, nil
+}
+
+func projectionPoints(record projection.Record, scoring map[string]float64) float64 {
+	points := 0.0
+	for stat, amount := range record.Stats {
+		points += amount * scoring[stat]
+	}
+	if record.Position == "TE" {
+		points += record.Stats["reception"] * scoring["tightEndReceptionBonus"]
+	}
+	return points
 }
 
 func value(row []string, index int) string {

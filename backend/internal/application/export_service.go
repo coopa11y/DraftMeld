@@ -107,10 +107,10 @@ func (service *ExportService) DraftCSV(ctx context.Context, leagueID string) ([]
 	if err != nil {
 		return nil, err
 	}
-	rows := [][]string{{"pick", "action", "player", "position", "nfl_team", "cost", "recorded_at"}}
+	rows := [][]string{{"pick", "team_number", "team_name", "action", "player", "position", "nfl_team", "cost", "recorded_at"}}
 	for _, pick := range exported.Picks {
 		rows = append(rows, []string{
-			strconv.Itoa(pick.Number), string(pick.Action), safeCSVCell(pick.Player.Name), pick.Player.Position,
+			strconv.Itoa(pick.Number), strconv.Itoa(pick.TeamNumber), safeCSVCell(pick.TeamName), string(pick.Action), safeCSVCell(pick.Player.Name), pick.Player.Position,
 			safeCSVCell(pick.Player.NFLTeam), strconv.FormatFloat(pick.Cost, 'f', 2, 64), pick.CreatedAt.UTC().Format(time.RFC3339),
 		})
 	}

@@ -22,11 +22,18 @@ RUN VERSION="$(cat /src/VERSION)" && \
       -o /out/draftmeld ./cmd/draftmeld && \
     mkdir -p /out/data
 
-FROM gcr.io/distroless/static-debian12:nonroot AS runtime
+FROM debian:bookworm-slim AS runtime
+RUN apt-get update && \
+    apt-get install --yes --no-install-recommends ca-certificates poppler-utils tesseract-ocr tesseract-ocr-eng && \
+    rm -rf /var/lib/apt/lists/* && \
+    groupadd --system --gid 65532 draftmeld && \
+    useradd --system --uid 65532 --gid draftmeld --home-dir /nonexistent --shell /usr/sbin/nologin draftmeld && \
+    mkdir -p /data && \
+    chown draftmeld:draftmeld /data
 COPY --from=backend-build /out/draftmeld /draftmeld
-COPY --from=backend-build --chown=nonroot:nonroot /out/data /data
 VOLUME ["/data"]
 EXPOSE 8080
 ENV DRAFTMELD_ADDRESS=:8080
 ENV DRAFTMELD_DATA_DIR=/data
+USER draftmeld:draftmeld
 ENTRYPOINT ["/draftmeld"]

@@ -13,15 +13,19 @@ type SourceDefinition struct {
 	DefaultWeight float64 `json:"defaultWeight"`
 	ImportMode    string  `json:"importMode"`
 	Role          string  `json:"role"`
+	IsCustom      bool    `json:"isCustom"`
 }
 
 type Record struct {
-	SourceID  string
-	PlayerKey string
-	Name      string
-	Position  string
-	Team      string
-	Rank      int
+	SourceID   string
+	PlayerKey  string
+	Name       string
+	Position   string
+	Team       string
+	Rank       int
+	ADP        float64
+	Tier       int
+	ProviderID string
 }
 
 type SourceStatus struct {
@@ -44,6 +48,8 @@ type PlayerRanking struct {
 	RankRange   int            `json:"rankRange"`
 	Confidence  string         `json:"confidence"`
 	Method      string         `json:"method"`
+	ADP         float64        `json:"adp"`
+	Tier        int            `json:"tier"`
 }
 
 type WatchlistSignal struct {
