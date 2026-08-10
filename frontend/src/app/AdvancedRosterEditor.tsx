@@ -1,7 +1,8 @@
-import type { Dispatch, SetStateAction } from "react";
+import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { LeagueRules, RosterSlot } from "../shared/api/types";
 import { Button } from "../shared/ui/Button";
 import { FormField } from "../shared/ui/FormField";
+import { StatusMessage } from "../shared/ui/StatusMessage";
 import { playerPositions } from "./leagueDefaults";
 import { isStandardRosterSlot } from "./rosterConfiguration";
 
@@ -11,6 +12,9 @@ interface AdvancedRosterEditorProps {
 }
 
 export function AdvancedRosterEditor({ rules, setRules }: AdvancedRosterEditorProps) {
+  const addButton = useRef<HTMLButtonElement>(null);
+  const pendingNewSlotFocus = useRef(false);
+  const [announcement, setAnnouncement] = useState("");
   const customSlots = rules.rosterSlots
     .map((slot, index) => ({ index, slot }))
     .filter(({ slot }) => !isStandardRosterSlot(slot));
@@ -21,15 +25,50 @@ export function AdvancedRosterEditor({ rules, setRules }: AdvancedRosterEditorPr
       rosterSlots: current.rosterSlots.map((slot, slotIndex) => (slotIndex === index ? { ...slot, ...update } : slot)),
     }));
 
+  function addCustomSlot() {
+    pendingNewSlotFocus.current = true;
+    setAnnouncement(`Custom roster slot ${customSlots.length + 1} added.`);
+    setRules((current) => ({
+      ...current,
+      rosterSlots: [
+        ...current.rosterSlots,
+        { name: "Custom", count: 1, positions: ["RB", "WR", "TE"], isStarting: true },
+      ],
+    }));
+  }
+
+  function removeCustomSlot(index: number, customIndex: number) {
+    addButton.current?.focus();
+    setAnnouncement(`Custom roster slot ${customIndex + 1} removed.`);
+    setRules((current) => ({
+      ...current,
+      rosterSlots: current.rosterSlots.filter((_, slotIndex) => slotIndex !== index),
+    }));
+  }
+
   return (
     <div className="advanced-roster-editor">
       <p className="field-help">Create unusual lineup, taxi, injured-reserve, or position-flexible slots.</p>
+      <Button ref={addButton} onClick={addCustomSlot}>
+        Add custom slot
+      </Button>
+      <StatusMessage visuallyHidden>{announcement}</StatusMessage>
       {customSlots.length === 0 ? <p>No custom roster slots have been created.</p> : null}
       {customSlots.map(({ slot, index }, customIndex) => (
         <fieldset className="roster-slot" key={`custom-slot-${index}`}>
           <legend>Custom roster slot {customIndex + 1}</legend>
           <FormField label="Slot name">
-            <input required value={slot.name} onChange={(event) => updateSlot(index, { name: event.target.value })} />
+            <input
+              ref={(node) => {
+                if (node && customIndex === customSlots.length - 1 && pendingNewSlotFocus.current) {
+                  pendingNewSlotFocus.current = false;
+                  node.focus();
+                }
+              }}
+              required
+              value={slot.name}
+              onChange={(event) => updateSlot(index, { name: event.target.value })}
+            />
           </FormField>
           <FormField label="Count">
             <input
@@ -68,32 +107,11 @@ export function AdvancedRosterEditor({ rules, setRules }: AdvancedRosterEditorPr
             />
             Starting lineup slot
           </label>
-          <Button
-            variant="dangerText"
-            onClick={() =>
-              setRules((current) => ({
-                ...current,
-                rosterSlots: current.rosterSlots.filter((_, slotIndex) => slotIndex !== index),
-              }))
-            }
-          >
+          <Button variant="dangerText" onClick={() => removeCustomSlot(index, customIndex)}>
             Remove slot
           </Button>
         </fieldset>
       ))}
-      <Button
-        onClick={() =>
-          setRules((current) => ({
-            ...current,
-            rosterSlots: [
-              ...current.rosterSlots,
-              { name: "Custom", count: 1, positions: ["RB", "WR", "TE"], isStarting: true },
-            ],
-          }))
-        }
-      >
-        Add custom slot
-      </Button>
     </div>
   );
 }

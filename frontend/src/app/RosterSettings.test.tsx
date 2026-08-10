@@ -37,9 +37,13 @@ describe("RosterSettings", () => {
     expect(screen.queryByRole("group", { name: "Custom roster slot 1" })).not.toBeInTheDocument();
     expect(screen.queryByDisplayValue("QB")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Add custom slot" }));
+    const addCustomSlot = screen.getByRole("button", { name: "Add custom slot" });
+    await user.click(addCustomSlot);
     const firstSlot = screen.getByRole("group", { name: "Custom roster slot 1" });
     const slotName = within(firstSlot).getByRole("textbox", { name: "Slot name" });
+    expect(addCustomSlot).toAppearBefore(firstSlot);
+    expect(slotName).toHaveFocus();
+    expect(screen.getByRole("status")).toHaveTextContent("Custom roster slot 1 added.");
     await user.clear(slotName);
     await user.type(slotName, "Taxi");
     await user.click(within(firstSlot).getByRole("checkbox", { name: "Starting lineup slot" }));
@@ -49,6 +53,8 @@ describe("RosterSettings", () => {
       quarterbackCountBeforeCustomEdit,
     );
     await user.click(within(firstSlot).getByRole("button", { name: "Remove slot" }));
+    expect(addCustomSlot).toHaveFocus();
+    expect(screen.getByRole("status")).toHaveTextContent("Custom roster slot 1 removed.");
     expect(screen.getByText("No custom roster slots have been created.")).toBeInTheDocument();
 
     expect((await axe(container)).violations).toHaveLength(0);
