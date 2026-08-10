@@ -390,8 +390,8 @@ describe("accessible draft board", () => {
     const user = userEvent.setup();
     render(<App />);
     expect(await screen.findByText("Draft not started")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Set up your league" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Start setup" }));
+    expect(screen.queryByRole("heading", { name: "Set up your league" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Setup guide" }));
     expect(screen.getByRole("heading", { name: "Set up your draft workspace" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Continue" }));
     await user.click(screen.getByRole("button", { name: "Save and finish later" }));
@@ -426,6 +426,7 @@ describe("accessible draft board", () => {
 
     expect(await screen.findByText("Draft not started")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Mark Alex Rivers, RB, as taken by another team" })[0]).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Draft tools" }));
     expect(screen.getByText("12 teams · 24 selections")).toBeInTheDocument();
     expect((await axe(container)).violations).toHaveLength(0);
 
@@ -599,8 +600,8 @@ describe("accessible draft board", () => {
     const draftHeading = await screen.findByRole("heading", { name: "Available players" });
     await waitFor(() => expect(draftHeading).toHaveFocus());
     expect(screen.getByRole("table", { name: "Available players sorted by overall rank" })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Draft Alex Rivers, RB, to my team" })).toHaveLength(2);
-    expect(screen.getAllByRole("button", { name: "Mark Alex Rivers, RB, as taken by another team" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "Draft Alex Rivers, RB, to my team" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Mark Alex Rivers, RB, as taken by another team" })).toHaveLength(1);
     expect(screen.getByRole("link", { name: "Skip to player board" })).toBeInTheDocument();
 
     const results = await axe(container);
@@ -641,10 +642,9 @@ describe("accessible draft board", () => {
     const rankingNavigation = screen.getByRole("button", { name: "Ranking sources" });
     rankingNavigation.focus();
     await user.keyboard("{Enter}");
-    const rankingHeading = await screen.findByRole("heading", { name: "Ranking sources" });
+    const rankingHeading = await screen.findByRole("heading", { name: "Sources" });
     await waitFor(() => expect(rankingHeading).toHaveFocus());
-    expect(screen.getByRole("region", { name: "Player identity review" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Canonical player directory status")).toHaveTextContent("Players0");
+    expect(screen.getByRole("table", { name: "Sources used by DraftMeld" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Manage leagues" }));
     const leaguesHeading = await screen.findByRole("heading", { name: "Your leagues" });
     await waitFor(() => expect(leaguesHeading).toHaveFocus());
@@ -691,7 +691,34 @@ describe("accessible draft board", () => {
     expect(screen.getByRole("button", { name: "K" })).toBeInTheDocument();
   });
 
-  it("persists targets and can simulate opponents to the next turn", async () => {
+  it("shows only available disabled-source outliers beside the draft board", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const path = new URL(input instanceof Request ? input.url : input.toString()).pathname;
+        if (path.endsWith("/leagues")) return jsonResponse([demoLeague]);
+        if (path.endsWith("/ranking-watchlist"))
+          return jsonResponse([
+            {
+              playerKey: "alexrivers",
+              name: "Alex Rivers",
+              position: "RB",
+              team: "ATL",
+              consensusRank: 20,
+              signals: [{ sourceId: "cbs-ppr", sourceName: "CBS Sports", sourceRank: 5, spotsHigher: 15 }],
+            },
+          ]);
+        return jsonResponse(snapshot({ dataMode: "consensus" }));
+      }),
+    );
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "Outliers" })).toBeInTheDocument();
+    expect(screen.getByText("15 spots above consensus in CBS Sports")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Skip to outliers" })).toBeInTheDocument();
+  });
+
+  it("keeps secondary controls out of the focused board", async () => {
     const targetedAlex = { ...alex, preference: "target" as const };
     const targeted = snapshot({
       available: [targetedAlex, jordan],
@@ -717,12 +744,10 @@ describe("accessible draft board", () => {
     );
     const user = userEvent.setup();
     render(<App />);
-    const targetButtons = await screen.findAllByRole("button", { name: "Target" });
-    await user.click(targetButtons[0]);
-    expect(
-      await screen.findByText("Alex Rivers was added to your target list. Recommendations updated."),
-    ).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Target" })[0]).toHaveAttribute("aria-pressed", "true");
+    await screen.findByRole("heading", { name: "Available players" });
+    expect(screen.queryByRole("button", { name: "Target" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Simulate to my next turn/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Draft tools" }));
     await user.click(screen.getByRole("button", { name: /Simulate to my next turn/ }));
     expect(await screen.findByText("Mock opponents completed. It is now pick 24.")).toBeInTheDocument();
   });
@@ -748,6 +773,8 @@ describe("accessible draft board", () => {
           201,
         );
       if (path.endsWith("/ranking-sources/refresh") && request.method === "POST") return jsonResponse(rankingSources);
+      if (path.endsWith("/ranking-sources/redraft-ecr/refresh") && request.method === "POST")
+        return jsonResponse({ ...rankingSources[0], recordCount: 300 });
       if (path.endsWith("/ranking-sources"))
         return jsonResponse(rankingSources.map((source) => ({ ...source, recordCount: 0, publishedAt: undefined })));
       if (path.endsWith("/projection-sources")) return jsonResponse([]);
@@ -779,18 +806,19 @@ describe("accessible draft board", () => {
     const { container } = render(<App />);
 
     await user.click(await screen.findByRole("button", { name: "Ranking sources" }));
-    expect(await screen.findByRole("heading", { name: "Redraft expert consensus" })).toBeInTheDocument();
-    expect(screen.getByText("CC-BY-SA-4.0")).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: /View source website/ })).toHaveLength(7);
-    expect(screen.getByRole("heading", { name: "Platform connector status" })).toBeInTheDocument();
-    expect(
-      screen.getByText("The public overall draft table still contains the prior-season board."),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("table", { name: "Sources used by DraftMeld" })).toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: "Details" })[0]);
+    expect(await screen.findByText("GPL-3.0")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back to sources" }));
+    await user.click(screen.getAllByRole("button", { name: "Update now" })[0]);
+    expect(await screen.findByText("Redraft expert consensus updated with 300 players.")).toBeInTheDocument();
 
-    const cbsWeight = screen.getByRole("spinbutton", { name: "CBS Sports PPR Top 200 influence" });
+    const cbsRow = screen.getByRole("rowheader", { name: "CBS Sports PPR Top 200" }).closest("tr");
+    if (!cbsRow) throw new Error("CBS source row was not rendered.");
+    const cbsWeight = within(cbsRow).getByRole("spinbutton", { name: "Weight" });
     await user.clear(cbsWeight);
     await user.type(cbsWeight, "1");
-    await user.click(screen.getByRole("checkbox", { name: "Include CBS Sports PPR Top 200 in consensus" }));
+    await user.click(within(cbsRow).getByRole("checkbox", { name: "Include in consensus" }));
     await user.click(screen.getByRole("button", { name: "Save preferences" }));
     expect(
       await screen.findByText(
@@ -799,13 +827,17 @@ describe("accessible draft board", () => {
     ).toBeInTheDocument();
     expect(savedPreferences?.["cbs-ppr"]).toEqual({ weight: 1, enabled: false });
     expect(savedPreferences?.["redraft-ecr"]).toEqual({ weight: 1, enabled: true });
+    await user.click(screen.getByRole("button", { name: "Consensus results" }));
     expect(await screen.findByRole("heading", { name: "Worth another look" })).toBeInTheDocument();
     expect(
       screen.getByText("CBS Sports PPR Top 200 ranks this player #11, 31 spots above consensus #42."),
     ).toBeInTheDocument();
 
     const pdf = new File(["%PDF-test"], "espn-rankings.pdf", { type: "application/pdf" });
-    await user.upload(screen.getByLabelText("Import a ranking PDF"), pdf);
+    await user.click(screen.getByRole("button", { name: "Back to sources" }));
+    await user.click(screen.getByRole("button", { name: "Add source" }));
+    await user.click(screen.getByRole("button", { name: /PDF/ }));
+    await user.upload(screen.getByLabelText("Ranking PDF"), pdf);
     await user.click(screen.getByRole("button", { name: "Import PDF" }));
     expect(
       await screen.findByText(
@@ -813,8 +845,8 @@ describe("accessible draft board", () => {
       ),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Refresh all sources" }));
-    expect(await screen.findByRole("table", { name: "Top 25 blended player rankings" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back to sources" }));
+    await user.click(screen.getByRole("button", { name: "Refresh online sources" }));
     expect(screen.getByText("Rankings refreshed. 1900 source records were normalized.")).toBeInTheDocument();
     expect((await axe(container)).violations).toHaveLength(0);
   });
@@ -888,6 +920,8 @@ describe("accessible draft board", () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(await screen.findByRole("button", { name: "Ranking sources" }));
+    await user.click(screen.getByRole("button", { name: "Add source" }));
+    await user.click(screen.getByRole("button", { name: /CSV/ }));
 
     await user.type(screen.getByRole("textbox", { name: "Ranking source name" }), "Marcus board");
     await user.upload(
@@ -899,7 +933,11 @@ describe("accessible draft board", () => {
       expect(importedRankingMapping).toMatchObject({ rank: "RK", name: "Player", position: "POS", team: "TM" }),
     );
     expect(await screen.findByText("Marcus board imported with 1 ranked players.")).toBeInTheDocument();
-    expect(screen.getByText("Private upload")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back to sources" }));
+    expect(screen.getByRole("rowheader", { name: "Marcus board" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Add source" }));
+    await user.click(screen.getByRole("button", { name: /CSV/ }));
+    await user.click(screen.getByRole("button", { name: "Projections" }));
 
     await user.type(screen.getByRole("textbox", { name: "Projection source name" }), "Mapped model");
     await user.upload(
@@ -931,6 +969,13 @@ describe("accessible draft board", () => {
     );
     expect(await screen.findByText("Mapped model imported with 1 granular player projections.")).toBeInTheDocument();
 
+    await user.click(screen.getByRole("button", { name: "Back to sources" }));
+    const projectionRow = screen.getByRole("rowheader", { name: "Mapped model" }).closest("tr");
+    if (!projectionRow) throw new Error("Projection row was not rendered.");
+    await user.click(within(projectionRow).getByRole("button", { name: "Details" }));
+    expect(await screen.findByText("CSV projection")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back to sources" }));
+    await user.click(screen.getByRole("button", { name: "Identity issues" }));
     await user.selectOptions(screen.getByRole("combobox", { name: "Canonical player" }), "tankdell");
     await user.click(screen.getByRole("button", { name: "Merge aliases" }));
     await waitFor(() =>
@@ -984,6 +1029,7 @@ describe("accessible draft board", () => {
     );
     const user = userEvent.setup();
     render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Draft tools" }));
     await user.type(await screen.findByRole("textbox", { name: "Draft ID" }), "draft-123");
     await user.click(screen.getByRole("button", { name: "Sync picks" }));
     expect(
@@ -1044,6 +1090,7 @@ describe("accessible draft board", () => {
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Draft tools" }));
 
     const pickOwner = await screen.findByRole("combobox", { name: /Owner of pick 1/ });
     await user.selectOptions(pickOwner, "1");
@@ -1095,6 +1142,7 @@ describe("accessible draft board", () => {
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     const { container } = render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Draft tools" }));
 
     expect(await screen.findByRole("heading", { name: "Draft asset trades" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "First team" })).toHaveValue("1");
@@ -1230,6 +1278,7 @@ describe("accessible draft board", () => {
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     const { container } = render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Draft tools" }));
 
     expect(
       await screen.findByText(
@@ -1304,6 +1353,7 @@ describe("accessible draft board", () => {
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     const { container } = render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Draft tools" }));
 
     const lifecycle = await screen.findByRole("region", { name: "Season 2026" });
     await user.click(within(lifecycle).getByRole("button", { name: "Close season and start 2027" }));

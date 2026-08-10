@@ -7,7 +7,7 @@ import { DraftWorkspace } from "./DraftWorkspace";
 import { LeagueManager } from "./LeagueManager";
 import { OnboardingWizard } from "./OnboardingWizard";
 import { RankingSources } from "./RankingSources";
-import { completeOnboarding, loadOnboardingDraft, onboardingComplete } from "./onboarding";
+import { loadOnboardingDraft, onboardingComplete } from "./onboarding";
 
 const ACTIVE_LEAGUE_KEY = "draftmeld.active-league.v1";
 const CREATE_LEAGUE_OPTION = "__create_league__";
@@ -17,7 +17,7 @@ export function App() {
   const [leagues, setLeagues] = useState<League[]>([]);
   const [activeLeagueId, setActiveLeagueId] = useState(() => localStorage.getItem(ACTIVE_LEAGUE_KEY) ?? "demo");
   const initialActiveLeagueId = useRef(activeLeagueId);
-  const [view, setView] = useState<"draft" | "leagues" | "rankings">("draft");
+  const [view, setView] = useState<"draft" | "tools" | "leagues" | "rankings">("draft");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [onboardingOpen, setOnboardingOpen] = useState(false);
@@ -143,17 +143,35 @@ export function App() {
               </optgroup>
             </select>
           </label>
-          {view !== "leagues" ? <Button onClick={() => setView("leagues")}>Manage leagues</Button> : null}
-          {view !== "rankings" ? (
-            <Button onClick={() => setView("rankings")} disabled={!activeLeague}>
-              Ranking sources
-            </Button>
-          ) : null}
-          {view !== "draft" ? (
-            <Button onClick={() => setView("draft")} disabled={leagues.length === 0}>
-              Return to draft
-            </Button>
-          ) : null}
+          <Button
+            aria-current={view === "draft" ? "page" : undefined}
+            onClick={() => setView("draft")}
+            disabled={leagues.length === 0}
+          >
+            Draft
+          </Button>
+          <Button
+            aria-current={view === "rankings" ? "page" : undefined}
+            aria-label="Ranking sources"
+            onClick={() => setView("rankings")}
+            disabled={!activeLeague}
+          >
+            Sources
+          </Button>
+          <Button
+            aria-current={view === "leagues" ? "page" : undefined}
+            aria-label="Manage leagues"
+            onClick={() => setView("leagues")}
+          >
+            Leagues
+          </Button>
+          <Button
+            aria-current={view === "tools" ? "page" : undefined}
+            onClick={() => setView("tools")}
+            disabled={!activeLeague}
+          >
+            Draft tools
+          </Button>
           {!onboardingDone && !onboardingOpen ? (
             <Button onClick={openOnboarding}>{hasOnboardingDraft ? "Resume setup" : "Setup guide"}</Button>
           ) : null}
@@ -165,35 +183,6 @@ export function App() {
         <StatusMessage tone="success" ref={noticeRef} tabIndex={-1}>
           {notice}
         </StatusMessage>
-      ) : null}
-      {!onboardingDone && !onboardingOpen ? (
-        <section className="onboarding-prompt" aria-labelledby="onboarding-prompt-title">
-          <div>
-            <p className="eyebrow">Getting started</p>
-            <h2 id="onboarding-prompt-title">
-              {hasOnboardingDraft ? "Your saved setup is ready" : "Set up your league"}
-            </h2>
-            <p>
-              {hasOnboardingDraft
-                ? "Resume where you stopped. Your saved league settings remain on this device."
-                : "Use the guided setup, import league scoring rules, or configure everything manually."}
-            </p>
-          </div>
-          <div className="onboarding-prompt-actions">
-            <Button variant="primary" onClick={openOnboarding}>
-              {hasOnboardingDraft ? "Resume setup" : "Start setup"}
-            </Button>
-            <Button
-              onClick={() => {
-                completeOnboarding();
-                setOnboardingDone(true);
-                setHasOnboardingDraft(false);
-              }}
-            >
-              Dismiss guide
-            </Button>
-          </div>
-        </section>
       ) : null}
       {onboardingOpen ? (
         <OnboardingWizard
@@ -223,7 +212,12 @@ export function App() {
           }}
         />
       ) : (
-        <DraftWorkspace key={activeLeagueId} leagueId={activeLeagueId} autoFocusHeading={!notice} />
+        <DraftWorkspace
+          key={activeLeagueId}
+          leagueId={activeLeagueId}
+          autoFocusHeading={!notice}
+          mode={view === "tools" ? "tools" : "board"}
+        />
       )}
     </>
   );

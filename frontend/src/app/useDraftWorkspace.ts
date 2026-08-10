@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { getDraft } from "../shared/api/draft";
-import type { DraftSnapshot } from "../shared/api/types";
+import { getRankingWatchlist } from "../shared/api/rankings";
+import type { DraftSnapshot, WatchlistPlayer } from "../shared/api/types";
 import { useViewHeadingFocus } from "../shared/hooks/useViewHeadingFocus";
 import {
   createDraftWorkspaceHandlers,
@@ -18,10 +19,12 @@ export interface DraftWorkspaceController {
   selectedTeamNumber: number;
   setSelectedTeamNumber: Dispatch<SetStateAction<number>>;
   snapshot: DraftSnapshot | null;
+  watchlist: WatchlistPlayer[];
 }
 
 export function useDraftWorkspace(leagueId: string, autoFocusHeading = true): DraftWorkspaceController {
   const [snapshot, setSnapshot] = useState<DraftSnapshot | null>(null);
+  const [watchlist, setWatchlist] = useState<WatchlistPlayer[]>([]);
   const [busy, setBusy] = useState(false);
   const [announcement, setAnnouncement] = useState("Draft board loading.");
   const [error, setError] = useState("");
@@ -36,6 +39,11 @@ export function useDraftWorkspace(leagueId: string, autoFocusHeading = true): Dr
       .then((data) => {
         if (!active) return;
         setSnapshot(data);
+        if (data.dataMode !== "demo") {
+          void getRankingWatchlist(leagueId)
+            .then((loaded) => setWatchlist(Array.isArray(loaded) ? loaded : []))
+            .catch(() => setWatchlist([]));
+        }
         setSelectedTeamNumber(defaultSelectedTeam(data));
         setAnnouncement(`Draft board loaded. ${data.available.length} players are available.`);
       })
@@ -81,5 +89,6 @@ export function useDraftWorkspace(leagueId: string, autoFocusHeading = true): Dr
     selectedTeamNumber,
     setSelectedTeamNumber,
     snapshot,
+    watchlist,
   };
 }

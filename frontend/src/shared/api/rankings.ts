@@ -20,6 +20,13 @@ export async function refreshRankingSources(): Promise<RankingSource[]> {
   return unwrap(data, error, response);
 }
 
+export async function refreshRankingSource(sourceId: string): Promise<RankingSource> {
+  const { data, error, response } = await apiClient.POST("/ranking-sources/{sourceId}/refresh", {
+    params: { path: { sourceId } },
+  });
+  return unwrap(data, error, response);
+}
+
 export async function getConsensusRankings(leagueId: string): Promise<ConsensusRanking[]> {
   const { data, error, response } = await apiClient.GET("/rankings", {
     params: { query: { leagueId } },

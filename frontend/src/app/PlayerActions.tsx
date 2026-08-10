@@ -75,7 +75,7 @@ export function PlayerActions({
         aria-label={`Mark ${player.name}, ${player.position}, as taken by another team${auction ? ` for ${cost} dollars` : ""}`}
         onClick={() => onAction(player, "taken", auction ? cost : 0, selectedTeamNumber)}
       >
-        Taken
+        Gone
       </Button>
     </div>
   );

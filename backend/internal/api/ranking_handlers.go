@@ -61,6 +61,21 @@ func registerRankingRoutes(mux *http.ServeMux, service *application.RankingServi
 		}
 		writeJSON(response, http.StatusOK, sources)
 	})
+	mux.HandleFunc("POST /api/v1/ranking-sources/{sourceId}/refresh", func(response http.ResponseWriter, request *http.Request) {
+		source, err := service.RefreshSource(request.Context(), request.PathValue("sourceId"))
+		if err != nil {
+			switch {
+			case errors.Is(err, application.ErrRankingSourceNotFound):
+				writeError(response, http.StatusNotFound, "That ranking source was not found.")
+			case errors.Is(err, application.ErrRankingSourceNotRefreshable):
+				writeError(response, http.StatusBadRequest, "That ranking source must be updated by importing a file.")
+			default:
+				writeError(response, http.StatusBadGateway, err.Error())
+			}
+			return
+		}
+		writeJSON(response, http.StatusOK, source)
+	})
 	mux.HandleFunc("POST /api/v1/ranking-sources/import-pdf", func(response http.ResponseWriter, request *http.Request) {
 		request.Body = http.MaxBytesReader(response, request.Body, document.MaxPDFBytes+(1<<20))
 		reader, err := request.MultipartReader()

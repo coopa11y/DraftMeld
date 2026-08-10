@@ -261,6 +261,28 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /ranking-sources/{sourceId}/refresh:
+    post:
+      operationId: refreshRankingSource
+      summary: Download and normalize one built-in ranking feed
+      parameters:
+        - name: sourceId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Refreshed ranking source.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RankingSource" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "502":
+          description: The upstream ranking feed could not be downloaded or parsed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
   /ranking-sources/import-pdf:
     post:
       operationId: importRankingPDF

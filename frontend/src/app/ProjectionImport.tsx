@@ -40,6 +40,7 @@ const projectionColumns: CsvColumnDefinition[] = [
 const requiredProjectionColumns = projectionColumns.filter((column) => column.required);
 
 interface ProjectionImportProps {
+  embedded?: boolean;
   busy: boolean;
   sources: ProjectionSource[];
   onBusyChange: (busy: boolean) => void;
@@ -50,6 +51,7 @@ interface ProjectionImportProps {
 
 export function ProjectionImport({
   busy,
+  embedded = false,
   sources,
   onBusyChange,
   onImported,
@@ -95,8 +97,8 @@ export function ProjectionImport({
     }
   }
 
-  return (
-    <Panel variant="ranking" aria-labelledby="projection-import-heading">
+  const content = (
+    <>
       <div className="section-heading">
         <div>
           <p className="eyebrow">League scoring</p>
@@ -160,6 +162,7 @@ export function ProjectionImport({
           No projections imported. Consensus rankings still work, but projected points and VOR remain unavailable.
         </p>
       )}
-    </Panel>
+    </>
   );
+  return embedded ? <div className="embedded-import">{content}</div> : <Panel variant="ranking">{content}</Panel>;
 }

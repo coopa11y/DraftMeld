@@ -62,6 +62,24 @@ func TestRankingSourcesExposeBuiltInProvenance(t *testing.T) {
 	}
 }
 
+func TestSingleRankingSourceRefreshValidatesTheSource(t *testing.T) {
+	router, closeStore := testRouter(t)
+	defer closeStore()
+	for _, test := range []struct {
+		path string
+		want int
+	}{
+		{"/api/v1/ranking-sources/missing/refresh", http.StatusNotFound},
+		{"/api/v1/ranking-sources/espn-ppr-pdf/refresh", http.StatusBadRequest},
+	} {
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, test.path, nil))
+		if response.Code != test.want {
+			t.Fatalf("expected %d for %s, got %d: %s", test.want, test.path, response.Code, response.Body.String())
+		}
+	}
+}
+
 func TestConsensusRankingsRequireKnownLeague(t *testing.T) {
 	router, closeStore := testRouter(t)
 	defer closeStore()

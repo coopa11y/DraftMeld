@@ -1,121 +1,125 @@
+import { useState } from "react";
 import { useViewHeadingFocus } from "../shared/hooks/useViewHeadingFocus";
 import { Button } from "../shared/ui/Button";
 import { Panel } from "../shared/ui/Panel";
 import { StatusMessage } from "../shared/ui/StatusMessage";
+import { AddSourceView, type SourceImportKind } from "./AddSourceView";
 import { IdentityReviewQueue } from "./IdentityReviewQueue";
-import { ProjectionImport } from "./ProjectionImport";
-import { RankingCsvImport } from "./RankingCsvImport";
 import { RankingEvidencePanels } from "./RankingEvidencePanels";
-import { RankingSourcePreferences } from "./RankingSourcePreferences";
+import { SourceDetailsView } from "./SourceDetailsView";
+import { SourceTable } from "./SourceTable";
 import type { RankingSourcesController } from "./useRankingSources";
 
 interface RankingSourcesViewProps {
   controller: RankingSourcesController;
 }
+type SourceView = "list" | "add" | "details" | "identity" | "results";
 
 export function RankingSourcesView({ controller }: RankingSourcesViewProps) {
-  const heading = useViewHeadingFocus<HTMLHeadingElement>();
-  const {
-    busy,
-    consensusMethod,
-    directoryStatus,
-    enabledImportedSourceCount,
-    enabledSourceCount,
-    error,
-    identityIssues,
-    league,
-    message,
-    pdfFile,
-    preferences,
-    preferencesChanged,
-    projectionSources,
-    rankings,
-    sources,
-    watchlist,
-    actions,
-  } = controller;
+  const [view, setView] = useState<SourceView>("list");
+  const [importKind, setImportKind] = useState<SourceImportKind>();
+  const [details, setDetails] = useState<{ id: string; kind: "ranking" | "projection" }>();
+  const heading = useViewHeadingFocus<HTMLHeadingElement>(view === "list");
+  const { actions, busy, busySourceId, error, identityIssues, message, projectionSources, sources } = controller;
+
+  function openImport(kind?: SourceImportKind) {
+    setImportKind(kind);
+    setView("add");
+  }
+
+  if (view === "add")
+    return <AddSourceView controller={controller} initialKind={importKind} onBack={() => setView("list")} />;
+  if (view === "details") {
+    const source =
+      details?.kind === "projection"
+        ? projectionSources.find((item) => item.id === details.id)
+        : sources.find((item) => item.id === details?.id);
+    return <SourceDetailsView source={source} onBack={() => setView("list")} />;
+  }
+  if (view === "identity") {
+    return (
+      <main className="focused-page" id="main-content">
+        <Button onClick={() => setView("list")}>Back to sources</Button>
+        <IdentityReviewQueue
+          busy={busy}
+          issues={identityIssues}
+          status={controller.directoryStatus}
+          onBusyChange={actions.setBusy}
+          onReviewed={actions.identityReviewed}
+          onError={actions.setError}
+        />
+      </main>
+    );
+  }
+  if (view === "results") {
+    return (
+      <main className="focused-page" id="main-content">
+        <Button onClick={() => setView("list")}>Back to sources</Button>
+        <RankingEvidencePanels
+          enabledImportedSourceCount={controller.enabledImportedSourceCount}
+          leagueName={controller.league.name}
+          rankings={controller.rankings}
+          watchlist={controller.watchlist}
+        />
+      </main>
+    );
+  }
 
   return (
-    <main className="ranking-page" id="main-content" aria-busy={busy}>
-      <Panel variant="ranking" aria-labelledby="ranking-sources-heading">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Ranking data</p>
-            <h1 id="ranking-sources-heading" ref={heading} tabIndex={-1}>
-              Ranking sources
-            </h1>
-            <p className="section-description">
-              Choose which sources shape {league.name}, then tune their relative influence. Equal weights have equal
-              pull.
-            </p>
-          </div>
-          <Button variant="primary" onClick={actions.refresh} disabled={busy}>
-            {busy ? "Working..." : "Refresh all sources"}
+    <main className="sources-page" id="main-content" aria-busy={busy}>
+      <div className="page-title-row">
+        <div>
+          <p className="eyebrow">Ranking data</p>
+          <h1 ref={heading} tabIndex={-1}>
+            Sources
+          </h1>
+          <p>Keep rankings and projections current without leaving this list.</p>
+        </div>
+        <div className="page-actions">
+          <Button variant="primary" onClick={() => openImport()}>
+            Add source
+          </Button>
+          <Button onClick={actions.refresh} disabled={busy || Boolean(busySourceId)}>
+            {busy ? "Refreshing…" : "Refresh online sources"}
           </Button>
         </div>
-        <StatusMessage>{message}</StatusMessage>
-        {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
-        <form className="pdf-import-form" onSubmit={actions.uploadPDF}>
-          <div>
-            <label htmlFor="ranking-pdf">
-              <strong>Import a ranking PDF</strong>
-            </label>
-            <p id="ranking-pdf-help">
-              DraftMeld detects supported ESPN PPR Top 300 and Dynasty cheat sheets. Scanned pages use local OCR when
-              available. Files are processed locally and are not retained.
-            </p>
-          </div>
-          <input
-            id="ranking-pdf"
-            name="file"
-            type="file"
-            accept="application/pdf,.pdf"
-            aria-describedby="ranking-pdf-help"
-            onChange={(event) => actions.setPDFFile(event.target.files?.[0] ?? null)}
-            disabled={busy}
-          />
-          <Button type="submit" disabled={busy || !pdfFile}>
-            Import PDF
-          </Button>
-        </form>
-        <RankingSourcePreferences
+      </div>
+      <StatusMessage>{message}</StatusMessage>
+      {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
+      <Panel variant="ranking">
+        <SourceTable
           busy={busy}
-          consensusMethod={consensusMethod}
-          enabledSourceCount={enabledSourceCount}
-          leagueName={league.name}
-          preferences={preferences}
-          preferencesChanged={preferencesChanged}
+          busySourceId={busySourceId}
+          consensusMethod={controller.consensusMethod}
+          enabledSourceCount={controller.enabledSourceCount}
+          preferences={controller.preferences}
+          preferencesChanged={controller.preferencesChanged}
+          projectionSources={projectionSources}
           sources={sources}
           onConsensusMethodChange={actions.setConsensusMethod}
+          onDetails={(id, kind) => {
+            setDetails({ id, kind });
+            setView("details");
+          }}
+          onImport={openImport}
           onPreferencesChange={actions.setPreferences}
+          onRefreshSource={actions.refreshSource}
           onReset={actions.resetPreferences}
           onSubmit={actions.saveWeights}
         />
       </Panel>
-
-      <RankingCsvImport busy={busy} sources={sources} onImport={actions.uploadRankingCSV} />
-      <ProjectionImport
-        busy={busy}
-        sources={projectionSources}
-        onBusyChange={actions.setBusy}
-        onImported={actions.projectionImported}
-        onMessage={actions.setMessage}
-        onError={actions.setError}
-      />
-      <IdentityReviewQueue
-        busy={busy}
-        issues={identityIssues}
-        status={directoryStatus}
-        onBusyChange={actions.setBusy}
-        onReviewed={actions.identityReviewed}
-        onError={actions.setError}
-      />
-      <RankingEvidencePanels
-        enabledImportedSourceCount={enabledImportedSourceCount}
-        leagueName={league.name}
-        rankings={rankings}
-        watchlist={watchlist}
-      />
+      <div className="source-followups">
+        <p>{identityIssues.filter((issue) => !issue.resolution).length} identity issues need review.</p>
+        <Button onClick={() => setView("identity")}>Identity issues</Button>
+        <p>
+          {controller.rankings.length > 0
+            ? "Consensus results are ready."
+            : "Import a source to build consensus results."}
+        </p>
+        <Button onClick={() => setView("results")} disabled={controller.rankings.length === 0}>
+          Consensus results
+        </Button>
+      </div>
     </main>
   );
 }

@@ -10,6 +10,7 @@ import {
   listProjectionSources,
   listRankingSources,
   refreshRankingSources,
+  refreshRankingSource,
 } from "../shared/api/rankings";
 import type {
   ConsensusRanking,
@@ -25,6 +26,7 @@ import type {
 
 interface RankingSourcesActions {
   refresh: () => Promise<void>;
+  refreshSource: (sourceId: string) => Promise<void>;
   uploadPDF: (event: FormEvent<HTMLFormElement>) => Promise<void>;
   uploadRankingCSV: (name: string, file: File, mapping: Record<string, string>) => Promise<void>;
   saveWeights: (event: FormEvent<HTMLFormElement>) => Promise<void>;
@@ -42,6 +44,7 @@ interface RankingSourcesActions {
 export interface RankingSourcesController {
   actions: RankingSourcesActions;
   busy: boolean;
+  busySourceId: string;
   consensusMethod: LeagueRules["consensusMethod"];
   directoryStatus: PlayerDirectoryStatus;
   enabledImportedSourceCount: number;
@@ -70,6 +73,7 @@ export function useRankingSources(league: League, onLeagueUpdated: (league: Leag
   const [directoryStatus, setDirectoryStatus] = useState<PlayerDirectoryStatus>(emptyDirectoryStatus);
   const [consensusMethod, setConsensusMethod] = useState<LeagueRules["consensusMethod"]>(league.consensusMethod);
   const [busy, setBusy] = useState(true);
+  const [busySourceId, setBusySourceId] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [pdfFile, setPDFFile] = useState<File | null>(null);
@@ -122,6 +126,31 @@ export function useRankingSources(league: League, onLeagueUpdated: (league: Leag
       },
       "Unable to refresh rankings.",
     );
+  }
+
+  async function refreshSource(sourceId: string) {
+    const source = sources.find((candidate) => candidate.id === sourceId);
+    if (!source) return;
+    setBusySourceId(sourceId);
+    setError("");
+    setMessage(`Updating ${source.name}.`);
+    try {
+      const updated = await refreshRankingSource(sourceId);
+      setSources((current) => current.map((candidate) => (candidate.id === updated.id ? updated : candidate)));
+      applyEvidence(
+        await loadRankingEvidence(league.id),
+        setRankings,
+        setWatchlist,
+        setIdentityIssues,
+        setDirectoryStatus,
+      );
+      setMessage(`${updated.name} updated with ${updated.recordCount} players.`);
+    } catch (reason) {
+      setError(errorMessage(reason, `Unable to update ${source.name}.`));
+      setMessage("");
+    } finally {
+      setBusySourceId("");
+    }
   }
 
   async function uploadPDF(event: FormEvent<HTMLFormElement>) {
@@ -223,6 +252,7 @@ export function useRankingSources(league: League, onLeagueUpdated: (league: Leag
   return {
     actions: {
       refresh,
+      refreshSource,
       uploadPDF,
       uploadRankingCSV,
       saveWeights,
@@ -245,6 +275,7 @@ export function useRankingSources(league: League, onLeagueUpdated: (league: Leag
       setPreferences,
     },
     busy,
+    busySourceId,
     consensusMethod,
     directoryStatus,
     enabledImportedSourceCount,
