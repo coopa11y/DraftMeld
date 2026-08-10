@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createLeague, listLeagues } from "../shared/api/leagues";
-import type { League, LeagueRules } from "../shared/api/types";
+import type { League, LeagueRules, MockDraftSession } from "../shared/api/types";
 import { Button } from "../shared/ui/Button";
 import { StatusMessage } from "../shared/ui/StatusMessage";
 import { DraftWorkspace } from "./DraftWorkspace";
@@ -22,6 +22,7 @@ export function App() {
   const [onboardingDone, setOnboardingDone] = useState(onboardingComplete);
   const [hasOnboardingDraft, setHasOnboardingDraft] = useState(() => loadOnboardingDraft() !== null);
   const [notice, setNotice] = useState("");
+  const [mockDraft, setMockDraft] = useState<MockDraftSession | null>(null);
   const noticeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -90,12 +91,14 @@ export function App() {
   }
 
   function handleLeagueSelection(value: string) {
+    setMockDraft(null);
     selectLeague(value);
     setView("league");
   }
 
   const activeLeague = leagues.find((league) => league.id === activeLeagueId);
   const leagueContextOpen = view !== "leagues" && Boolean(activeLeague);
+  const draftLeagueId = mockDraft?.id ?? activeLeagueId;
 
   if (loading) {
     return (
@@ -130,7 +133,7 @@ export function App() {
           {leagueContextOpen ? (
             <>
               <Button aria-current={view === "draft" ? "page" : undefined} onClick={() => setView("draft")}>
-                Draft
+                {mockDraft ? "Mock draft" : "Draft"}
               </Button>
               <Button
                 aria-current={view === "rankings" ? "page" : undefined}
@@ -144,7 +147,10 @@ export function App() {
           <Button
             aria-current={view === "leagues" ? "page" : undefined}
             aria-label="Manage leagues"
-            onClick={() => setView("leagues")}
+            onClick={() => {
+              setMockDraft(null);
+              setView("leagues");
+            }}
           >
             Leagues
           </Button>
@@ -189,23 +195,34 @@ export function App() {
           mode={view === "league" ? "overview" : "list"}
           onLeaguesChange={handleLeaguesChange}
           onOpenLeague={(id) => {
+            setMockDraft(null);
             selectLeague(id);
             setView("league");
           }}
           onOpenDraft={(id) => {
+            setMockDraft(null);
             selectLeague(id);
             setView("draft");
           }}
           onOpenSources={(id) => {
+            setMockDraft(null);
             selectLeague(id);
             setView("rankings");
           }}
-          onShowAll={() => setView("leagues")}
+          onShowAll={() => {
+            setMockDraft(null);
+            setView("leagues");
+          }}
+          onOpenMockDraft={(session) => {
+            selectLeague(session.leagueId);
+            setMockDraft(session);
+            setView("draft");
+          }}
         />
       ) : (
         <DraftWorkspace
-          key={activeLeagueId}
-          leagueId={activeLeagueId}
+          key={draftLeagueId}
+          leagueId={draftLeagueId}
           autoFocusHeading={!notice}
           mode={view === "tools" ? "tools" : "board"}
         />

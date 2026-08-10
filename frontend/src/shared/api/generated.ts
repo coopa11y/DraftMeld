@@ -96,6 +96,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/leagues/{leagueId}/mock-drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: components["parameters"]["LeagueIdPath"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start a disposable mock draft using a league's current rules */
+        post: operations["createMockDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/leagues/import": {
         parameters: {
             query?: never;
@@ -915,6 +934,11 @@ export interface components {
             canReset: boolean;
             canUndoReset: boolean;
         };
+        MockDraftSession: {
+            id: string;
+            leagueId: string;
+            name: string;
+        };
         DraftPickSlot: {
             season: number;
             overallNumber: number;
@@ -1290,6 +1314,29 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["League"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createMockDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: components["parameters"]["LeagueIdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Mock draft created and started. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MockDraftSession"];
                 };
             };
             404: components["responses"]["NotFound"];

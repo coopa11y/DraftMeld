@@ -465,6 +465,35 @@ func TestExportAndRestoreWorkflow(t *testing.T) {
 	}
 }
 
+func TestCreateMockDraftStartsHiddenSession(t *testing.T) {
+	router, closeStore, _ := testRouterWithDraftService(t)
+	defer closeStore()
+
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/leagues/demo/mock-drafts", nil))
+	if response.Code != http.StatusCreated || !strings.Contains(response.Body.String(), `"leagueId":"demo"`) {
+		t.Fatalf("create mock draft failed: %d %s", response.Code, response.Body.String())
+	}
+	var mock struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &mock); err != nil || mock.ID == "" || mock.ID == "demo" {
+		t.Fatalf("invalid mock draft response: %#v err=%v", mock, err)
+	}
+
+	listResponse := httptest.NewRecorder()
+	router.ServeHTTP(listResponse, httptest.NewRequest(http.MethodGet, "/api/v1/leagues", nil))
+	if strings.Contains(listResponse.Body.String(), mock.ID) {
+		t.Fatalf("mock configuration leaked into league list: %s", listResponse.Body.String())
+	}
+
+	draftResponse := httptest.NewRecorder()
+	router.ServeHTTP(draftResponse, httptest.NewRequest(http.MethodGet, "/api/v1/draft?leagueId="+mock.ID, nil))
+	if draftResponse.Code != http.StatusOK || !strings.Contains(draftResponse.Body.String(), `"sessionStatus":"in-progress"`) {
+		t.Fatalf("mock draft did not start: %d %s", draftResponse.Code, draftResponse.Body.String())
+	}
+}
+
 func testRouterWithDraftService(t *testing.T) (http.Handler, func(), *application.DraftService) {
 	t.Helper()
 	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")

@@ -1,23 +1,22 @@
 import { useState } from "react";
 import {
   createLeague,
+  createMockDraft,
   deleteLeague,
   duplicateLeague,
-  leagueToRules,
   listLeagues,
   updateLeague,
 } from "../shared/api/leagues";
-import type { League, LeagueRules } from "../shared/api/types";
-import { startDraftSession } from "../shared/api/draft";
+import type { League, LeagueRules, MockDraftSession } from "../shared/api/types";
 import { useViewHeadingFocus } from "../shared/hooks/useViewHeadingFocus";
 import { Button } from "../shared/ui/Button";
 import { Dialog } from "../shared/ui/Dialog";
 import { Panel } from "../shared/ui/Panel";
 import { StatusMessage } from "../shared/ui/StatusMessage";
 import { LeagueDataTools } from "./LeagueDataTools";
+import { LeagueCreationForm } from "./LeagueCreationForm";
 import { LeagueForm } from "./LeagueForm";
 import { formatDraftType, formatScoring, LeagueOverview } from "./LeagueOverview";
-import { QuickDemoLeagueForm, type QuickDemoDestination } from "./QuickDemoLeagueForm";
 
 interface LeagueManagerProps {
   leagues: League[];
@@ -26,13 +25,13 @@ interface LeagueManagerProps {
   onLeaguesChange: (leagues: League[], preferredId?: string) => void;
   onOpenLeague: (id: string) => void;
   onOpenDraft: (id: string) => void;
+  onOpenMockDraft: (session: MockDraftSession) => void;
   onOpenSources: (id: string) => void;
   onShowAll: () => void;
 }
 
 export function LeagueManager(props: LeagueManagerProps) {
   const [editingId, setEditingId] = useState<string | "new" | null>(null);
-  const [quickDemoOpen, setQuickDemoOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -68,34 +67,21 @@ export function LeagueManager(props: LeagueManagerProps) {
     });
   }
 
-  async function handleQuickCreate(rules: LeagueRules, destination: QuickDemoDestination) {
-    await run(async () => {
-      const saved = await createLeague(rules);
-      if (destination === "mock") await startDraftSession(saved.id);
-      await refresh(saved.id);
-      setQuickDemoOpen(false);
-      if (destination === "mock") props.onOpenDraft(saved.id);
-      else props.onOpenLeague(saved.id);
-    });
-  }
-
   async function openMockDraft(league: League) {
     await run(async () => {
-      const copy = await duplicateLeague(league.id);
-      const mock = await updateLeague(copy.id, {
-        ...leagueToRules(copy),
-        name: `${league.name} Mock Draft`,
-      });
-      await startDraftSession(mock.id);
-      await refresh(mock.id);
-      props.onOpenDraft(mock.id);
+      const session = await createMockDraft(league.id);
+      props.onOpenMockDraft(session);
     });
   }
 
   if (editingId) {
     return (
       <main className="league-setup-layout">
-        <LeagueForm league={editingLeague} busy={busy} onCancel={() => setEditingId(null)} onSave={handleSave} />
+        {editingId === "new" ? (
+          <LeagueCreationForm busy={busy} onCancel={() => setEditingId(null)} onSave={handleSave} />
+        ) : (
+          <LeagueForm league={editingLeague} busy={busy} onCancel={() => setEditingId(null)} onSave={handleSave} />
+        )}
         {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
       </main>
     );
@@ -140,29 +126,17 @@ export function LeagueManager(props: LeagueManagerProps) {
             <h1 id="league-manager-title" ref={heading} tabIndex={-1}>
               Your leagues
             </h1>
-            <p>Choose a league, create one, or try a mock draft.</p>
+            <p>Create a league or open one to configure its rules, rankings, and drafts.</p>
           </div>
           <div className="league-home-actions">
             <Button variant="primary" onClick={() => setEditingId("new")}>
               Create league
-            </Button>
-            <Button
-              aria-expanded={quickDemoOpen}
-              aria-controls="quick-demo-form"
-              onClick={() => setQuickDemoOpen((open) => !open)}
-            >
-              Quick demo league
             </Button>
           </div>
         </div>
 
         {message ? <StatusMessage tone="success">{message}</StatusMessage> : null}
         {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
-        {quickDemoOpen ? (
-          <div id="quick-demo-form">
-            <QuickDemoLeagueForm busy={busy} onCancel={() => setQuickDemoOpen(false)} onCreate={handleQuickCreate} />
-          </div>
-        ) : null}
         {props.leagues.length === 0 ? (
           <div className="empty-leagues">
             <h2>No leagues yet</h2>

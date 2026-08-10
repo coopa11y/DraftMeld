@@ -1,4 +1,4 @@
-import type { League, LeagueBackup, LeagueRuleImport, LeagueRules } from "./types";
+import type { League, LeagueBackup, LeagueRuleImport, LeagueRules, MockDraftSession } from "./types";
 import { cloneLeagueRules } from "../domain/leagueRules";
 import { apiClient, ensureSuccess, postMultipart, unwrap } from "./client";
 
@@ -22,6 +22,13 @@ export async function updateLeague(id: string, rules: LeagueRules): Promise<Leag
 
 export async function duplicateLeague(id: string): Promise<League> {
   const { data, error, response } = await apiClient.POST("/leagues/{leagueId}/duplicate", {
+    params: { path: { leagueId: id } },
+  });
+  return unwrap(data, error, response);
+}
+
+export async function createMockDraft(id: string): Promise<MockDraftSession> {
+  const { data, error, response } = await apiClient.POST("/leagues/{leagueId}/mock-drafts", {
     params: { path: { leagueId: id } },
   });
   return unwrap(data, error, response);

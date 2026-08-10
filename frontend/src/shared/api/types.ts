@@ -16,6 +16,7 @@ export type LeagueRules = components["schemas"]["LeagueRules"];
 export type LeagueBackup = components["schemas"]["LeagueBackup"];
 export type LeagueRuleImport = components["schemas"]["LeagueRuleImport"];
 export type LeagueRuleMatch = components["schemas"]["LeagueRuleMatch"];
+export type MockDraftSession = components["schemas"]["MockDraftSession"];
 export type RosterSlot = components["schemas"]["RosterSlot"];
 export type RankingSource = components["schemas"]["RankingSource"];
 export type ConsensusRanking = components["schemas"]["ConsensusRanking"];

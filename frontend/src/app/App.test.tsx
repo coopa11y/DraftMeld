@@ -396,7 +396,7 @@ describe("accessible draft board", () => {
     expect((await axe(container)).violations).toHaveLength(0);
   });
 
-  it("creates and starts a quick mock league from a few common settings", async () => {
+  it("creates a league from basic settings and preserves them when advanced settings open", async () => {
     let leagues: League[] = [];
     let submittedRules: Omit<League, "id"> | undefined;
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -405,27 +405,32 @@ describe("accessible draft board", () => {
       if (path.endsWith("/leagues") && request.method === "GET") return jsonResponse(leagues);
       if (path.endsWith("/leagues") && request.method === "POST") {
         submittedRules = (await request.clone().json()) as Omit<League, "id">;
-        const created = { id: "quick-demo", ...submittedRules };
+        const created = { id: "friday-practice", ...submittedRules };
         leagues = [created];
         return jsonResponse(created, 201);
       }
-      if (path.endsWith("/draft/session/start"))
-        return jsonResponse(snapshot({ leagueId: "quick-demo", leagueName: "Friday Practice" }));
-      return jsonResponse(snapshot({ leagueId: "quick-demo", leagueName: "Friday Practice" }));
+      return jsonResponse(snapshot({ leagueId: "friday-practice", leagueName: "Friday Practice" }));
     });
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     const { container } = render(<App />);
 
-    await user.click(await screen.findByRole("button", { name: "Quick demo league" }));
+    await user.click(await screen.findByRole("button", { name: "Create league" }));
     const name = screen.getByRole("textbox", { name: "League name" });
     await user.clear(name);
     await user.type(name, "Friday Practice");
-    await user.selectOptions(screen.getByRole("combobox", { name: "Teams" }), "10");
-    await user.selectOptions(screen.getByRole("combobox", { name: "Draft position" }), "4");
-    await user.click(screen.getByRole("button", { name: "Create and start mock draft" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Number of teams" }), "10");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Scoring" }), "0.5");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Your draft position" }), "4");
+    const advanced = screen.getByRole("button", { name: "Advanced settings" });
+    expect(advanced).toHaveAttribute("aria-expanded", "false");
+    await user.click(advanced);
+    expect(screen.getByRole("heading", { name: "Advanced settings" })).toBeInTheDocument();
+    expect(name).toHaveValue("Friday Practice");
+    expect(screen.getByRole("combobox", { name: "Number of teams" })).toHaveValue("10");
+    await user.click(screen.getByRole("button", { name: "Create league" }));
 
-    expect(await screen.findByRole("heading", { name: "Available players" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Friday Practice" })).toBeInTheDocument();
     expect(submittedRules).toMatchObject({
       name: "Friday Practice",
       teamCount: 10,
@@ -434,29 +439,17 @@ describe("accessible draft board", () => {
       scoringRules: { reception: 0.5 },
     });
     expect(submittedRules?.draftOrder).toEqual([4, 2, 3, 1, 5, 6, 7, 8, 9, 10]);
-    const startRequest = fetchMock.mock.calls
-      .map(([input, init]) => (input instanceof Request ? input : new Request(input, init)))
-      .find((request) => new URL(request.url).pathname.endsWith("/draft/session/start"));
-    expect(await startRequest?.clone().json()).toEqual({ leagueId: "quick-demo" });
     expect((await axe(container)).violations).toHaveLength(0);
   });
 
-  it("starts an existing league mock draft in a separate copy", async () => {
-    const copy = { ...demoLeague, id: "mock-copy", name: "Demo League Copy" };
-    const mock = { ...copy, name: "Demo League Mock Draft" };
-    let leagues = [demoLeague];
+  it("starts an existing league mock draft without adding a copied league", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = input instanceof Request ? input : new Request(input, init);
       const url = new URL(request.url);
-      if (url.pathname.endsWith("/leagues") && request.method === "GET") return jsonResponse(leagues);
-      if (url.pathname.endsWith("/leagues/demo/duplicate")) return jsonResponse(copy, 201);
-      if (url.pathname.endsWith("/leagues/mock-copy") && request.method === "PUT") {
-        leagues = [demoLeague, mock];
-        return jsonResponse(mock);
-      }
-      if (url.pathname.endsWith("/draft/session/start"))
-        return jsonResponse(snapshot({ leagueId: "mock-copy", leagueName: mock.name }));
-      return jsonResponse(snapshot({ leagueId: "mock-copy", leagueName: mock.name }));
+      if (url.pathname.endsWith("/leagues") && request.method === "GET") return jsonResponse([demoLeague]);
+      if (url.pathname.endsWith("/leagues/demo/mock-drafts"))
+        return jsonResponse({ id: "mock-session", leagueId: "demo", name: "Demo League Mock Draft" }, 201);
+      return jsonResponse(snapshot({ leagueId: "mock-session", leagueName: "Demo League Mock Draft" }));
     });
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
@@ -468,14 +461,11 @@ describe("accessible draft board", () => {
     const requests = fetchMock.mock.calls.map(([input, init]) =>
       input instanceof Request ? input : new Request(input, init),
     );
-    const renameRequest = requests.find(
-      (request) => new URL(request.url).pathname.endsWith("/leagues/mock-copy") && request.method === "PUT",
-    );
-    expect(await renameRequest?.clone().json()).toMatchObject({ name: "Demo League Mock Draft" });
-    const startRequest = requests.find((request) => new URL(request.url).pathname.endsWith("/draft/session/start"));
-    expect(await startRequest?.clone().json()).toEqual({ leagueId: "mock-copy" });
+    expect(requests.some((request) => new URL(request.url).pathname.endsWith("/leagues/demo/mock-drafts"))).toBe(true);
+    expect(requests.some((request) => new URL(request.url).pathname.endsWith("/leagues/demo/duplicate"))).toBe(false);
     const draftRequest = requests.find((request) => new URL(request.url).pathname.endsWith("/draft"));
-    expect(new URL(draftRequest?.url ?? "http://localhost").searchParams.get("leagueId")).toBe("mock-copy");
+    expect(new URL(draftRequest?.url ?? "http://localhost").searchParams.get("leagueId")).toBe("mock-session");
+    expect(screen.getByRole("button", { name: "Mock draft" })).toBeInTheDocument();
   });
 
   it("offers non-blocking first-run guidance and a resumable setup entry point", async () => {
@@ -582,21 +572,22 @@ describe("accessible draft board", () => {
 
     await user.click(await screen.findByRole("button", { name: "Manage leagues" }));
     await user.click(screen.getByRole("button", { name: "Create league" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Scoring" }), "te-premium");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Your draft position" }), "7");
+    await user.click(screen.getByRole("button", { name: "Advanced settings" }));
     expect(screen.getByRole("group", { name: "League settings" })).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Draft settings" })).not.toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "League format" })).toHaveValue("redraft");
-    await user.selectOptions(screen.getByRole("combobox", { name: "Reception scoring preset" }), "te-premium");
     await user.selectOptions(screen.getByRole("combobox", { name: "League format" }), "dynasty");
     await user.selectOptions(screen.getByRole("combobox", { name: "League format" }), "redraft");
     const name = screen.getByRole("textbox", { name: "League name" });
     await user.clear(name);
     await user.type(name, "Family League");
 
-    const formNavigation = screen.getByRole("navigation", { name: "League configuration sections" });
+    const formNavigation = screen.getByRole("navigation", { name: "Advanced league configuration sections" });
     await user.click(within(formNavigation).getByRole("button", { name: "Draft" }));
     expect(screen.getByRole("group", { name: "Draft settings" })).toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "Future pick seasons" })).not.toBeInTheDocument();
-    await user.selectOptions(screen.getByRole("combobox", { name: "Your draft position" }), "7");
 
     await user.click(within(formNavigation).getByRole("button", { name: "Teams" }));
     expect(screen.getByRole("textbox", { name: "Your team name" })).toHaveValue("My Team");
@@ -623,7 +614,7 @@ describe("accessible draft board", () => {
     expect(screen.queryByText("Kicking", { selector: "summary" })).not.toBeInTheDocument();
     expect(screen.getByText("Team defense and special teams", { selector: "summary" })).toBeInTheDocument();
     expect((await axe(container)).violations).toHaveLength(0);
-    await user.click(screen.getByRole("button", { name: "Save league" }));
+    await user.click(screen.getByRole("button", { name: "Create league" }));
 
     expect(await screen.findByRole("heading", { name: "Family League" })).toBeInTheDocument();
     expect(screen.getByText("Family League was saved.")).toBeInTheDocument();

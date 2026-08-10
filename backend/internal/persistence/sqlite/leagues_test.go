@@ -34,7 +34,7 @@ func TestLeagueConfigurationPersistsAndDeletesItsDraft(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get league: %v", err)
 	}
-	if !found || loaded.Rules.DraftPosition != 7 || loaded.Rules.TeamNames[6] != "Marcus" || len(loaded.Rules.RosterSlots) != 2 || loaded.Rules.ScoringRules["reception"] != 0.5 || loaded.Rules.SourcePreferences["cbs-ppr"].Weight != 2.5 || loaded.Rules.SourcePreferences["cbs-ppr"].Enabled || loaded.Rules.ConsensusMethod != "trimmed-mean" || loaded.Rules.PlayerPreferences["p001"] != "target" || loaded.Rules.AuctionMinimumBid != 2 || loaded.Rules.KeeperBudgetSpent != 35 || loaded.Rules.MyKeeperSpend != 15 {
+	if !found || loaded.Kind != league.ConfigurationKindLeague || loaded.Rules.DraftPosition != 7 || loaded.Rules.TeamNames[6] != "Marcus" || len(loaded.Rules.RosterSlots) != 2 || loaded.Rules.ScoringRules["reception"] != 0.5 || loaded.Rules.SourcePreferences["cbs-ppr"].Weight != 2.5 || loaded.Rules.SourcePreferences["cbs-ppr"].Enabled || loaded.Rules.ConsensusMethod != "trimmed-mean" || loaded.Rules.PlayerPreferences["p001"] != "target" || loaded.Rules.AuctionMinimumBid != 2 || loaded.Rules.KeeperBudgetSpent != 35 || loaded.Rules.MyKeeperSpend != 15 {
 		t.Fatalf("unexpected persisted league: %#v", loaded)
 	}
 
@@ -53,7 +53,7 @@ func TestLeagueConfigurationPersistsAndDeletesItsDraft(t *testing.T) {
 
 func testLeagueConfiguration() league.Configuration {
 	return league.Configuration{
-		ID: "league-a",
+		ID: "league-a", Kind: league.ConfigurationKindLeague,
 		Rules: league.Rules{
 			Name: "League A", TeamCount: 12, DraftPosition: 7, DraftType: league.DraftTypeSnake,
 			TeamNames: []string{"Team 1", "Team 2", "Team 3", "Team 4", "Team 5", "Team 6", "Marcus", "Team 8", "Team 9", "Team 10", "Team 11", "Team 12"},

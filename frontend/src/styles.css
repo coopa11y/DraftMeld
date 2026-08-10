@@ -713,7 +713,9 @@ tbody tr:focus-within {
   flex-wrap: wrap;
   gap: 0.65rem;
 }
-.quick-demo-form {
+.basic-league-setup,
+.advanced-league-settings,
+.league-rule-import-disclosure {
   display: grid;
   gap: 1.25rem;
   margin: 1.25rem 0;
@@ -722,16 +724,23 @@ tbody tr:focus-within {
   border: 1px solid var(--color-border-subtle);
   border-radius: 0.75rem;
 }
-.quick-demo-form h2,
-.quick-demo-form p {
+.basic-league-setup > legend {
+  padding: 0 0.4rem;
+  font-size: 1.15rem;
+  font-weight: 850;
+}
+.advanced-settings-toggle {
+  width: fit-content;
+}
+.advanced-league-settings > h2,
+.advanced-league-settings > p {
   margin: 0;
 }
-.quick-demo-form p {
-  margin-top: 0.45rem;
-  color: var(--color-text-muted);
-}
-.quick-demo-grid {
-  grid-template-columns: repeat(5, minmax(8rem, 1fr));
+.league-rule-import-disclosure > summary {
+  min-height: 44px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 800;
 }
 .league-more-actions {
   position: relative;
@@ -1459,7 +1468,6 @@ tbody tr:focus-within {
   .position-options {
     grid-column: 1 / -1;
   }
-  .quick-demo-grid,
   .league-setup-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1510,7 +1518,6 @@ tbody tr:focus-within {
   .roster-slot {
     grid-template-columns: minmax(0, 1fr);
   }
-  .quick-demo-grid,
   .league-setup-summary,
   .league-overview-actions {
     grid-template-columns: minmax(0, 1fr);
