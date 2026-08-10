@@ -1,11 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { leagueToRules } from "../shared/api/leagues";
-import type { League, LeagueRules, RosterSlot } from "../shared/api/types";
+import type { League, LeagueRules } from "../shared/api/types";
 import { Button } from "../shared/ui/Button";
-import { FormField } from "../shared/ui/FormField";
 import { DraftSettings, LeagueSettings, TeamSettings } from "./LeagueSetupSections";
+import { RosterSettings } from "./RosterSettings";
 import { ScoringSettings } from "./ScoringSettings";
-import { cloneLeagueRules, defaultLeagueRules, playerPositions } from "./leagueDefaults";
+import { cloneLeagueRules, defaultLeagueRules } from "./leagueDefaults";
+import { enabledRosterPositions } from "./rosterConfiguration";
 
 interface LeagueFormProps {
   league?: League;
@@ -16,29 +17,18 @@ interface LeagueFormProps {
   onSave: (rules: LeagueRules) => Promise<void>;
 }
 
+const sections = ["League", "Draft", "Teams", "Roster", "Scoring"] as const;
+type Section = (typeof sections)[number];
+
 export function LeagueForm({ league, initialRules, busy, onCancel, onChange, onSave }: LeagueFormProps) {
   const [rules, setRules] = useState<LeagueRules>(() =>
     league ? leagueToRules(league) : initialRules ? cloneLeagueRules(initialRules) : defaultLeagueRules(),
   );
+  const [section, setSection] = useState<Section>("League");
 
   useEffect(() => {
     onChange?.(rules);
   }, [onChange, rules]);
-
-  function updateSlot(index: number, update: Partial<RosterSlot>) {
-    setRules((current) => ({
-      ...current,
-      rosterSlots: current.rosterSlots.map((slot, slotIndex) => (slotIndex === index ? { ...slot, ...update } : slot)),
-    }));
-  }
-
-  function togglePosition(index: number, position: string) {
-    const slot = rules.rosterSlots[index];
-    const positions = slot.positions.includes(position)
-      ? slot.positions.filter((candidate) => candidate !== position)
-      : [...slot.positions, position];
-    updateSlot(index, { positions });
-  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -50,97 +40,46 @@ export function LeagueForm({ league, initialRules, busy, onCancel, onChange, onS
       <div className="form-heading">
         <div>
           <p className="eyebrow">League setup</p>
-          <h2>{league ? `Edit ${league.name}` : "Create a league"}</h2>
+          <h1>{league ? `Edit ${league.name}` : "Create a league"}</h1>
+          <p>Configure one section at a time. Your changes stay in place as you move between sections.</p>
         </div>
-        <Button onClick={onCancel} disabled={busy}>
-          Cancel
-        </Button>
       </div>
 
-      <div>
-        <LeagueSettings
-          rules={rules}
-          setRules={setRules}
-          disabled={busy}
-          lockSeason={Boolean(league && rules.leagueFormat === "dynasty")}
-        />
-        <DraftSettings rules={rules} setRules={setRules} disabled={busy} />
-        <TeamSettings rules={rules} setRules={setRules} disabled={busy} />
-      </div>
+      <nav className="league-form-nav" aria-label="League configuration sections">
+        {sections.map((item) => (
+          <Button
+            key={item}
+            className="league-form-nav-button"
+            aria-pressed={section === item}
+            onClick={() => setSection(item)}
+            disabled={busy}
+          >
+            {item}
+          </Button>
+        ))}
+      </nav>
 
-      <fieldset disabled={busy}>
-        <legend>Roster slots</legend>
-        <p className="field-help">Choose how many players can fill each slot and which positions are eligible.</p>
-        <div className="roster-editor">
-          {rules.rosterSlots.map((slot, index) => (
-            <fieldset className="roster-slot" key={index}>
-              <legend>Roster slot {index + 1}</legend>
-              <FormField label="Slot name">
-                <input
-                  required
-                  value={slot.name}
-                  onChange={(event) => updateSlot(index, { name: event.target.value })}
-                />
-              </FormField>
-              <FormField label="Count">
-                <input
-                  type="number"
-                  min="1"
-                  max="30"
-                  required
-                  value={slot.count}
-                  onChange={(event) => updateSlot(index, { count: Number(event.target.value) })}
-                />
-              </FormField>
-              <fieldset className="position-options">
-                <legend>Eligible positions</legend>
-                {playerPositions.map((position) => (
-                  <label key={position}>
-                    <input
-                      type="checkbox"
-                      checked={slot.positions.includes(position)}
-                      onChange={() => togglePosition(index, position)}
-                    />
-                    {position}
-                  </label>
-                ))}
-              </fieldset>
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={slot.isStarting}
-                  onChange={(event) => updateSlot(index, { isStarting: event.target.checked })}
-                />
-                Starting lineup slot
-              </label>
-              <Button
-                variant="dangerText"
-                onClick={() =>
-                  setRules({ ...rules, rosterSlots: rules.rosterSlots.filter((_, slotIndex) => slotIndex !== index) })
-                }
-                disabled={rules.rosterSlots.length === 1}
-              >
-                Remove slot
-              </Button>
-            </fieldset>
-          ))}
-        </div>
-        <Button
-          onClick={() =>
-            setRules({
-              ...rules,
-              rosterSlots: [
-                ...rules.rosterSlots,
-                { name: "FLEX", count: 1, positions: ["RB", "WR", "TE"], isStarting: true },
-              ],
-            })
-          }
-        >
-          Add roster slot
-        </Button>
-      </fieldset>
-
-      <ScoringSettings rules={rules} setRules={setRules} disabled={busy} />
+      <section className="league-form-section" aria-label={`${section} configuration`}>
+        {section === "League" ? (
+          <LeagueSettings
+            rules={rules}
+            setRules={setRules}
+            disabled={busy}
+            lockSeason={Boolean(league && rules.leagueFormat === "dynasty")}
+          />
+        ) : null}
+        {section === "Draft" ? <DraftSettings rules={rules} setRules={setRules} disabled={busy} /> : null}
+        {section === "Teams" ? <TeamSettings rules={rules} setRules={setRules} disabled={busy} /> : null}
+        {section === "Roster" ? <RosterSettings rules={rules} setRules={setRules} disabled={busy} /> : null}
+        {section === "Scoring" ? (
+          <ScoringSettings
+            rules={rules}
+            setRules={setRules}
+            disabled={busy}
+            enabledPositions={enabledRosterPositions(rules.rosterSlots)}
+          />
+        ) : null}
+      </section>
 
       <div className="form-actions">
         <Button type="submit" variant="primary" disabled={busy}>

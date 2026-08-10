@@ -40,8 +40,10 @@ func (service *LeagueService) EnsureDefault(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("list leagues: %w", err)
 	}
-	if len(leagues) > 0 {
-		return nil
+	for _, configuration := range leagues {
+		if configuration.Kind != league.ConfigurationKindMock {
+			return nil
+		}
 	}
 	if err = service.repository.SaveLeague(ctx, DemoLeagueConfiguration()); err != nil {
 		return fmt.Errorf("create default league: %w", err)
@@ -54,10 +56,14 @@ func (service *LeagueService) List(ctx context.Context) ([]LeagueConfiguration, 
 	if err != nil {
 		return nil, err
 	}
-	for index := range configurations {
-		configurations[index].Rules = withLeagueDefaults(configurations[index].Rules)
+	leagues := make([]LeagueConfiguration, 0, len(configurations))
+	for _, configuration := range configurations {
+		configuration = withConfigurationDefaults(configuration)
+		if configuration.Kind != league.ConfigurationKindMock {
+			leagues = append(leagues, configuration)
+		}
 	}
-	return configurations, nil
+	return leagues, nil
 }
 
 func (service *LeagueService) Get(ctx context.Context, id string) (LeagueConfiguration, error) {
@@ -68,25 +74,27 @@ func (service *LeagueService) Get(ctx context.Context, id string) (LeagueConfigu
 	if !found {
 		return LeagueConfiguration{}, fmt.Errorf("%w: %s", ErrLeagueNotFound, id)
 	}
-	configuration.Rules = withLeagueDefaults(configuration.Rules)
-	return configuration, nil
+	return withConfigurationDefaults(configuration), nil
 }
 
 func (service *LeagueService) Create(ctx context.Context, rules league.Rules) (LeagueConfiguration, error) {
-	return service.create(ctx, rules, DefaultRecommendationPolicy())
+	return service.create(ctx, rules, DefaultRecommendationPolicy(), league.ConfigurationKindLeague, "", "")
 }
 
 func (service *LeagueService) Restore(ctx context.Context, rules league.Rules, recommendation league.RecommendationPolicy) (LeagueConfiguration, error) {
-	return service.create(ctx, rules, recommendation)
+	return service.create(ctx, rules, recommendation, league.ConfigurationKindLeague, "", "")
 }
 
-func (service *LeagueService) create(ctx context.Context, rules league.Rules, recommendation league.RecommendationPolicy) (LeagueConfiguration, error) {
+func (service *LeagueService) create(ctx context.Context, rules league.Rules, recommendation league.RecommendationPolicy, kind league.ConfigurationKind, parentLeagueID, id string) (LeagueConfiguration, error) {
 	service.mu.Lock()
 	defer service.mu.Unlock()
 
 	rules = withLeagueDefaults(rules)
+	if id == "" {
+		id = slugify(rules.Name)
+	}
 	configuration := LeagueConfiguration{
-		ID: slugify(rules.Name), Rules: rules, Recommendation: recommendation,
+		ID: id, Kind: kind, ParentLeagueID: parentLeagueID, Rules: rules, Recommendation: recommendation,
 	}
 	if err := configuration.Validate(); err != nil {
 		return LeagueConfiguration{}, fmt.Errorf("%w: %v", ErrInvalidLeague, err)
@@ -100,6 +108,20 @@ func (service *LeagueService) create(ctx context.Context, rules league.Rules, re
 		return LeagueConfiguration{}, err
 	}
 	return configuration, nil
+}
+
+func (service *LeagueService) CreateMockDraft(ctx context.Context, id string) (LeagueConfiguration, error) {
+	source, err := service.Get(ctx, id)
+	if err != nil {
+		return LeagueConfiguration{}, err
+	}
+	if source.Kind == league.ConfigurationKindMock {
+		return LeagueConfiguration{}, fmt.Errorf("%w: mock drafts must start from a league", ErrInvalidLeague)
+	}
+	rules := source.Rules.Clone()
+	rules.Name = source.Rules.Name + " Mock Draft"
+	mockID := fmt.Sprintf("%s-mock-%d", source.ID, time.Now().UTC().UnixNano())
+	return service.create(ctx, rules, source.Recommendation, league.ConfigurationKindMock, source.ID, mockID)
 }
 
 func (service *LeagueService) Update(ctx context.Context, id string, rules league.Rules) (LeagueConfiguration, error) {
@@ -299,6 +321,14 @@ func withLeagueDefaults(rules league.Rules) league.Rules {
 		rules.FAABBudget = 100
 	}
 	return rules
+}
+
+func withConfigurationDefaults(configuration LeagueConfiguration) LeagueConfiguration {
+	if configuration.Kind == "" {
+		configuration.Kind = league.ConfigurationKindLeague
+	}
+	configuration.Rules = withLeagueDefaults(configuration.Rules)
+	return configuration
 }
 
 func draftPositionForTeam(order []int, teamNumber int) int {

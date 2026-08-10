@@ -72,6 +72,8 @@ FROM leagues WHERE id = ?`, id).Scan(
 		return league.Configuration{}, false, fmt.Errorf("decode league draft settings: %w", err)
 	}
 	settings.apply(&configuration.Rules)
+	configuration.Kind = settings.ConfigurationKind
+	configuration.ParentLeagueID = settings.ParentLeagueID
 
 	rows, err := store.database.QueryContext(ctx, `
 SELECT name, slot_count, positions, is_starting
@@ -113,7 +115,7 @@ func (store *DraftEventStore) SaveLeague(ctx context.Context, configuration leag
 	if err != nil {
 		return fmt.Errorf("encode recommendation policy: %w", err)
 	}
-	draftSettingsJSON, err := json.Marshal(newLeagueDraftSettings(configuration.Rules))
+	draftSettingsJSON, err := json.Marshal(newLeagueDraftSettingsForConfiguration(configuration))
 	if err != nil {
 		return fmt.Errorf("encode league draft settings: %w", err)
 	}
@@ -166,24 +168,26 @@ VALUES (?, ?, ?, ?, ?, ?)`, configuration.ID, index, slot.Name, slot.Count, stri
 }
 
 type leagueDraftSettings struct {
-	TeamNames           []string            `json:"teamNames"`
-	ConsensusMethod     string              `json:"consensusMethod"`
-	PlayerPreferences   map[string]string   `json:"playerPreferences"`
-	AuctionBudget       float64             `json:"auctionBudget"`
-	AuctionMinimumBid   float64             `json:"auctionMinimumBid"`
-	KeeperBudgetSpent   float64             `json:"keeperBudgetSpent"`
-	MyKeeperSpend       float64             `json:"myKeeperSpend"`
-	KeeperValueRemoved  float64             `json:"keeperValueRemoved"`
-	LeagueFormat        league.LeagueFormat `json:"leagueFormat"`
-	Season              int                 `json:"season"`
-	InitialSeason       int                 `json:"initialSeason"`
-	FuturePickSeasons   int                 `json:"futurePickSeasons"`
-	RookieDraftRounds   int                 `json:"rookieDraftRounds"`
-	AuctionBudgetTrades bool                `json:"auctionBudgetTrades"`
-	UserTeamNumber      int                 `json:"userTeamNumber"`
-	DraftOrder          []int               `json:"draftOrder"`
-	FAABBudget          float64             `json:"faabBudget"`
-	FAABTrades          bool                `json:"faabTrades"`
+	ConfigurationKind   league.ConfigurationKind `json:"configurationKind,omitempty"`
+	ParentLeagueID      string                   `json:"parentLeagueId,omitempty"`
+	TeamNames           []string                 `json:"teamNames"`
+	ConsensusMethod     string                   `json:"consensusMethod"`
+	PlayerPreferences   map[string]string        `json:"playerPreferences"`
+	AuctionBudget       float64                  `json:"auctionBudget"`
+	AuctionMinimumBid   float64                  `json:"auctionMinimumBid"`
+	KeeperBudgetSpent   float64                  `json:"keeperBudgetSpent"`
+	MyKeeperSpend       float64                  `json:"myKeeperSpend"`
+	KeeperValueRemoved  float64                  `json:"keeperValueRemoved"`
+	LeagueFormat        league.LeagueFormat      `json:"leagueFormat"`
+	Season              int                      `json:"season"`
+	InitialSeason       int                      `json:"initialSeason"`
+	FuturePickSeasons   int                      `json:"futurePickSeasons"`
+	RookieDraftRounds   int                      `json:"rookieDraftRounds"`
+	AuctionBudgetTrades bool                     `json:"auctionBudgetTrades"`
+	UserTeamNumber      int                      `json:"userTeamNumber"`
+	DraftOrder          []int                    `json:"draftOrder"`
+	FAABBudget          float64                  `json:"faabBudget"`
+	FAABTrades          bool                     `json:"faabTrades"`
 }
 
 func newLeagueDraftSettings(rules league.Rules) leagueDraftSettings {
@@ -197,6 +201,13 @@ func newLeagueDraftSettings(rules league.Rules) leagueDraftSettings {
 		UserTeamNumber: rules.UserTeamNumber, DraftOrder: rules.DraftOrder,
 		FAABBudget: rules.FAABBudget, FAABTrades: rules.FAABTrades,
 	}
+}
+
+func newLeagueDraftSettingsForConfiguration(configuration league.Configuration) leagueDraftSettings {
+	settings := newLeagueDraftSettings(configuration.Rules)
+	settings.ConfigurationKind = configuration.Kind
+	settings.ParentLeagueID = configuration.ParentLeagueID
+	return settings
 }
 
 func (settings leagueDraftSettings) apply(rules *league.Rules) {

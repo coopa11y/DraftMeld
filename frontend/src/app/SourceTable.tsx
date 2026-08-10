@@ -88,19 +88,23 @@ export function SourceTable(props: SourceTableProps) {
                     </label>
                   </td>
                   <td>
-                    <label className="compact-weight">
-                      <input
-                        type="number"
-                        aria-label="Weight"
-                        min="0.1"
-                        max="10"
-                        step="0.1"
-                        required
-                        value={preference.weight}
-                        disabled={props.busy || updating || !preference.enabled}
-                        onChange={(event) => updatePreference(source, { weight: Number(event.target.value) })}
-                      />
-                    </label>
+                    {preference.enabled ? (
+                      <label className="compact-weight">
+                        <input
+                          type="number"
+                          aria-label="Weight"
+                          min="0.1"
+                          max="10"
+                          step="0.1"
+                          required
+                          value={preference.weight}
+                          disabled={props.busy || updating}
+                          onChange={(event) => updatePreference(source, { weight: Number(event.target.value) })}
+                        />
+                      </label>
+                    ) : (
+                      <span className="muted-value">Not used</span>
+                    )}
                   </td>
                   <td>
                     <div className="table-actions">

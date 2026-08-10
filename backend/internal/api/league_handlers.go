@@ -17,7 +17,13 @@ type leagueResponse struct {
 	league.Rules
 }
 
-func registerLeagueRoutes(mux *http.ServeMux, service *application.LeagueService) {
+type mockDraftResponse struct {
+	ID       string `json:"id"`
+	LeagueID string `json:"leagueId"`
+	Name     string `json:"name"`
+}
+
+func registerLeagueRoutes(mux *http.ServeMux, service *application.LeagueService, drafts *application.DraftService) {
 	registerLeagueRuleImportRoute(mux, application.NewLeagueRuleImportService())
 	mux.HandleFunc("GET /api/v1/leagues", func(response http.ResponseWriter, request *http.Request) {
 		configurations, err := service.List(request.Context())
@@ -70,6 +76,21 @@ func registerLeagueRoutes(mux *http.ServeMux, service *application.LeagueService
 			return
 		}
 		writeJSON(response, http.StatusCreated, toLeagueResponse(configuration))
+	})
+
+	mux.HandleFunc("POST /api/v1/leagues/{leagueID}/mock-drafts", func(response http.ResponseWriter, request *http.Request) {
+		configuration, err := service.CreateMockDraft(request.Context(), request.PathValue("leagueID"))
+		if writeLeagueServiceError(response, err) {
+			return
+		}
+		if _, err = drafts.StartDraft(request.Context(), configuration.ID); err != nil {
+			_ = service.Delete(request.Context(), configuration.ID)
+			writeError(response, http.StatusInternalServerError, "Unable to start the mock draft.")
+			return
+		}
+		writeJSON(response, http.StatusCreated, mockDraftResponse{
+			ID: configuration.ID, LeagueID: configuration.ParentLeagueID, Name: configuration.Rules.Name,
+		})
 	})
 
 	mux.HandleFunc("DELETE /api/v1/leagues/{leagueID}", func(response http.ResponseWriter, request *http.Request) {

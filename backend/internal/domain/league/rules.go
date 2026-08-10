@@ -11,11 +11,17 @@ import (
 
 type DraftType string
 type LeagueFormat string
+type ConfigurationKind string
 
 const (
 	DraftTypeSnake   DraftType = "snake"
 	DraftTypeLinear  DraftType = "linear"
 	DraftTypeAuction DraftType = "auction"
+)
+
+const (
+	ConfigurationKindLeague ConfigurationKind = "league"
+	ConfigurationKindMock   ConfigurationKind = "mock"
 )
 
 const (
@@ -91,6 +97,8 @@ type RecommendationPolicy struct {
 
 type Configuration struct {
 	ID             string               `json:"id"`
+	Kind           ConfigurationKind    `json:"kind"`
+	ParentLeagueID string               `json:"parentLeagueId,omitempty"`
 	Rules          Rules                `json:"rules"`
 	Recommendation RecommendationPolicy `json:"recommendation"`
 }
@@ -98,6 +106,12 @@ type Configuration struct {
 func (configuration Configuration) Validate() error {
 	if configuration.ID == "" {
 		return errors.New("league configuration requires an ID")
+	}
+	if configuration.Kind != "" && configuration.Kind != ConfigurationKindLeague && configuration.Kind != ConfigurationKindMock {
+		return fmt.Errorf("league %s has an invalid configuration kind", configuration.ID)
+	}
+	if configuration.Kind == ConfigurationKindMock && configuration.ParentLeagueID == "" {
+		return fmt.Errorf("mock draft %s requires a parent league", configuration.ID)
 	}
 	if err := configuration.Rules.Validate(); err != nil {
 		return fmt.Errorf("validate league %s: %w", configuration.ID, err)

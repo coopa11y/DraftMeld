@@ -36,10 +36,6 @@ func main() {
 	leagueService := application.NewLeagueService(store)
 	rankingService := application.NewRankingService(store)
 	projectionService := application.NewProjectionService(store)
-	if err = leagueService.EnsureDefault(context.Background()); err != nil {
-		logger.Error("initialize leagues", "error", err)
-		os.Exit(1)
-	}
 	draftService, err := application.NewDraftServiceWithLeagues(store, store, draft.DemoCatalog())
 	if err != nil {
 		logger.Error("configure draft service", "error", err)

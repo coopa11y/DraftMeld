@@ -1,33 +1,48 @@
 import { useState } from "react";
-import { createLeague, deleteLeague, duplicateLeague, listLeagues, updateLeague } from "../shared/api/leagues";
-import type { League, LeagueRules } from "../shared/api/types";
+import {
+  createLeague,
+  createMockDraft,
+  deleteLeague,
+  duplicateLeague,
+  listLeagues,
+  updateLeague,
+} from "../shared/api/leagues";
+import type { League, LeagueRules, MockDraftSession } from "../shared/api/types";
 import { useViewHeadingFocus } from "../shared/hooks/useViewHeadingFocus";
 import { Button } from "../shared/ui/Button";
 import { Dialog } from "../shared/ui/Dialog";
 import { Panel } from "../shared/ui/Panel";
 import { StatusMessage } from "../shared/ui/StatusMessage";
 import { LeagueDataTools } from "./LeagueDataTools";
+import { LeagueCreationForm } from "./LeagueCreationForm";
 import { LeagueForm } from "./LeagueForm";
+import { formatDraftType, formatScoring, LeagueOverview } from "./LeagueOverview";
 
 interface LeagueManagerProps {
   leagues: League[];
   activeLeagueId: string;
+  mode: "list" | "overview";
   onLeaguesChange: (leagues: League[], preferredId?: string) => void;
+  onOpenLeague: (id: string) => void;
   onOpenDraft: (id: string) => void;
+  onOpenMockDraft: (session: MockDraftSession) => void;
+  onOpenSources: (id: string) => void;
+  onShowAll: () => void;
 }
 
-export function LeagueManager({ leagues, activeLeagueId, onLeaguesChange, onOpenDraft }: LeagueManagerProps) {
+export function LeagueManager(props: LeagueManagerProps) {
   const [editingId, setEditingId] = useState<string | "new" | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const heading = useViewHeadingFocus<HTMLHeadingElement>(editingId === null);
-  const editingLeague = leagues.find((league) => league.id === editingId);
+  const heading = useViewHeadingFocus<HTMLHeadingElement>(props.mode === "list" && editingId === null);
+  const editingLeague = props.leagues.find((league) => league.id === editingId);
+  const activeLeague = props.leagues.find((league) => league.id === props.activeLeagueId);
 
   async function refresh(preferredId?: string) {
     const updated = await listLeagues();
-    onLeaguesChange(updated, preferredId);
+    props.onLeaguesChange(updated, preferredId);
   }
 
   async function run(action: () => Promise<void>) {
@@ -48,15 +63,56 @@ export function LeagueManager({ leagues, activeLeagueId, onLeaguesChange, onOpen
       await refresh(saved.id);
       setEditingId(null);
       setMessage(`${saved.name} was saved.`);
-      heading.current?.focus();
+      props.onOpenLeague(saved.id);
+    });
+  }
+
+  async function openMockDraft(league: League) {
+    await run(async () => {
+      const session = await createMockDraft(league.id);
+      props.onOpenMockDraft(session);
     });
   }
 
   if (editingId) {
     return (
       <main className="league-setup-layout">
-        <LeagueForm league={editingLeague} busy={busy} onCancel={() => setEditingId(null)} onSave={handleSave} />
+        {editingId === "new" ? (
+          <LeagueCreationForm busy={busy} onCancel={() => setEditingId(null)} onSave={handleSave} />
+        ) : (
+          <LeagueForm league={editingLeague} busy={busy} onCancel={() => setEditingId(null)} onSave={handleSave} />
+        )}
         {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
+      </main>
+    );
+  }
+
+  if (props.mode === "overview" && activeLeague) {
+    return (
+      <main className="league-setup-layout">
+        {message ? <StatusMessage tone="success">{message}</StatusMessage> : null}
+        {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
+        <LeagueOverview
+          league={activeLeague}
+          busy={busy}
+          onBack={props.onShowAll}
+          onEdit={() => setEditingId(activeLeague.id)}
+          onOpenDraft={() => props.onOpenDraft(activeLeague.id)}
+          onOpenSources={() => props.onOpenSources(activeLeague.id)}
+          onMockDraft={() => void openMockDraft(activeLeague)}
+        />
+        <details className="league-data-disclosure">
+          <summary>Import, export, and backups</summary>
+          <LeagueDataTools
+            activeLeagueId={props.activeLeagueId}
+            busy={busy}
+            leagues={props.leagues}
+            onBusyChange={setBusy}
+            onError={setError}
+            onImported={async (league) => refresh(league.id)}
+            onMessage={setMessage}
+          />
+        </details>
       </main>
     );
   }
@@ -70,16 +126,18 @@ export function LeagueManager({ leagues, activeLeagueId, onLeaguesChange, onOpen
             <h1 id="league-manager-title" ref={heading} tabIndex={-1}>
               Your leagues
             </h1>
-            <p>Create a league from familiar defaults, then customize every rule that matters.</p>
+            <p>Create a league or open one to configure its rules, rankings, and drafts.</p>
           </div>
-          <Button variant="primary" onClick={() => setEditingId("new")}>
-            Create league
-          </Button>
+          <div className="league-home-actions">
+            <Button variant="primary" onClick={() => setEditingId("new")}>
+              Create league
+            </Button>
+          </div>
         </div>
 
         {message ? <StatusMessage tone="success">{message}</StatusMessage> : null}
         {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
-        {leagues.length === 0 ? (
+        {props.leagues.length === 0 ? (
           <div className="empty-leagues">
             <h2>No leagues yet</h2>
             <p>Create your first league to open the draft board.</p>
@@ -87,8 +145,8 @@ export function LeagueManager({ leagues, activeLeagueId, onLeaguesChange, onOpen
         ) : null}
 
         <ul className="league-list">
-          {leagues.map((league) => (
-            <li key={league.id} className={league.id === activeLeagueId ? "active-league" : ""}>
+          {props.leagues.map((league) => (
+            <li key={league.id} className={league.id === props.activeLeagueId ? "active-league" : ""}>
               <article>
                 <div>
                   <h2>{league.name}</h2>
@@ -100,28 +158,36 @@ export function LeagueManager({ leagues, activeLeagueId, onLeaguesChange, onOpen
                     {formatScoring(league.scoringRules.reception)} ·{" "}
                     {league.rosterSlots.reduce((total, slot) => total + slot.count, 0)} roster spots
                   </p>
-                  {league.id === activeLeagueId ? <span className="active-badge">Active league</span> : null}
+                  {league.id === props.activeLeagueId ? <span className="active-badge">Last opened</span> : null}
                 </div>
                 <div className="league-actions">
-                  <Button variant="primary" onClick={() => onOpenDraft(league.id)}>
-                    Open draft
+                  <Button variant="primary" onClick={() => props.onOpenLeague(league.id)}>
+                    Open league
                   </Button>
-                  <Button onClick={() => setEditingId(league.id)}>Edit</Button>
-                  <Button
-                    disabled={busy}
-                    onClick={() =>
-                      run(async () => {
-                        const copy = await duplicateLeague(league.id);
-                        await refresh(copy.id);
-                        setMessage(`${copy.name} was created.`);
-                      })
-                    }
-                  >
-                    Duplicate
+                  <Button disabled={busy} onClick={() => void openMockDraft(league)}>
+                    Start mock draft
                   </Button>
-                  <Button variant="dangerText" onClick={() => setDeleteId(league.id)}>
-                    Delete
-                  </Button>
+                  <Button onClick={() => setEditingId(league.id)}>Manage</Button>
+                  <details className="league-more-actions">
+                    <summary>More actions</summary>
+                    <div>
+                      <Button
+                        disabled={busy}
+                        onClick={() =>
+                          run(async () => {
+                            const copy = await duplicateLeague(league.id);
+                            await refresh(copy.id);
+                            setMessage(`${copy.name} was created.`);
+                          })
+                        }
+                      >
+                        Duplicate
+                      </Button>
+                      <Button variant="dangerText" onClick={() => setDeleteId(league.id)}>
+                        Delete
+                      </Button>
+                    </div>
+                  </details>
                 </div>
                 <Dialog
                   open={deleteId === league.id}
@@ -154,26 +220,6 @@ export function LeagueManager({ leagues, activeLeagueId, onLeaguesChange, onOpen
           ))}
         </ul>
       </Panel>
-      <LeagueDataTools
-        activeLeagueId={activeLeagueId}
-        busy={busy}
-        leagues={leagues}
-        onBusyChange={setBusy}
-        onError={setError}
-        onImported={async (league) => refresh(league.id)}
-        onMessage={setMessage}
-      />
     </main>
   );
-}
-
-function formatDraftType(type: League["draftType"]): string {
-  return `${type.charAt(0).toUpperCase()}${type.slice(1)} draft`;
-}
-
-function formatScoring(receptions: number): string {
-  if (receptions === 1) return "PPR scoring";
-  if (receptions === 0.5) return "Half-PPR scoring";
-  if (receptions === 0) return "Standard scoring";
-  return `${receptions} points per reception`;
 }

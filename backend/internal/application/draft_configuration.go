@@ -16,7 +16,7 @@ func DefaultRecommendationPolicy() RecommendationPolicy {
 
 func DemoLeagueConfiguration() LeagueConfiguration {
 	return LeagueConfiguration{
-		ID: "demo",
+		ID: "demo", Kind: league.ConfigurationKindLeague,
 		Rules: league.Rules{
 			Name: "Demo League", TeamCount: 12, DraftPosition: 1, UserTeamNumber: 1,
 			DraftOrder: []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}, DraftType: league.DraftTypeSnake,

@@ -55,6 +55,32 @@ func TestLeagueServiceEnsuresDefaultOnlyWhenEmpty(t *testing.T) {
 	}
 }
 
+func TestLeagueServiceCreatesHiddenMockDraftConfiguration(t *testing.T) {
+	repository := NewMemoryLeagueRepository()
+	service := NewLeagueService(repository)
+	rules := DemoLeagueConfiguration().Rules
+	rules.Name = "Home League"
+	created, err := service.Create(t.Context(), rules)
+	if err != nil {
+		t.Fatalf("create league: %v", err)
+	}
+	mock, err := service.CreateMockDraft(t.Context(), created.ID)
+	if err != nil {
+		t.Fatalf("create mock draft: %v", err)
+	}
+	if mock.Kind != league.ConfigurationKindMock || mock.ParentLeagueID != created.ID || mock.ID == created.ID {
+		t.Fatalf("unexpected mock configuration: %#v", mock)
+	}
+	listed, err := service.List(t.Context())
+	if err != nil || len(listed) != 1 || listed[0].ID != created.ID {
+		t.Fatalf("mock draft leaked into league list: %#v err=%v", listed, err)
+	}
+	stored, err := service.Get(t.Context(), mock.ID)
+	if err != nil || stored.ParentLeagueID != created.ID {
+		t.Fatalf("mock draft was not retrievable: %#v err=%v", stored, err)
+	}
+}
+
 func TestMemoryLeagueRepositoryDoesNotExposeStoredCollections(t *testing.T) {
 	original := DemoLeagueConfiguration()
 	original.Rules.TeamNames = []string{"Marcus", "Team 2"}

@@ -330,6 +330,20 @@ function jsonResponse(body: unknown, status = 200) {
   );
 }
 
+type TestUser = ReturnType<typeof userEvent.setup>;
+
+async function openLeagueHome(user: TestUser) {
+  await user.click(await screen.findByRole("button", { name: "Open league" }));
+  const heading = await screen.findByRole("heading", { name: "Demo League", level: 1 });
+  await waitFor(() => expect(heading).toHaveFocus());
+}
+
+async function openDraftBoard(user: TestUser) {
+  await openLeagueHome(user);
+  await user.click(screen.getByRole("button", { name: "Open draft board" }));
+  await screen.findByRole("heading", { name: "Available players" });
+}
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -337,7 +351,7 @@ afterEach(() => {
 });
 
 describe("accessible draft board", () => {
-  it("offers useful league actions when only the demo league exists", async () => {
+  it("starts on the league landing page and exposes league context only after opening one", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
@@ -348,16 +362,21 @@ describe("accessible draft board", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    const selector = await screen.findByRole("combobox", { name: "Active league" });
-    expect(selector).toHaveValue("demo");
-    expect(within(selector).getByRole("option", { name: "Create a league…" })).toBeInTheDocument();
-    expect(within(selector).getByRole("option", { name: "Manage leagues…" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Your leagues" })).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Active league" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Draft" })).not.toBeInTheDocument();
 
-    await user.selectOptions(selector, "__manage_leagues__");
+    await openLeagueHome(user);
+    const selector = screen.getByRole("combobox", { name: "Active league" });
+    expect(selector).toHaveValue("demo");
+    expect(within(selector).getAllByRole("option")).toHaveLength(1);
+    expect(within(selector).getByRole("option", { name: "Demo League" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Manage leagues" }));
     expect(screen.getByRole("heading", { name: "Your leagues" })).toBeInTheDocument();
 
-    await user.selectOptions(selector, "__create_league__");
-    expect(screen.getByRole("heading", { name: "Set up your draft workspace" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Create league" }));
+    expect(screen.getByRole("heading", { name: "Create a league" })).toBeInTheDocument();
   });
 
   it("keeps league creation available when no leagues exist", async () => {
@@ -368,13 +387,85 @@ describe("accessible draft board", () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
 
-    const selector = await screen.findByRole("combobox", { name: "Active league" });
-    expect(selector).toHaveValue("");
-    expect(within(selector).getByRole("option", { name: "No active league" })).toBeDisabled();
+    await screen.findByRole("button", { name: "Manage leagues" });
+    expect(screen.queryByRole("combobox", { name: "Active league" })).not.toBeInTheDocument();
 
-    await user.selectOptions(selector, "__create_league__");
-    expect(screen.getByRole("heading", { name: "Set up your draft workspace" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Manage leagues" }));
+    await user.click(screen.getByRole("button", { name: "Create league" }));
+    expect(screen.getByRole("heading", { name: "Create a league" })).toBeInTheDocument();
     expect((await axe(container)).violations).toHaveLength(0);
+  });
+
+  it("creates a league from basic settings and preserves them when advanced settings open", async () => {
+    let leagues: League[] = [];
+    let submittedRules: Omit<League, "id"> | undefined;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = input instanceof Request ? input : new Request(input, init);
+      const path = new URL(request.url).pathname;
+      if (path.endsWith("/leagues") && request.method === "GET") return jsonResponse(leagues);
+      if (path.endsWith("/leagues") && request.method === "POST") {
+        submittedRules = (await request.clone().json()) as Omit<League, "id">;
+        const created = { id: "friday-practice", ...submittedRules };
+        leagues = [created];
+        return jsonResponse(created, 201);
+      }
+      return jsonResponse(snapshot({ leagueId: "friday-practice", leagueName: "Friday Practice" }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Create league" }));
+    const name = screen.getByRole("textbox", { name: "League name" });
+    await user.clear(name);
+    await user.type(name, "Friday Practice");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Number of teams" }), "10");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Scoring" }), "0.5");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Your draft position" }), "4");
+    const advanced = screen.getByRole("button", { name: "Advanced settings" });
+    expect(advanced).toHaveAttribute("aria-expanded", "false");
+    await user.click(advanced);
+    expect(screen.getByRole("heading", { name: "Advanced settings" })).toBeInTheDocument();
+    expect(name).toHaveValue("Friday Practice");
+    expect(screen.getByRole("combobox", { name: "Number of teams" })).toHaveValue("10");
+    await user.click(screen.getByRole("button", { name: "Create league" }));
+
+    expect(await screen.findByRole("heading", { name: "Friday Practice" })).toBeInTheDocument();
+    expect(submittedRules).toMatchObject({
+      name: "Friday Practice",
+      teamCount: 10,
+      draftPosition: 4,
+      draftType: "snake",
+      scoringRules: { reception: 0.5 },
+    });
+    expect(submittedRules?.draftOrder).toEqual([4, 2, 3, 1, 5, 6, 7, 8, 9, 10]);
+    expect((await axe(container)).violations).toHaveLength(0);
+  });
+
+  it("starts an existing league mock draft without adding a copied league", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = input instanceof Request ? input : new Request(input, init);
+      const url = new URL(request.url);
+      if (url.pathname.endsWith("/leagues") && request.method === "GET") return jsonResponse([demoLeague]);
+      if (url.pathname.endsWith("/leagues/demo/mock-drafts"))
+        return jsonResponse({ id: "mock-session", leagueId: "demo", name: "Demo League Mock Draft" }, 201);
+      return jsonResponse(snapshot({ leagueId: "mock-session", leagueName: "Demo League Mock Draft" }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Start mock draft" }));
+    expect(await screen.findByRole("heading", { name: "Available players" })).toBeInTheDocument();
+
+    const requests = fetchMock.mock.calls.map(([input, init]) =>
+      input instanceof Request ? input : new Request(input, init),
+    );
+    expect(requests.some((request) => new URL(request.url).pathname.endsWith("/leagues/demo/mock-drafts"))).toBe(true);
+    expect(requests.some((request) => new URL(request.url).pathname.endsWith("/leagues/demo/duplicate"))).toBe(false);
+    const draftRequest = requests.find((request) => new URL(request.url).pathname.endsWith("/draft"));
+    expect(new URL(draftRequest?.url ?? "http://localhost").searchParams.get("leagueId")).toBe("mock-session");
+    expect(screen.getByRole("button", { name: "Mock draft" })).toBeInTheDocument();
   });
 
   it("offers non-blocking first-run guidance and a resumable setup entry point", async () => {
@@ -389,7 +480,7 @@ describe("accessible draft board", () => {
     );
     const user = userEvent.setup();
     render(<App />);
-    expect(await screen.findByText("Draft not started")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Your leagues" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Set up your league" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Setup guide" }));
     expect(screen.getByRole("heading", { name: "Set up your draft workspace" })).toBeInTheDocument();
@@ -399,7 +490,7 @@ describe("accessible draft board", () => {
     expect(savedNotice).toHaveAttribute("role", "status");
     await waitFor(() => expect(savedNotice).toHaveFocus());
     expect(screen.getAllByRole("button", { name: "Resume setup" }).length).toBeGreaterThan(0);
-    expect(screen.getByText("Draft not started")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Your leagues" })).toBeInTheDocument();
     await user.click(screen.getAllByRole("button", { name: "Resume setup" })[0]);
     expect(screen.queryByText("Setup progress saved. Resume the setup guide whenever you are ready.")).toBeNull();
     expect(await screen.findByRole("heading", { name: "Scoring" })).toHaveFocus();
@@ -423,6 +514,8 @@ describe("accessible draft board", () => {
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     const { container } = render(<App />);
+
+    await openDraftBoard(user);
 
     expect(await screen.findByText("Draft not started")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Mark Alex Rivers, RB, as taken by another team" })[0]).toBeDisabled();
@@ -479,11 +572,29 @@ describe("accessible draft board", () => {
 
     await user.click(await screen.findByRole("button", { name: "Manage leagues" }));
     await user.click(screen.getByRole("button", { name: "Create league" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Scoring" }), "te-premium");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Your draft position" }), "7");
+    await user.click(screen.getByRole("button", { name: "Advanced settings" }));
     expect(screen.getByRole("group", { name: "League settings" })).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Draft settings" })).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Team settings" })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Draft settings" })).not.toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "League format" })).toHaveValue("redraft");
-    await user.selectOptions(screen.getByRole("combobox", { name: "Reception scoring preset" }), "te-premium");
+    await user.selectOptions(screen.getByRole("combobox", { name: "League format" }), "dynasty");
+    await user.selectOptions(screen.getByRole("combobox", { name: "League format" }), "redraft");
+    const name = screen.getByRole("textbox", { name: "League name" });
+    await user.clear(name);
+    await user.type(name, "Family League");
+
+    const formNavigation = screen.getByRole("navigation", { name: "Advanced league configuration sections" });
+    await user.click(within(formNavigation).getByRole("button", { name: "Draft" }));
+    expect(screen.getByRole("group", { name: "Draft settings" })).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Future pick seasons" })).not.toBeInTheDocument();
+
+    await user.click(within(formNavigation).getByRole("button", { name: "Teams" }));
+    expect(screen.getByRole("textbox", { name: "Your team name" })).toHaveValue("My Team");
+    await user.click(screen.getByText("Name the other franchises (optional)", { selector: "summary" }));
+    expect(screen.getByRole("textbox", { name: "Franchise 7" })).toHaveValue("");
+
+    await user.click(within(formNavigation).getByRole("button", { name: "Scoring" }));
     expect(screen.getByRole("spinbutton", { name: "Points per tight end reception bonus" })).toHaveValue(0.5);
     await user.click(screen.getByText("Kicking", { selector: "summary" }));
     const allFieldGoals = screen.getByRole("spinbutton", { name: "Points per field goal made (any distance)" });
@@ -492,19 +603,18 @@ describe("accessible draft board", () => {
     await user.type(allFieldGoals, "0");
     await user.clear(longFieldGoals);
     await user.type(longFieldGoals, "5");
-    expect(screen.queryByRole("combobox", { name: "Future pick seasons" })).not.toBeInTheDocument();
-    await user.selectOptions(screen.getByRole("combobox", { name: "League format" }), "dynasty");
-    expect(screen.getByRole("combobox", { name: "Future pick seasons" })).toBeInTheDocument();
-    await user.selectOptions(screen.getByRole("combobox", { name: "League format" }), "redraft");
-    expect(screen.queryByRole("combobox", { name: "Future pick seasons" })).not.toBeInTheDocument();
-    const name = screen.getByRole("textbox", { name: "League name" });
-    await user.clear(name);
-    await user.type(name, "Family League");
-    await user.selectOptions(screen.getByRole("combobox", { name: "Your draft position" }), "7");
-    expect(screen.getByRole("textbox", { name: "Franchise 1 (your team)" })).toHaveValue("My Team");
-    expect(screen.getByRole("textbox", { name: "Franchise 7" })).toHaveValue("");
+
+    await user.click(within(formNavigation).getByRole("button", { name: "Roster" }));
+    const positionsUsed = screen.getByRole("group", { name: "Positions used" });
+    await user.click(within(positionsUsed).getByRole("checkbox", { name: "K" }));
+    expect(screen.queryByRole("spinbutton", { name: "K starters" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Roster slot 1" })).not.toBeInTheDocument();
+
+    await user.click(within(formNavigation).getByRole("button", { name: "Scoring" }));
+    expect(screen.queryByText("Kicking", { selector: "summary" })).not.toBeInTheDocument();
+    expect(screen.getByText("Team defense and special teams", { selector: "summary" })).toBeInTheDocument();
     expect((await axe(container)).violations).toHaveLength(0);
-    await user.click(screen.getByRole("button", { name: "Save league" }));
+    await user.click(screen.getByRole("button", { name: "Create league" }));
 
     expect(await screen.findByRole("heading", { name: "Family League" })).toBeInTheDocument();
     expect(screen.getByText("Family League was saved.")).toBeInTheDocument();
@@ -514,6 +624,7 @@ describe("accessible draft board", () => {
     expect(submittedRules?.scoringRules.tightEndReceptionBonus).toBe(0.5);
     expect(submittedRules?.scoringRules.fieldGoalMade).toBe(0);
     expect(submittedRules?.scoringRules.fieldGoal50Plus).toBe(5);
+    expect(submittedRules?.rosterSlots.some((slot) => slot.positions.includes("K"))).toBe(false);
   });
 
   it("restores a versioned league backup without overwriting existing leagues", async () => {
@@ -536,7 +647,8 @@ describe("accessible draft board", () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
 
-    await user.click(await screen.findByRole("button", { name: "Manage leagues" }));
+    await openLeagueHome(user);
+    await user.click(screen.getByText("Import, export, and backups", { selector: "summary" }));
     expect(screen.getByRole("heading", { name: "Export and backup center" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Consensus rankings (CSV)" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Draft results (JSON)" })).toBeInTheDocument();
@@ -565,7 +677,11 @@ describe("accessible draft board", () => {
     await user.upload(screen.getByLabelText("DraftMeld backup file"), backup);
     fireEvent.submit(screen.getByRole("button", { name: "Restore as new league" }).closest("form")!);
 
-    await waitFor(() => expect(screen.getAllByRole("heading", { name: "Demo League", level: 2 })).toHaveLength(2));
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole("combobox", { name: "Active league" })).getAllByRole("option", { name: "Demo League" }),
+      ).toHaveLength(2),
+    );
     expect(screen.getByText("Demo League was restored as a new league.")).toBeInTheDocument();
     expect(screen.getAllByText("Demo League").length).toBeGreaterThan(1);
     expect((await axe(container)).violations).toHaveLength(0);
@@ -579,9 +695,13 @@ describe("accessible draft board", () => {
       .mockImplementationOnce(() => jsonResponse([leagueA]))
       .mockImplementationOnce(() => jsonResponse(snapshot({ leagueId: "league-a", leagueName: "League A" })));
     vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
     render(<App />);
 
     expect(await screen.findByText("League A")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Open league" }));
+    await user.click(screen.getByRole("button", { name: "Open draft board" }));
+    await screen.findByRole("heading", { name: "Available players" });
     const requestInput = fetchMock.mock.calls[1][0];
     const requestUrl = requestInput instanceof Request ? requestInput.url : requestInput.toString();
     expect(new URL(requestUrl).searchParams.get("leagueId")).toBe("league-a");
@@ -595,7 +715,10 @@ describe("accessible draft board", () => {
         return jsonResponse(new URL(url).pathname.endsWith("/leagues") ? [demoLeague] : snapshot());
       }),
     );
+    const user = userEvent.setup();
     const { container } = render(<App />);
+
+    await openDraftBoard(user);
 
     const draftHeading = await screen.findByRole("heading", { name: "Available players" });
     await waitFor(() => expect(draftHeading).toHaveFocus());
@@ -633,6 +756,8 @@ describe("accessible draft board", () => {
     const user = userEvent.setup();
     const firstRender = render(<App />);
 
+    await openDraftBoard(user);
+
     const rbFilter = await screen.findByRole("button", { name: "RB" });
     rbFilter.focus();
     await user.keyboard(" ");
@@ -652,6 +777,8 @@ describe("accessible draft board", () => {
     firstRender.unmount();
     failDraft = true;
     render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Open league" }));
+    await user.click(screen.getByRole("button", { name: "Open draft board" }));
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Unable to load the draft.");
     expect(alert.closest("main")).not.toBeNull();
@@ -672,6 +799,7 @@ describe("accessible draft board", () => {
     const user = userEvent.setup();
     render(<App />);
 
+    await openDraftBoard(user);
     await user.click(await screen.findByRole("button", { name: "RB" }));
 
     const table = screen.getByRole("table", { name: "Available RB players sorted by RB rank" });
@@ -711,8 +839,10 @@ describe("accessible draft board", () => {
         return jsonResponse(snapshot({ dataMode: "consensus" }));
       }),
     );
+    const user = userEvent.setup();
     render(<App />);
 
+    await openDraftBoard(user);
     expect(await screen.findByRole("heading", { name: "Outliers" })).toBeInTheDocument();
     expect(screen.getByText("15 spots above consensus in CBS Sports")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Skip to outliers" })).toBeInTheDocument();
@@ -744,6 +874,7 @@ describe("accessible draft board", () => {
     );
     const user = userEvent.setup();
     render(<App />);
+    await openDraftBoard(user);
     await screen.findByRole("heading", { name: "Available players" });
     expect(screen.queryByRole("button", { name: "Target" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Simulate to my next turn/ })).not.toBeInTheDocument();
@@ -805,6 +936,7 @@ describe("accessible draft board", () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
 
+    await openDraftBoard(user);
     await user.click(await screen.findByRole("button", { name: "Ranking sources" }));
     expect(await screen.findByRole("table", { name: "Sources used by DraftMeld" })).toBeInTheDocument();
     await user.click(screen.getAllByRole("button", { name: "Details" })[0]);
@@ -819,6 +951,8 @@ describe("accessible draft board", () => {
     await user.clear(cbsWeight);
     await user.type(cbsWeight, "1");
     await user.click(within(cbsRow).getByRole("checkbox", { name: "Include in consensus" }));
+    expect(within(cbsRow).queryByRole("spinbutton", { name: "Weight" })).not.toBeInTheDocument();
+    expect(within(cbsRow).getByText("Not used")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Save preferences" }));
     expect(
       await screen.findByText(
@@ -919,6 +1053,7 @@ describe("accessible draft board", () => {
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     render(<App />);
+    await openDraftBoard(user);
     await user.click(await screen.findByRole("button", { name: "Ranking sources" }));
     await user.click(screen.getByRole("button", { name: "Add source" }));
     await user.click(screen.getByRole("button", { name: /CSV/ }));
@@ -1029,8 +1164,11 @@ describe("accessible draft board", () => {
     );
     const user = userEvent.setup();
     render(<App />);
+    await openDraftBoard(user);
     await user.click(await screen.findByRole("button", { name: "Draft tools" }));
+    expect(screen.queryByRole("checkbox", { name: "Automatically check every 15 seconds" })).not.toBeInTheDocument();
     await user.type(await screen.findByRole("textbox", { name: "Draft ID" }), "draft-123");
+    expect(screen.getByRole("checkbox", { name: "Automatically check every 15 seconds" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Sync picks" }));
     expect(
       await screen.findByText("Sleeper sync reconciled 2 picks: 1 added, 1 changed, 2 removed, 1 unmatched."),
@@ -1067,6 +1205,7 @@ describe("accessible draft board", () => {
     const user = userEvent.setup();
     render(<App />);
 
+    await openDraftBoard(user);
     const draftButtons = await screen.findAllByRole("button", { name: "Draft Alex Rivers, RB, to my team" });
     await user.click(draftButtons[0]);
 
@@ -1090,6 +1229,7 @@ describe("accessible draft board", () => {
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     render(<App />);
+    await openDraftBoard(user);
     await user.click(await screen.findByRole("button", { name: "Draft tools" }));
 
     const pickOwner = await screen.findByRole("combobox", { name: /Owner of pick 1/ });
@@ -1142,6 +1282,7 @@ describe("accessible draft board", () => {
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     const { container } = render(<App />);
+    await openDraftBoard(user);
     await user.click(await screen.findByRole("button", { name: "Draft tools" }));
 
     expect(await screen.findByRole("heading", { name: "Draft asset trades" })).toBeInTheDocument();
@@ -1278,6 +1419,7 @@ describe("accessible draft board", () => {
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     const { container } = render(<App />);
+    await openDraftBoard(user);
     await user.click(await screen.findByRole("button", { name: "Draft tools" }));
 
     expect(
@@ -1353,6 +1495,7 @@ describe("accessible draft board", () => {
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     const { container } = render(<App />);
+    await openDraftBoard(user);
     await user.click(await screen.findByRole("button", { name: "Draft tools" }));
 
     const lifecycle = await screen.findByRole("region", { name: "Season 2026" });
@@ -1410,6 +1553,7 @@ describe("accessible draft board", () => {
     const user = userEvent.setup();
     render(<App />);
 
+    await openDraftBoard(user);
     await user.click(await screen.findByRole("button", { name: "Undo last action" }));
 
     expect(await screen.findByText("Alex Rivers was restored to the available-player list.")).toBeInTheDocument();

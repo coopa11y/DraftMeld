@@ -146,6 +146,21 @@ paths:
                 $ref: "#/components/schemas/League"
         "404":
           $ref: "#/components/responses/NotFound"
+  /leagues/{leagueId}/mock-drafts:
+    parameters:
+      - $ref: "#/components/parameters/LeagueIdPath"
+    post:
+      operationId: createMockDraft
+      summary: Start a disposable mock draft using a league's current rules
+      responses:
+        "201":
+          description: Mock draft created and started.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MockDraftSession"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /leagues/import:
     post:
       operationId: importLeagueBackup
@@ -1322,6 +1337,13 @@ components:
         sessionStatus: { type: string, enum: [not-started, in-progress, complete] }
         canReset: { type: boolean }
         canUndoReset: { type: boolean }
+    MockDraftSession:
+      type: object
+      required: [id, leagueId, name]
+      properties:
+        id: { type: string }
+        leagueId: { type: string }
+        name: { type: string }
     DraftPickSlot:
       type: object
       required:

@@ -27,7 +27,7 @@ func NewRouter(
 	registerDraftRoutes(mux, drafts, leagues)
 	registerDraftSessionRoutes(mux, drafts)
 	registerDraftTradeRoutes(mux, drafts)
-	registerLeagueRoutes(mux, leagues)
+	registerLeagueRoutes(mux, leagues, drafts)
 	registerExportRoutes(mux, application.NewExportService(leagues, drafts, rankings))
 	registerRankingRoutes(mux, rankings, leagues)
 	if len(projectionServices) > 0 && projectionServices[0] != nil {

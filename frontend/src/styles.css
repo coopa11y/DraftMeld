@@ -708,6 +708,120 @@ tbody tr:focus-within {
   gap: 0.65rem;
   margin-top: 1rem;
 }
+.league-home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+.basic-league-setup,
+.advanced-league-settings,
+.league-rule-import-disclosure {
+  display: grid;
+  gap: 1.25rem;
+  margin: 1.25rem 0;
+  padding: 1.25rem;
+  background: var(--color-surface-deep);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.75rem;
+}
+.basic-league-setup > legend {
+  padding: 0 0.4rem;
+  font-size: 1.15rem;
+  font-weight: 850;
+}
+.advanced-settings-toggle {
+  width: fit-content;
+}
+.advanced-league-settings > h2,
+.advanced-league-settings > p {
+  margin: 0;
+}
+.league-rule-import-disclosure > summary {
+  min-height: 44px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 800;
+}
+.league-more-actions {
+  position: relative;
+}
+.league-more-actions summary {
+  min-height: 44px;
+  padding: 0.65rem 0.85rem;
+  cursor: pointer;
+  border: 1px solid var(--color-border-control);
+  border-radius: 0.5rem;
+  font-weight: 800;
+}
+.league-more-actions > div {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.league-overview {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.league-data-disclosure {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.league-data-disclosure > summary {
+  width: fit-content;
+  min-height: 44px;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  color: var(--text-strong);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.league-data-disclosure[open] > summary {
+  margin-bottom: 1rem;
+}
+.league-setup-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+.league-setup-summary > div {
+  padding: 1rem;
+  background: var(--color-surface-deep);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.65rem;
+}
+.league-setup-summary dt {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.league-setup-summary dd {
+  margin: 0.4rem 0 0;
+}
+.league-overview-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.league-overview-actions section {
+  padding: 1.1rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.65rem;
+}
+.league-overview-actions section h2,
+.league-overview-actions section p {
+  margin-top: 0;
+}
+.league-overview-actions section button {
+  margin: 0.35rem 0.5rem 0 0;
+}
 .delete-confirmation {
   margin-top: 1rem;
   padding: 1rem;
@@ -728,16 +842,35 @@ tbody tr:focus-within {
   border-radius: 0.7rem;
 }
 
-.league-form > fieldset {
+.league-form-section > fieldset {
   margin: 0 0 1.5rem;
   padding: 1.25rem;
   border: 1px solid var(--color-border);
   border-radius: 0.75rem;
 }
-.league-form > fieldset > legend {
+.league-form-section > fieldset > legend {
   padding: 0 0.4rem;
   color: var(--color-text);
   font-size: 1.05rem;
+}
+.league-form-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.league-form-nav-button {
+  border-color: transparent;
+}
+.league-form-nav-button[aria-pressed="true"] {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  background: var(--color-control);
+}
+.league-form-section {
+  min-height: 18rem;
 }
 .form-grid {
   display: grid;
@@ -811,6 +944,61 @@ tbody tr:focus-within {
 .checkbox-label input {
   width: 1.2rem;
   min-height: 1.2rem;
+}
+.position-selector,
+.starting-lineup-settings,
+.flex-settings {
+  margin: 0 0 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.65rem;
+}
+.position-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+}
+.position-selector legend,
+.starting-lineup-settings legend,
+.flex-settings > legend {
+  padding: 0 0.35rem;
+  font-weight: 800;
+}
+.position-selector label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+}
+.position-selector input {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.roster-count-grid {
+  grid-template-columns: repeat(3, minmax(9rem, 1fr));
+}
+.roster-bench-setting {
+  max-width: 20rem;
+  margin-bottom: 1.25rem;
+}
+.advanced-roster-disclosure,
+.opponent-name-settings {
+  padding: 1rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.65rem;
+}
+.advanced-roster-disclosure summary,
+.opponent-name-settings summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+.advanced-roster-editor {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+.muted-value {
+  color: var(--color-text-muted);
 }
 
 .ranking-page {
@@ -1280,6 +1468,9 @@ tbody tr:focus-within {
   .position-options {
     grid-column: 1 / -1;
   }
+  .league-setup-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 680px) {
@@ -1325,6 +1516,10 @@ tbody tr:focus-within {
   }
   .form-grid,
   .roster-slot {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .league-setup-summary,
+  .league-overview-actions {
     grid-template-columns: minmax(0, 1fr);
   }
   .position-options {
