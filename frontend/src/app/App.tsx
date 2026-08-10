@@ -225,6 +225,21 @@ export function App() {
           leagueId={draftLeagueId}
           autoFocusHeading={!notice}
           mode={view === "tools" ? "tools" : "board"}
+          onLeagueRulesChanged={(snapshot) => {
+            if (mockDraft) return;
+            setLeagues((current) =>
+              current.map((league) =>
+                league.id === snapshot.leagueId
+                  ? {
+                      ...league,
+                      draftPosition: snapshot.draftPosition,
+                      draftOrder: snapshot.draftOrder,
+                      userTeamNumber: snapshot.userTeamNumber,
+                    }
+                  : league,
+              ),
+            );
+          }}
         />
       )}
     </>

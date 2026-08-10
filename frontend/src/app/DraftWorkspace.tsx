@@ -5,8 +5,16 @@ interface DraftWorkspaceProps {
   leagueId: string;
   autoFocusHeading?: boolean;
   mode?: "board" | "tools";
+  onLeagueRulesChanged?: Parameters<typeof useDraftWorkspace>[2];
 }
 
-export function DraftWorkspace({ leagueId, autoFocusHeading = true, mode = "board" }: DraftWorkspaceProps) {
-  return <DraftWorkspaceView controller={useDraftWorkspace(leagueId, autoFocusHeading)} mode={mode} />;
+export function DraftWorkspace({
+  leagueId,
+  autoFocusHeading = true,
+  mode = "board",
+  onLeagueRulesChanged,
+}: DraftWorkspaceProps) {
+  return (
+    <DraftWorkspaceView controller={useDraftWorkspace(leagueId, autoFocusHeading, onLeagueRulesChanged)} mode={mode} />
+  );
 }

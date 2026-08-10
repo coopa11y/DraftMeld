@@ -35,7 +35,7 @@ export function ConsensusMethodField({ disabled, onChange, value }: ConsensusMet
       <select value={value} disabled={disabled} onChange={(event) => onChange(event.target.value as ConsensusMethod)}>
         {consensusMethods.map((method) => (
           <option key={method.value} value={method.value}>
-            {method.label} — {method.description}
+            {method.label}
           </option>
         ))}
       </select>

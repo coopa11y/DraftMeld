@@ -4,12 +4,18 @@ import (
 	"net/http"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/application"
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/draft"
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/league"
 )
 
 type resetDraftRequest struct {
 	LeagueID     string `json:"leagueId"`
 	Confirmation string `json:"confirmation"`
+}
+
+type startDraftRequest struct {
+	LeagueID      string `json:"leagueId"`
+	DraftPosition int    `json:"draftPosition"`
 }
 
 type seasonRolloverRequest struct {
@@ -21,14 +27,20 @@ type seasonRolloverRequest struct {
 
 func registerDraftSessionRoutes(mux *http.ServeMux, drafts *application.DraftService) {
 	mux.HandleFunc("POST /api/v1/draft/session/start", func(response http.ResponseWriter, request *http.Request) {
-		input, ok := decodeJSON[leagueDraftRequest](response, request, "A league ID is required.")
+		input, ok := decodeJSON[startDraftRequest](response, request, "A league ID and valid draft position are required.")
 		if !ok || input.LeagueID == "" {
 			if ok {
 				writeError(response, http.StatusBadRequest, "A league ID is required.")
 			}
 			return
 		}
-		snapshot, err := drafts.StartDraft(request.Context(), input.LeagueID)
+		var snapshot draft.Snapshot
+		var err error
+		if input.DraftPosition > 0 {
+			snapshot, err = drafts.StartDraft(request.Context(), input.LeagueID, input.DraftPosition)
+		} else {
+			snapshot, err = drafts.StartDraft(request.Context(), input.LeagueID)
+		}
 		if writeServiceError(response, err, http.StatusInternalServerError, "Unable to start the draft.",
 			serviceError{application.ErrLeagueNotFound, http.StatusNotFound, "That league was not found."},
 			serviceError{application.ErrDraftPositionUnassigned, http.StatusBadRequest, "Set your draft position in league setup before starting the draft."},

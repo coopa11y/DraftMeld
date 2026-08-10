@@ -19,8 +19,10 @@ export async function recordDraftAction(
   return unwrap(data, error, response);
 }
 
-export async function startDraftSession(leagueId: string): Promise<DraftSnapshot> {
-  const { data, error, response } = await apiClient.POST("/draft/session/start", { body: { leagueId } });
+export async function startDraftSession(leagueId: string, draftPosition?: number): Promise<DraftSnapshot> {
+  const { data, error, response } = await apiClient.POST("/draft/session/start", {
+    body: { leagueId, draftPosition },
+  });
   return unwrap(data, error, response);
 }
 

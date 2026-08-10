@@ -30,7 +30,7 @@ interface DraftOverviewProps {
   onDeleteTrade: (trade: DraftPickTrade) => Promise<void>;
   onResolveTrade: (trade: DraftPickTrade, pick: FutureDraftPick, status: "met" | "not-met") => Promise<void>;
   onAdvanceSeason: (season: number, draftType: DraftSnapshot["draftType"], draftOrder: number[]) => Promise<void>;
-  onStartDraft: () => Promise<void>;
+  onStartDraft: (draftPosition?: number) => Promise<void>;
   onResetDraft: (confirmation: string) => Promise<void>;
   onUndoReset: () => Promise<void>;
 }

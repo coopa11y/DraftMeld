@@ -22,7 +22,11 @@ export interface DraftWorkspaceController {
   watchlist: WatchlistPlayer[];
 }
 
-export function useDraftWorkspace(leagueId: string, autoFocusHeading = true): DraftWorkspaceController {
+export function useDraftWorkspace(
+  leagueId: string,
+  autoFocusHeading = true,
+  onLeagueRulesChanged?: (snapshot: DraftSnapshot) => void,
+): DraftWorkspaceController {
   const [snapshot, setSnapshot] = useState<DraftSnapshot | null>(null);
   const [watchlist, setWatchlist] = useState<WatchlistPlayer[]>([]);
   const [busy, setBusy] = useState(false);
@@ -71,6 +75,7 @@ export function useDraftWorkspace(leagueId: string, autoFocusHeading = true): Dr
     leagueId,
     snapshot,
     busy,
+    onLeagueRulesChanged,
     setPendingFocus,
     setAnnouncement,
     setBusy,

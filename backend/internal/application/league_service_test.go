@@ -64,12 +64,15 @@ func TestLeagueServiceCreatesHiddenMockDraftConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create league: %v", err)
 	}
-	mock, err := service.CreateMockDraft(t.Context(), created.ID)
+	mock, err := service.CreateMockDraft(t.Context(), created.ID, 5)
 	if err != nil {
 		t.Fatalf("create mock draft: %v", err)
 	}
 	if mock.Kind != league.ConfigurationKindMock || mock.ParentLeagueID != created.ID || mock.ID == created.ID {
 		t.Fatalf("unexpected mock configuration: %#v", mock)
+	}
+	if mock.Rules.DraftPosition != 5 || created.Rules.DraftPosition == mock.Rules.DraftPosition {
+		t.Fatalf("mock position should be isolated from its league: league=%d mock=%d", created.Rules.DraftPosition, mock.Rules.DraftPosition)
 	}
 	listed, err := service.List(t.Context())
 	if err != nil || len(listed) != 1 || listed[0].ID != created.ID {

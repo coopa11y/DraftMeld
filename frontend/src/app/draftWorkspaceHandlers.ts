@@ -27,6 +27,7 @@ interface DraftWorkspaceMutationContext {
   leagueId: string;
   snapshot: DraftSnapshot | null;
   busy: boolean;
+  onLeagueRulesChanged?: (snapshot: DraftSnapshot) => void;
   setPendingFocus: Dispatch<SetStateAction<string | null>>;
   setAnnouncement: Dispatch<SetStateAction<string>>;
   setBusy: Dispatch<SetStateAction<boolean>>;
@@ -41,7 +42,7 @@ export interface DraftWorkspaceHandlers {
   mock: () => Promise<void>;
   sleeperSync: (draftId: string, rosterId: number) => Promise<void>;
   undo: () => Promise<void>;
-  startDraft: () => Promise<void>;
+  startDraft: (draftPosition?: number) => Promise<void>;
   resetDraft: (confirmation: string) => Promise<void>;
   undoReset: () => Promise<void>;
   createTrade: (
@@ -150,17 +151,20 @@ function createPlayerHandlers(context: DraftWorkspaceMutationContext) {
 
 function createSessionHandlers(context: DraftWorkspaceMutationContext) {
   return {
-    startDraft: async () => {
+    startDraft: async (draftPosition?: number) => {
       await runMutation(
         context,
         "Unable to start the draft.",
-        () => startDraftSession(context.leagueId),
+        () => startDraftSession(context.leagueId, draftPosition),
         (updated) => {
           updateSnapshot(context, updated);
+          context.onLeagueRulesChanged?.(updated);
           context.setAnnouncement(
             `Draft started. ${draftTeamName(updated, updated.onClockTeamNumber)} is on the clock.`,
           );
         },
+        undefined,
+        true,
       );
     },
     resetDraft: async (confirmation: string) => {

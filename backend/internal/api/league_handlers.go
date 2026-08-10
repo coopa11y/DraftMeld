@@ -23,6 +23,10 @@ type mockDraftResponse struct {
 	Name     string `json:"name"`
 }
 
+type mockDraftRequest struct {
+	DraftPosition int `json:"draftPosition"`
+}
+
 func registerLeagueRoutes(mux *http.ServeMux, service *application.LeagueService, drafts *application.DraftService) {
 	registerLeagueRuleImportRoute(mux, application.NewLeagueRuleImportService())
 	mux.HandleFunc("GET /api/v1/leagues", func(response http.ResponseWriter, request *http.Request) {
@@ -79,7 +83,17 @@ func registerLeagueRoutes(mux *http.ServeMux, service *application.LeagueService
 	})
 
 	mux.HandleFunc("POST /api/v1/leagues/{leagueID}/mock-drafts", func(response http.ResponseWriter, request *http.Request) {
-		configuration, err := service.CreateMockDraft(request.Context(), request.PathValue("leagueID"))
+		input, ok := decodeJSON[mockDraftRequest](response, request, "Choose a valid mock draft position.")
+		if !ok {
+			return
+		}
+		var configuration application.LeagueConfiguration
+		var err error
+		if input.DraftPosition > 0 {
+			configuration, err = service.CreateMockDraft(request.Context(), request.PathValue("leagueID"), input.DraftPosition)
+		} else {
+			configuration, err = service.CreateMockDraft(request.Context(), request.PathValue("leagueID"))
+		}
 		if writeLeagueServiceError(response, err) {
 			return
 		}

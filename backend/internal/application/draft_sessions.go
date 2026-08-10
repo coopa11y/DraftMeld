@@ -24,12 +24,21 @@ type DraftSessionRepository interface {
 	RestoreDraftSession(context.Context, draft.Session, []draft.Event) error
 }
 
-func (service *DraftService) StartDraft(ctx context.Context, leagueID string) (draft.Snapshot, error) {
+func (service *DraftService) StartDraft(ctx context.Context, leagueID string, draftPositions ...int) (draft.Snapshot, error) {
 	service.mu.Lock()
 	defer service.mu.Unlock()
 	configuration, err := service.configuration(ctx, leagueID)
 	if err != nil {
 		return draft.Snapshot{}, err
+	}
+	if len(draftPositions) > 0 {
+		configuration.Rules, err = assignDraftPosition(configuration.Rules, draftPositions[0])
+		if err != nil {
+			return draft.Snapshot{}, err
+		}
+		if err = configuration.Validate(); err != nil {
+			return draft.Snapshot{}, err
+		}
 	}
 	if configuration.Rules.DraftType != league.DraftTypeAuction && configuration.Rules.DraftPosition == 0 {
 		return draft.Snapshot{}, ErrDraftPositionUnassigned
@@ -45,6 +54,11 @@ func (service *DraftService) StartDraft(ctx context.Context, leagueID string) (d
 	}
 	if session.Status != draft.SessionNotStarted {
 		return draft.Snapshot{}, ErrDraftStarted
+	}
+	if len(draftPositions) > 0 {
+		if err = service.leagues.SaveLeague(ctx, configuration); err != nil {
+			return draft.Snapshot{}, err
+		}
 	}
 	repository, ok := service.repository.(DraftSessionRepository)
 	if !ok {

@@ -40,26 +40,33 @@ export function LeagueManager(props: LeagueManagerProps) {
   const editingLeague = props.leagues.find((league) => league.id === editingId);
   const activeLeague = props.leagues.find((league) => league.id === props.activeLeagueId);
 
+  function beginEditing(id: string | "new") {
+    setMessage("");
+    setError("");
+    setEditingId(id);
+  }
+
   async function refresh(preferredId?: string) {
     const updated = await listLeagues();
     props.onLeaguesChange(updated, preferredId);
   }
 
-  async function run(action: () => Promise<void>) {
+  async function run<Result>(action: () => Promise<Result>, rethrow = false): Promise<Result | undefined> {
     setBusy(true);
     setError("");
     try {
-      await action();
+      return await action();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The league action failed.");
+      if (rethrow) throw reason;
     } finally {
       setBusy(false);
     }
   }
 
-  async function handleSave(rules: LeagueRules) {
+  async function handleCreate(rules: LeagueRules) {
     await run(async () => {
-      const saved = editingLeague ? await updateLeague(editingLeague.id, rules) : await createLeague(rules);
+      const saved = await createLeague(rules);
       await refresh(saved.id);
       setEditingId(null);
       setMessage(`${saved.name} was saved.`);
@@ -67,21 +74,44 @@ export function LeagueManager(props: LeagueManagerProps) {
     });
   }
 
-  async function openMockDraft(league: League) {
+  async function handleUpdate(rules: LeagueRules, exit: boolean): Promise<League> {
+    if (!editingLeague) throw new Error("The league being edited is no longer available.");
+    const saved = await run(async () => {
+      const updated = await updateLeague(editingLeague.id, rules);
+      await refresh(updated.id);
+      setMessage(`${updated.name} changes saved.`);
+      if (exit) {
+        setEditingId(null);
+        props.onOpenLeague(updated.id);
+      }
+      return updated;
+    }, true);
+    if (!saved) throw new Error("The league could not be saved.");
+    return saved;
+  }
+
+  async function openMockDraft(league: League, draftPosition?: number) {
     await run(async () => {
-      const session = await createMockDraft(league.id);
+      const session = await createMockDraft(league.id, draftPosition);
       props.onOpenMockDraft(session);
-    });
+    }, true);
   }
 
   if (editingId) {
     return (
       <main className="league-setup-layout">
         {editingId === "new" ? (
-          <LeagueCreationForm busy={busy} onCancel={() => setEditingId(null)} onSave={handleSave} />
+          <LeagueCreationForm busy={busy} onCancel={() => setEditingId(null)} onSave={handleCreate} />
         ) : (
-          <LeagueForm league={editingLeague} busy={busy} onCancel={() => setEditingId(null)} onSave={handleSave} />
+          <LeagueForm
+            league={editingLeague}
+            busy={busy}
+            onCancel={() => setEditingId(null)}
+            onSave={(rules) => handleUpdate(rules, false)}
+            onSaveAndExit={(rules) => handleUpdate(rules, true)}
+          />
         )}
+        {message ? <StatusMessage tone="success">{message}</StatusMessage> : null}
         {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
       </main>
     );
@@ -96,10 +126,10 @@ export function LeagueManager(props: LeagueManagerProps) {
           league={activeLeague}
           busy={busy}
           onBack={props.onShowAll}
-          onEdit={() => setEditingId(activeLeague.id)}
+          onEdit={() => beginEditing(activeLeague.id)}
           onOpenDraft={() => props.onOpenDraft(activeLeague.id)}
           onOpenSources={() => props.onOpenSources(activeLeague.id)}
-          onMockDraft={() => void openMockDraft(activeLeague)}
+          onMockDraft={(draftPosition) => openMockDraft(activeLeague, draftPosition)}
         />
         <details className="league-data-disclosure">
           <summary>Import, export, and backups</summary>
@@ -129,7 +159,7 @@ export function LeagueManager(props: LeagueManagerProps) {
             <p>Create a league or open one to configure its rules, rankings, and drafts.</p>
           </div>
           <div className="league-home-actions">
-            <Button variant="primary" onClick={() => setEditingId("new")}>
+            <Button variant="primary" onClick={() => beginEditing("new")}>
               Create league
             </Button>
           </div>
@@ -171,7 +201,7 @@ export function LeagueManager(props: LeagueManagerProps) {
                   <details className="league-more-actions">
                     <summary>More actions</summary>
                     <div>
-                      <Button onClick={() => setEditingId(league.id)}>Edit league settings</Button>
+                      <Button onClick={() => beginEditing(league.id)}>Edit league settings</Button>
                       <Button
                         disabled={busy}
                         onClick={() =>
