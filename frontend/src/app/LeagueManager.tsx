@@ -161,13 +161,17 @@ export function LeagueManager(props: LeagueManagerProps) {
                   {league.id === props.activeLeagueId ? <span className="active-badge">Last opened</span> : null}
                 </div>
                 <div className="league-actions">
-                  <Button variant="primary" onClick={() => props.onOpenLeague(league.id)}>
-                    Open league
+                  <Button
+                    variant="primary"
+                    aria-label={`Open league: ${league.name}`}
+                    onClick={() => props.onOpenLeague(league.id)}
+                  >
+                    Open
                   </Button>
-                  <Button onClick={() => setEditingId(league.id)}>Edit league settings</Button>
                   <details className="league-more-actions">
                     <summary>More actions</summary>
                     <div>
+                      <Button onClick={() => setEditingId(league.id)}>Edit league settings</Button>
                       <Button
                         disabled={busy}
                         onClick={() =>

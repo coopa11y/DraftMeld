@@ -333,7 +333,7 @@ function jsonResponse(body: unknown, status = 200) {
 type TestUser = ReturnType<typeof userEvent.setup>;
 
 async function openLeagueHome(user: TestUser) {
-  await user.click(await screen.findByRole("button", { name: "Open league" }));
+  await user.click(await screen.findByRole("button", { name: "Open league: Demo League" }));
   const heading = await screen.findByRole("heading", { name: "Demo League", level: 1 });
   await waitFor(() => expect(heading).toHaveFocus());
 }
@@ -455,9 +455,18 @@ describe("accessible draft board", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    expect(await screen.findByRole("button", { name: "Edit league settings" })).toBeInTheDocument();
+    const openLeague = await screen.findByRole("button", { name: "Open league: Demo League" });
+    expect(openLeague).toHaveTextContent("Open");
+    const moreActions = screen.getByText("More actions", { selector: "summary" });
+    const moreActionsDisclosure = moreActions.closest("details");
+    const editLeagueSettings = screen.getByRole("button", { name: "Edit league settings" });
+    expect(moreActionsDisclosure).not.toHaveAttribute("open");
+    expect(moreActionsDisclosure).toContainElement(editLeagueSettings);
     expect(screen.queryByRole("button", { name: "Start mock draft" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Open league" }));
+    await user.click(moreActions);
+    expect(moreActionsDisclosure).toHaveAttribute("open");
+    expect(screen.queryByRole("button", { name: "Start mock draft" })).not.toBeInTheDocument();
+    await user.click(openLeague);
     await user.click(await screen.findByRole("button", { name: "Start mock draft" }));
     expect(await screen.findByRole("heading", { name: "Available players" })).toBeInTheDocument();
 
@@ -702,7 +711,7 @@ describe("accessible draft board", () => {
     render(<App />);
 
     expect(await screen.findByText("League A")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Open league" }));
+    await user.click(screen.getByRole("button", { name: "Open league: League A" }));
     await user.click(screen.getByRole("button", { name: "Open draft board" }));
     await screen.findByRole("heading", { name: "Available players" });
     const requestInput = fetchMock.mock.calls[1][0];
@@ -780,7 +789,7 @@ describe("accessible draft board", () => {
     firstRender.unmount();
     failDraft = true;
     render(<App />);
-    await user.click(await screen.findByRole("button", { name: "Open league" }));
+    await user.click(await screen.findByRole("button", { name: "Open league: Demo League" }));
     await user.click(screen.getByRole("button", { name: "Open draft board" }));
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Unable to load the draft.");
