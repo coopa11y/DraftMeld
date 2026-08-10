@@ -17,7 +17,7 @@ describe("RosterSettings", () => {
     const user = userEvent.setup();
     const { container } = render(<Harness />);
 
-    expect(screen.queryByRole("group", { name: "Roster slot 1" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Custom roster slot 1" })).not.toBeInTheDocument();
     const quarterbackStarters = screen.getByRole("spinbutton", { name: "QB starters" });
     await user.clear(quarterbackStarters);
     await user.type(quarterbackStarters, "2");
@@ -30,16 +30,26 @@ describe("RosterSettings", () => {
     const benchSpots = screen.getByRole("spinbutton", { name: "Bench spots" });
     await user.clear(benchSpots);
     await user.type(benchSpots, "4");
+    const quarterbackCountBeforeCustomEdit = quarterbackStarters.getAttribute("value");
 
     await user.click(screen.getByText("Advanced roster slots", { selector: "summary" }));
-    const firstSlot = screen.getByRole("group", { name: "Roster slot 1" });
+    expect(screen.getByText("No custom roster slots have been created.")).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Custom roster slot 1" })).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("QB")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Add custom slot" }));
+    const firstSlot = screen.getByRole("group", { name: "Custom roster slot 1" });
     const slotName = within(firstSlot).getByRole("textbox", { name: "Slot name" });
     await user.clear(slotName);
-    await user.type(slotName, "Passer");
+    await user.type(slotName, "Taxi");
     await user.click(within(firstSlot).getByRole("checkbox", { name: "Starting lineup slot" }));
     await user.click(within(firstSlot).getByRole("checkbox", { name: "RB" }));
-    await user.click(screen.getByRole("button", { name: "Add custom slot" }));
-    await user.click(screen.getAllByRole("button", { name: "Remove slot" }).at(-1)!);
+    expect(screen.getByRole("spinbutton", { name: "QB starters" })).toHaveAttribute(
+      "value",
+      quarterbackCountBeforeCustomEdit,
+    );
+    await user.click(within(firstSlot).getByRole("button", { name: "Remove slot" }));
+    expect(screen.getByText("No custom roster slots have been created.")).toBeInTheDocument();
 
     expect((await axe(container)).violations).toHaveLength(0);
   });

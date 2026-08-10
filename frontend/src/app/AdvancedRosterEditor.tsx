@@ -3,6 +3,7 @@ import type { LeagueRules, RosterSlot } from "../shared/api/types";
 import { Button } from "../shared/ui/Button";
 import { FormField } from "../shared/ui/FormField";
 import { playerPositions } from "./leagueDefaults";
+import { isStandardRosterSlot } from "./rosterConfiguration";
 
 interface AdvancedRosterEditorProps {
   rules: LeagueRules;
@@ -10,6 +11,10 @@ interface AdvancedRosterEditorProps {
 }
 
 export function AdvancedRosterEditor({ rules, setRules }: AdvancedRosterEditorProps) {
+  const customSlots = rules.rosterSlots
+    .map((slot, index) => ({ index, slot }))
+    .filter(({ slot }) => !isStandardRosterSlot(slot));
+
   const updateSlot = (index: number, update: Partial<RosterSlot>) =>
     setRules((current) => ({
       ...current,
@@ -19,9 +24,10 @@ export function AdvancedRosterEditor({ rules, setRules }: AdvancedRosterEditorPr
   return (
     <div className="advanced-roster-editor">
       <p className="field-help">Create unusual lineup, taxi, injured-reserve, or position-flexible slots.</p>
-      {rules.rosterSlots.map((slot, index) => (
-        <fieldset className="roster-slot" key={`${slot.name}-${index}`}>
-          <legend>Roster slot {index + 1}</legend>
+      {customSlots.length === 0 ? <p>No custom roster slots have been created.</p> : null}
+      {customSlots.map(({ slot, index }, customIndex) => (
+        <fieldset className="roster-slot" key={`custom-slot-${index}`}>
+          <legend>Custom roster slot {customIndex + 1}</legend>
           <FormField label="Slot name">
             <input required value={slot.name} onChange={(event) => updateSlot(index, { name: event.target.value })} />
           </FormField>
@@ -70,7 +76,6 @@ export function AdvancedRosterEditor({ rules, setRules }: AdvancedRosterEditorPr
                 rosterSlots: current.rosterSlots.filter((_, slotIndex) => slotIndex !== index),
               }))
             }
-            disabled={rules.rosterSlots.length === 1}
           >
             Remove slot
           </Button>

@@ -3,6 +3,7 @@ import type { RosterSlot } from "../shared/api/types";
 import {
   benchCount,
   enabledRosterPositions,
+  isStandardRosterSlot,
   primaryFlexIndex,
   setBenchCount,
   setFlexCount,
@@ -70,5 +71,7 @@ describe("roster configuration", () => {
     const updated = setBenchCount(custom, 4, ["QB", "RB"]);
     expect(updated.find((slot) => slot.name === "Taxi")?.count).toBe(3);
     expect(primaryFlexIndex(updated)).toBe(updated.findIndex((slot) => slot.name === "FLEX"));
+    expect(slots.every(isStandardRosterSlot)).toBe(true);
+    expect(custom.slice(-2).every((slot) => !isStandardRosterSlot(slot))).toBe(true);
   });
 });
