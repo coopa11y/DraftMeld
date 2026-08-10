@@ -34,7 +34,15 @@ export function SleeperSyncForm({ busy, onSync }: SleeperSyncFormProps) {
         DraftMeld never submits a selection.
       </p>
       <FormField label="Draft ID">
-        <input required value={draftId} onChange={(event) => setDraftId(event.target.value)} />
+        <input
+          required
+          value={draftId}
+          onChange={(event) => {
+            const value = event.target.value;
+            setDraftId(value);
+            if (!value.trim()) setAutoSync(false);
+          }}
+        />
       </FormField>
       <FormField label="Your roster ID">
         <input
@@ -42,21 +50,22 @@ export function SleeperSyncForm({ busy, onSync }: SleeperSyncFormProps) {
           type="number"
           min="1"
           value={rosterId}
-          onChange={(event) => setRosterId(Number(event.target.value))}
+          onChange={(event) => {
+            const value = Number(event.target.value);
+            setRosterId(value);
+            if (value < 1) setAutoSync(false);
+          }}
         />
       </FormField>
       <Button type="submit" disabled={busy || !draftId.trim()}>
         Sync picks
       </Button>
-      <label className="checkbox-label">
-        <input
-          type="checkbox"
-          checked={autoSync}
-          disabled={!draftId.trim() || rosterId < 1}
-          onChange={(event) => setAutoSync(event.target.checked)}
-        />
-        Automatically check every 15 seconds
-      </label>
+      {draftId.trim() && rosterId >= 1 ? (
+        <label className="checkbox-label">
+          <input type="checkbox" checked={autoSync} onChange={(event) => setAutoSync(event.target.checked)} />
+          Automatically check every 15 seconds
+        </label>
+      ) : null}
       {autoSync ? (
         <StatusMessage className="tool-help">
           Automatic read-only synchronization is active while this page remains open.

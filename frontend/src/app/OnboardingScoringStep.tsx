@@ -3,6 +3,7 @@ import type { LeagueRules } from "../shared/api/types";
 import { FormField } from "../shared/ui/FormField";
 import { ScoringSettings } from "./ScoringSettings";
 import { applyReceptionPreset, receptionPreset } from "./scoring";
+import { enabledRosterPositions } from "./rosterConfiguration";
 
 interface OnboardingScoringStepProps {
   rules: LeagueRules;
@@ -34,7 +35,12 @@ export function OnboardingScoringStep({ rules, setRules }: OnboardingScoringStep
         </select>
       </FormField>
 
-      <ScoringSettings rules={rules} setRules={setRules} disabled={false} />
+      <ScoringSettings
+        rules={rules}
+        setRules={setRules}
+        disabled={false}
+        enabledPositions={enabledRosterPositions(rules.rosterSlots)}
+      />
     </section>
   );
 }

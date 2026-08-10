@@ -728,16 +728,35 @@ tbody tr:focus-within {
   border-radius: 0.7rem;
 }
 
-.league-form > fieldset {
+.league-form-section > fieldset {
   margin: 0 0 1.5rem;
   padding: 1.25rem;
   border: 1px solid var(--color-border);
   border-radius: 0.75rem;
 }
-.league-form > fieldset > legend {
+.league-form-section > fieldset > legend {
   padding: 0 0.4rem;
   color: var(--color-text);
   font-size: 1.05rem;
+}
+.league-form-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.league-form-nav-button {
+  border-color: transparent;
+}
+.league-form-nav-button[aria-pressed="true"] {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  background: var(--color-control);
+}
+.league-form-section {
+  min-height: 18rem;
 }
 .form-grid {
   display: grid;
@@ -811,6 +830,61 @@ tbody tr:focus-within {
 .checkbox-label input {
   width: 1.2rem;
   min-height: 1.2rem;
+}
+.position-selector,
+.starting-lineup-settings,
+.flex-settings {
+  margin: 0 0 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.65rem;
+}
+.position-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+}
+.position-selector legend,
+.starting-lineup-settings legend,
+.flex-settings > legend {
+  padding: 0 0.35rem;
+  font-weight: 800;
+}
+.position-selector label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+}
+.position-selector input {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.roster-count-grid {
+  grid-template-columns: repeat(3, minmax(9rem, 1fr));
+}
+.roster-bench-setting {
+  max-width: 20rem;
+  margin-bottom: 1.25rem;
+}
+.advanced-roster-disclosure,
+.opponent-name-settings {
+  padding: 1rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.65rem;
+}
+.advanced-roster-disclosure summary,
+.opponent-name-settings summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+.advanced-roster-editor {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+.muted-value {
+  color: var(--color-text-muted);
 }
 
 .ranking-page {

@@ -7,6 +7,7 @@ export interface ScoringField {
   aliases?: string[];
   projection?: boolean;
   projectionLabel?: string;
+  requiresPosition?: "TE";
 }
 
 export interface ScoringGroup {
@@ -14,6 +15,7 @@ export interface ScoringGroup {
   fields: ScoringField[];
   name: string;
   open?: boolean;
+  requiresPosition?: "K" | "DST";
 }
 
 export const scoringGroups: ScoringGroup[] = [
@@ -30,7 +32,13 @@ export const scoringGroups: ScoringGroup[] = [
         step: 0.5,
         aliases: ["receptions", "rec"],
       },
-      { key: "tightEndReceptionBonus", label: "Tight end reception bonus", step: 0.25, projection: false },
+      {
+        key: "tightEndReceptionBonus",
+        label: "Tight end reception bonus",
+        step: 0.25,
+        projection: false,
+        requiresPosition: "TE",
+      },
       { key: "passingYard", label: "Passing yard", step: 0.01, aliases: ["passingyards", "passyds"] },
       { key: "passingTouchdown", label: "Passing touchdown", step: 1, aliases: ["passingtouchdowns", "passtd"] },
       { key: "interception", label: "Interception thrown", step: 0.5, aliases: ["interceptions", "int"] },
@@ -74,6 +82,7 @@ export const scoringGroups: ScoringGroup[] = [
   },
   {
     name: "Kicking",
+    requiresPosition: "K",
     description: "Use the general field-goal value or set it to zero and score by distance.",
     fields: [
       { key: "fieldGoalMade", label: "Field goal made (any distance)", step: 0.5 },
@@ -87,6 +96,7 @@ export const scoringGroups: ScoringGroup[] = [
   },
   {
     name: "Team defense and special teams",
+    requiresPosition: "DST",
     description: "Play scoring and optional points-allowed tiers. Leave any unused category at zero.",
     fields: [
       { key: "defenseSack", label: "Sack", step: 0.5 },

@@ -108,7 +108,7 @@ export function LeagueSettings({
         </FormField>
         <FormField
           label="Reception scoring preset"
-          help="Choose a common format, then customize any scoring value below."
+          help="Choose a common format, then customize values in the Scoring section."
         >
           <select
             value={receptionPreset(rules.scoringRules)}
@@ -212,18 +212,22 @@ export function DraftSettings({ rules, setRules, disabled }: SettingsProps) {
                 min="0"
                 step="1"
                 value={rules.faabBudget}
-                onChange={(event) => setRules({ ...rules, faabBudget: Number(event.target.value) })}
+                onChange={(event) => {
+                  const faabBudget = Number(event.target.value);
+                  setRules({ ...rules, faabBudget, faabTrades: faabBudget > 0 && rules.faabTrades });
+                }}
               />
             </FormField>
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={rules.faabTrades}
-                disabled={rules.faabBudget <= 0}
-                onChange={(event) => setRules({ ...rules, faabTrades: event.target.checked })}
-              />
-              <span>Allow FAAB to be traded</span>
-            </label>
+            {rules.faabBudget > 0 ? (
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={rules.faabTrades}
+                  onChange={(event) => setRules({ ...rules, faabTrades: event.target.checked })}
+                />
+                <span>Allow FAAB to be traded</span>
+              </label>
+            ) : null}
           </>
         ) : null}
         {rules.draftType === "auction" ? <AuctionSettings rules={rules} setRules={setRules} /> : null}
@@ -273,6 +277,13 @@ function DraftOrderEditor({ rules, setRules, disabled }: SettingsProps) {
 }
 
 export function TeamSettings({ rules, setRules, disabled }: SettingsProps) {
+  const ownTeamIndex = rules.userTeamNumber - 1;
+  const updateTeamName = (index: number, value: string) =>
+    setRules((current) => ({
+      ...current,
+      teamNames: current.teamNames.map((teamName, teamIndex) => (teamIndex === index ? value : teamName)),
+    }));
+
   return (
     <fieldset disabled={disabled}>
       <legend>Team settings</legend>
@@ -281,27 +292,33 @@ export function TeamSettings({ rules, setRules, disabled }: SettingsProps) {
         can rename teams later without changing their picks.
       </p>
       <div className="form-grid team-name-grid">
-        {rules.teamNames.map((name, index) => (
-          <FormField
-            key={index}
-            label={`Franchise ${index + 1}${index + 1 === rules.userTeamNumber ? " (your team)" : ""}`}
-          >
-            <input
-              maxLength={80}
-              value={name}
-              placeholder={index + 1 === rules.userTeamNumber ? "My Team" : `Team ${index + 1}`}
-              onChange={(event) =>
-                setRules((current) => ({
-                  ...current,
-                  teamNames: current.teamNames.map((teamName, teamIndex) =>
-                    teamIndex === index ? event.target.value : teamName,
-                  ),
-                }))
-              }
-            />
-          </FormField>
-        ))}
+        <FormField label="Your team name">
+          <input
+            maxLength={80}
+            value={rules.teamNames[ownTeamIndex] ?? ""}
+            placeholder="My Team"
+            onChange={(event) => updateTeamName(ownTeamIndex, event.target.value)}
+          />
+        </FormField>
       </div>
+      <details className="opponent-name-settings">
+        <summary>Name the other franchises (optional)</summary>
+        <p className="field-help">You can leave every opponent blank and identify teams by number during the draft.</p>
+        <div className="form-grid team-name-grid">
+          {rules.teamNames.map((name, index) =>
+            index === ownTeamIndex ? null : (
+              <FormField key={index} label={`Franchise ${index + 1}`}>
+                <input
+                  maxLength={80}
+                  value={name}
+                  placeholder={`Team ${index + 1}`}
+                  onChange={(event) => updateTeamName(index, event.target.value)}
+                />
+              </FormField>
+            ),
+          )}
+        </div>
+      </details>
     </fieldset>
   );
 }

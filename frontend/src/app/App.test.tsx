@@ -480,10 +480,27 @@ describe("accessible draft board", () => {
     await user.click(await screen.findByRole("button", { name: "Manage leagues" }));
     await user.click(screen.getByRole("button", { name: "Create league" }));
     expect(screen.getByRole("group", { name: "League settings" })).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Draft settings" })).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Team settings" })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Draft settings" })).not.toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "League format" })).toHaveValue("redraft");
     await user.selectOptions(screen.getByRole("combobox", { name: "Reception scoring preset" }), "te-premium");
+    await user.selectOptions(screen.getByRole("combobox", { name: "League format" }), "dynasty");
+    await user.selectOptions(screen.getByRole("combobox", { name: "League format" }), "redraft");
+    const name = screen.getByRole("textbox", { name: "League name" });
+    await user.clear(name);
+    await user.type(name, "Family League");
+
+    const formNavigation = screen.getByRole("navigation", { name: "League configuration sections" });
+    await user.click(within(formNavigation).getByRole("button", { name: "Draft" }));
+    expect(screen.getByRole("group", { name: "Draft settings" })).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Future pick seasons" })).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Your draft position" }), "7");
+
+    await user.click(within(formNavigation).getByRole("button", { name: "Teams" }));
+    expect(screen.getByRole("textbox", { name: "Your team name" })).toHaveValue("My Team");
+    await user.click(screen.getByText("Name the other franchises (optional)", { selector: "summary" }));
+    expect(screen.getByRole("textbox", { name: "Franchise 7" })).toHaveValue("");
+
+    await user.click(within(formNavigation).getByRole("button", { name: "Scoring" }));
     expect(screen.getByRole("spinbutton", { name: "Points per tight end reception bonus" })).toHaveValue(0.5);
     await user.click(screen.getByText("Kicking", { selector: "summary" }));
     const allFieldGoals = screen.getByRole("spinbutton", { name: "Points per field goal made (any distance)" });
@@ -492,17 +509,16 @@ describe("accessible draft board", () => {
     await user.type(allFieldGoals, "0");
     await user.clear(longFieldGoals);
     await user.type(longFieldGoals, "5");
-    expect(screen.queryByRole("combobox", { name: "Future pick seasons" })).not.toBeInTheDocument();
-    await user.selectOptions(screen.getByRole("combobox", { name: "League format" }), "dynasty");
-    expect(screen.getByRole("combobox", { name: "Future pick seasons" })).toBeInTheDocument();
-    await user.selectOptions(screen.getByRole("combobox", { name: "League format" }), "redraft");
-    expect(screen.queryByRole("combobox", { name: "Future pick seasons" })).not.toBeInTheDocument();
-    const name = screen.getByRole("textbox", { name: "League name" });
-    await user.clear(name);
-    await user.type(name, "Family League");
-    await user.selectOptions(screen.getByRole("combobox", { name: "Your draft position" }), "7");
-    expect(screen.getByRole("textbox", { name: "Franchise 1 (your team)" })).toHaveValue("My Team");
-    expect(screen.getByRole("textbox", { name: "Franchise 7" })).toHaveValue("");
+
+    await user.click(within(formNavigation).getByRole("button", { name: "Roster" }));
+    const positionsUsed = screen.getByRole("group", { name: "Positions used" });
+    await user.click(within(positionsUsed).getByRole("checkbox", { name: "K" }));
+    expect(screen.queryByRole("spinbutton", { name: "K starters" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Roster slot 1" })).not.toBeInTheDocument();
+
+    await user.click(within(formNavigation).getByRole("button", { name: "Scoring" }));
+    expect(screen.queryByText("Kicking", { selector: "summary" })).not.toBeInTheDocument();
+    expect(screen.getByText("Team defense and special teams", { selector: "summary" })).toBeInTheDocument();
     expect((await axe(container)).violations).toHaveLength(0);
     await user.click(screen.getByRole("button", { name: "Save league" }));
 
@@ -514,6 +530,7 @@ describe("accessible draft board", () => {
     expect(submittedRules?.scoringRules.tightEndReceptionBonus).toBe(0.5);
     expect(submittedRules?.scoringRules.fieldGoalMade).toBe(0);
     expect(submittedRules?.scoringRules.fieldGoal50Plus).toBe(5);
+    expect(submittedRules?.rosterSlots.some((slot) => slot.positions.includes("K"))).toBe(false);
   });
 
   it("restores a versioned league backup without overwriting existing leagues", async () => {
@@ -819,6 +836,8 @@ describe("accessible draft board", () => {
     await user.clear(cbsWeight);
     await user.type(cbsWeight, "1");
     await user.click(within(cbsRow).getByRole("checkbox", { name: "Include in consensus" }));
+    expect(within(cbsRow).queryByRole("spinbutton", { name: "Weight" })).not.toBeInTheDocument();
+    expect(within(cbsRow).getByText("Not used")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Save preferences" }));
     expect(
       await screen.findByText(
@@ -1030,7 +1049,9 @@ describe("accessible draft board", () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(await screen.findByRole("button", { name: "Draft tools" }));
+    expect(screen.queryByRole("checkbox", { name: "Automatically check every 15 seconds" })).not.toBeInTheDocument();
     await user.type(await screen.findByRole("textbox", { name: "Draft ID" }), "draft-123");
+    expect(screen.getByRole("checkbox", { name: "Automatically check every 15 seconds" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Sync picks" }));
     expect(
       await screen.findByText("Sleeper sync reconciled 2 picks: 1 added, 1 changed, 2 removed, 1 unmatched."),
