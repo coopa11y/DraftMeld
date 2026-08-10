@@ -337,7 +337,7 @@ afterEach(() => {
 });
 
 describe("accessible draft board", () => {
-  it("offers useful league actions when only the demo league exists", async () => {
+  it("keeps league actions separate from the active-league selector", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
@@ -350,14 +350,14 @@ describe("accessible draft board", () => {
 
     const selector = await screen.findByRole("combobox", { name: "Active league" });
     expect(selector).toHaveValue("demo");
-    expect(within(selector).getByRole("option", { name: "Create a league…" })).toBeInTheDocument();
-    expect(within(selector).getByRole("option", { name: "Manage leagues…" })).toBeInTheDocument();
+    expect(within(selector).getAllByRole("option")).toHaveLength(1);
+    expect(within(selector).getByRole("option", { name: "Demo League" })).toBeInTheDocument();
 
-    await user.selectOptions(selector, "__manage_leagues__");
+    await user.click(screen.getByRole("button", { name: "Manage leagues" }));
     expect(screen.getByRole("heading", { name: "Your leagues" })).toBeInTheDocument();
 
-    await user.selectOptions(selector, "__create_league__");
-    expect(screen.getByRole("heading", { name: "Set up your draft workspace" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Create league" }));
+    expect(screen.getByRole("heading", { name: "Create a league" })).toBeInTheDocument();
   });
 
   it("keeps league creation available when no leagues exist", async () => {
@@ -368,12 +368,12 @@ describe("accessible draft board", () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
 
-    const selector = await screen.findByRole("combobox", { name: "Active league" });
-    expect(selector).toHaveValue("");
-    expect(within(selector).getByRole("option", { name: "No active league" })).toBeDisabled();
+    await screen.findByRole("button", { name: "Manage leagues" });
+    expect(screen.queryByRole("combobox", { name: "Active league" })).not.toBeInTheDocument();
 
-    await user.selectOptions(selector, "__create_league__");
-    expect(screen.getByRole("heading", { name: "Set up your draft workspace" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Manage leagues" }));
+    await user.click(screen.getByRole("button", { name: "Create league" }));
+    expect(screen.getByRole("heading", { name: "Create a league" })).toBeInTheDocument();
     expect((await axe(container)).violations).toHaveLength(0);
   });
 

@@ -10,8 +10,6 @@ import { RankingSources } from "./RankingSources";
 import { loadOnboardingDraft, onboardingComplete } from "./onboarding";
 
 const ACTIVE_LEAGUE_KEY = "draftmeld.active-league.v1";
-const CREATE_LEAGUE_OPTION = "__create_league__";
-const MANAGE_LEAGUES_OPTION = "__manage_leagues__";
 
 export function App() {
   const [leagues, setLeagues] = useState<League[]>([]);
@@ -92,14 +90,6 @@ export function App() {
   }
 
   function handleLeagueSelection(value: string) {
-    if (value === CREATE_LEAGUE_OPTION) {
-      openOnboarding();
-      return;
-    }
-    if (value === MANAGE_LEAGUES_OPTION) {
-      setView("leagues");
-      return;
-    }
     selectLeague(value);
     setView("draft");
   }
@@ -124,25 +114,18 @@ export function App() {
           <span className="version">v{__APP_VERSION__}</span>
         </div>
         <nav className="league-navigation" aria-label="DraftMeld navigation">
-          <label>
-            <span>Active league</span>
-            <select value={activeLeague?.id ?? ""} onChange={(event) => handleLeagueSelection(event.target.value)}>
-              {!activeLeague ? (
-                <option value="" disabled>
-                  No active league
-                </option>
-              ) : null}
-              {leagues.map((league) => (
-                <option key={league.id} value={league.id}>
-                  {league.name}
-                </option>
-              ))}
-              <optgroup label="League actions">
-                <option value={CREATE_LEAGUE_OPTION}>Create a league…</option>
-                <option value={MANAGE_LEAGUES_OPTION}>Manage leagues…</option>
-              </optgroup>
-            </select>
-          </label>
+          {leagues.length > 0 ? (
+            <label>
+              <span>Active league</span>
+              <select value={activeLeague?.id ?? ""} onChange={(event) => handleLeagueSelection(event.target.value)}>
+                {leagues.map((league) => (
+                  <option key={league.id} value={league.id}>
+                    {league.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <Button
             aria-current={view === "draft" ? "page" : undefined}
             onClick={() => setView("draft")}
