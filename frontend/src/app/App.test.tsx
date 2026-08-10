@@ -480,6 +480,37 @@ describe("accessible draft board", () => {
     expect(screen.getByRole("button", { name: "Mock draft" })).toBeInTheDocument();
   });
 
+  it("focuses the edit heading and does not save when Enter is pressed in a roster field", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = input instanceof Request ? input : new Request(input, init);
+      return new URL(request.url).pathname.endsWith("/leagues") ? jsonResponse([demoLeague]) : jsonResponse(snapshot());
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByText("More actions", { selector: "summary" }));
+    await user.click(screen.getByRole("button", { name: "Edit league settings" }));
+
+    const editHeading = screen.getByRole("heading", { name: "Edit Demo League" });
+    await waitFor(() => expect(editHeading).toHaveFocus());
+    await user.clear(screen.getByRole("textbox", { name: "League name" }));
+    await user.type(screen.getByRole("textbox", { name: "League name" }), "Renamed League");
+    await user.click(screen.getByRole("button", { name: "Roster" }));
+    const benchSpots = screen.getByRole("spinbutton", { name: "Bench spots" });
+    await user.clear(benchSpots);
+    await user.type(benchSpots, "12{Enter}");
+
+    expect(screen.getByRole("heading", { name: "Edit Demo League" })).toBeInTheDocument();
+    expect(screen.getByRole("spinbutton", { name: "Bench spots" })).toHaveValue(12);
+    expect(
+      fetchMock.mock.calls.some(([input, init]) => {
+        const request = input instanceof Request ? input : new Request(input, init);
+        return request.method === "PUT";
+      }),
+    ).toBe(false);
+  });
+
   it("offers non-blocking first-run guidance and a resumable setup entry point", async () => {
     vi.stubGlobal(
       "fetch",

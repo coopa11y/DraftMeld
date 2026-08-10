@@ -1,6 +1,7 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { leagueToRules } from "../shared/api/leagues";
 import type { League, LeagueRules } from "../shared/api/types";
+import { useViewHeadingFocus } from "../shared/hooks/useViewHeadingFocus";
 import { Button } from "../shared/ui/Button";
 import { DraftSettings, LeagueSettings, TeamSettings } from "./LeagueSetupSections";
 import { RosterSettings } from "./RosterSettings";
@@ -25,22 +26,24 @@ export function LeagueForm({ league, initialRules, busy, onCancel, onChange, onS
     league ? leagueToRules(league) : initialRules ? cloneLeagueRules(initialRules) : defaultLeagueRules(),
   );
   const [section, setSection] = useState<Section>("League");
+  const heading = useViewHeadingFocus<HTMLHeadingElement>();
 
   useEffect(() => {
     onChange?.(rules);
   }, [onChange, rules]);
 
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
+  async function handleSave() {
     await onSave(rules);
   }
 
   return (
-    <form className="league-form" onSubmit={handleSubmit}>
+    <form className="league-form" onSubmit={(event) => event.preventDefault()}>
       <div className="form-heading">
         <div>
           <p className="eyebrow">League setup</p>
-          <h1>{league ? `Edit ${league.name}` : "Create a league"}</h1>
+          <h1 ref={heading} tabIndex={-1}>
+            {league ? `Edit ${league.name}` : "Create a league"}
+          </h1>
           <p>Configure one section at a time. Your changes stay in place as you move between sections.</p>
         </div>
       </div>
@@ -82,7 +85,14 @@ export function LeagueForm({ league, initialRules, busy, onCancel, onChange, onS
       </section>
 
       <div className="form-actions">
-        <Button type="submit" variant="primary" disabled={busy}>
+        <Button
+          variant="primary"
+          disabled={busy}
+          onClick={(event) => {
+            if (event.currentTarget.form?.reportValidity() === false) return;
+            void handleSave();
+          }}
+        >
           {busy ? "Saving…" : "Save league"}
         </Button>
         <Button onClick={onCancel} disabled={busy}>
