@@ -77,7 +77,7 @@ export function LeagueOverview(props: LeagueOverviewProps) {
         </section>
         <section aria-labelledby="draft-actions-title">
           <h2 id="draft-actions-title">Draft</h2>
-          <p>Open your real board, or practice safely using a separate copy of this league.</p>
+          <p>Open your real board, or practice safely in a separate session using this league&apos;s settings.</p>
           <Button variant="primary" onClick={props.onOpenDraft}>
             Open draft board
           </Button>
@@ -86,7 +86,9 @@ export function LeagueOverview(props: LeagueOverviewProps) {
           </Button>
         </section>
       </div>
-      <p className="field-help">Mock drafts use a new copy. This league and its draft history stay unchanged.</p>
+      <p className="field-help">
+        Mock drafts use a separate session. This league and its draft history stay unchanged.
+      </p>
     </Panel>
   );
 }

@@ -442,7 +442,7 @@ describe("accessible draft board", () => {
     expect((await axe(container)).violations).toHaveLength(0);
   });
 
-  it("starts an existing league mock draft without adding a copied league", async () => {
+  it("keeps mock drafts out of league quick actions and starts one from the league overview", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = input instanceof Request ? input : new Request(input, init);
       const url = new URL(request.url);
@@ -455,6 +455,9 @@ describe("accessible draft board", () => {
     const user = userEvent.setup();
     render(<App />);
 
+    expect(await screen.findByRole("button", { name: "Edit league settings" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start mock draft" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Open league" }));
     await user.click(await screen.findByRole("button", { name: "Start mock draft" }));
     expect(await screen.findByRole("heading", { name: "Available players" })).toBeInTheDocument();
 

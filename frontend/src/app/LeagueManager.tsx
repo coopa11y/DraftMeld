@@ -164,10 +164,7 @@ export function LeagueManager(props: LeagueManagerProps) {
                   <Button variant="primary" onClick={() => props.onOpenLeague(league.id)}>
                     Open league
                   </Button>
-                  <Button disabled={busy} onClick={() => void openMockDraft(league)}>
-                    Start mock draft
-                  </Button>
-                  <Button onClick={() => setEditingId(league.id)}>Manage</Button>
+                  <Button onClick={() => setEditingId(league.id)}>Edit league settings</Button>
                   <details className="league-more-actions">
                     <summary>More actions</summary>
                     <div>
