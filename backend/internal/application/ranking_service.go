@@ -13,6 +13,11 @@ import (
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/ranking"
 )
 
+var (
+	ErrRankingSourceNotFound       = fmt.Errorf("ranking source not found")
+	ErrRankingSourceNotRefreshable = fmt.Errorf("ranking source cannot be refreshed online")
+)
+
 type RankingRepository interface {
 	ReplaceRankings(context.Context, ranking.SourceDefinition, []ranking.Record, string, time.Time) error
 	RankingRecords(context.Context) ([]ranking.Record, error)
@@ -70,7 +75,6 @@ func (service *RankingService) sourceByID(id string) (ranking.SourceDefinition, 
 
 func (service *RankingService) Refresh(ctx context.Context) ([]ranking.SourceStatus, error) {
 	downloads := make(map[string][]byte)
-	observedAt := time.Now().UTC()
 	for _, source := range service.sources {
 		if source.ImportMode != "download" {
 			continue
@@ -84,22 +88,53 @@ func (service *RankingService) Refresh(ctx context.Context) ([]ranking.SourceSta
 			}
 			downloads[source.DataURL] = contents
 		}
-		records, published, err := parseRankingSource(source.ID, bytes.NewReader(contents))
-		if err != nil {
-			return nil, fmt.Errorf("parse %s: %w", source.Name, err)
-		}
-		if len(records) == 0 {
-			return nil, fmt.Errorf("parse %s: no usable players", source.Name)
-		}
-		records, err = resolveRankingPlayers(ctx, service.repository, records, observedAt)
-		if err != nil {
-			return nil, err
-		}
-		if err = service.repository.ReplaceRankings(ctx, source, records, published, time.Now().UTC()); err != nil {
+		if err := service.replaceDownloadedRankings(ctx, source, contents); err != nil {
 			return nil, err
 		}
 	}
 	return service.Sources(ctx)
+}
+
+func (service *RankingService) RefreshSource(ctx context.Context, id string) (ranking.SourceStatus, error) {
+	source, exists := service.sourceByID(id)
+	if !exists {
+		return ranking.SourceStatus{}, ErrRankingSourceNotFound
+	}
+	if source.ImportMode != "download" {
+		return ranking.SourceStatus{}, ErrRankingSourceNotRefreshable
+	}
+	contents, err := service.download(ctx, source)
+	if err != nil {
+		return ranking.SourceStatus{}, err
+	}
+	if err = service.replaceDownloadedRankings(ctx, source, contents); err != nil {
+		return ranking.SourceStatus{}, err
+	}
+	statuses, err := service.Sources(ctx)
+	if err != nil {
+		return ranking.SourceStatus{}, err
+	}
+	for _, status := range statuses {
+		if status.ID == id {
+			return status, nil
+		}
+	}
+	return ranking.SourceStatus{}, ErrRankingSourceNotFound
+}
+
+func (service *RankingService) replaceDownloadedRankings(ctx context.Context, source ranking.SourceDefinition, contents []byte) error {
+	records, published, err := parseRankingSource(source.ID, bytes.NewReader(contents))
+	if err != nil {
+		return fmt.Errorf("parse %s: %w", source.Name, err)
+	}
+	if len(records) == 0 {
+		return fmt.Errorf("parse %s: no usable players", source.Name)
+	}
+	records, err = resolveRankingPlayers(ctx, service.repository, records, time.Now().UTC())
+	if err != nil {
+		return err
+	}
+	return service.repository.ReplaceRankings(ctx, source, records, published, time.Now().UTC())
 }
 
 func (service *RankingService) download(ctx context.Context, source ranking.SourceDefinition) ([]byte, error) {

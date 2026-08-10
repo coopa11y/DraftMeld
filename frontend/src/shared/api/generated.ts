@@ -223,6 +223,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ranking-sources/{sourceId}/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Download and normalize one built-in ranking feed */
+        post: operations["refreshRankingSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ranking-sources/import-pdf": {
         parameters: {
             query?: never;
@@ -1445,6 +1462,39 @@ export interface operations {
                 };
             };
             /** @description An upstream ranking feed could not be downloaded or parsed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    refreshRankingSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sourceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Refreshed ranking source. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RankingSource"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description The upstream ranking feed could not be downloaded or parsed. */
             502: {
                 headers: {
                     [name: string]: unknown;

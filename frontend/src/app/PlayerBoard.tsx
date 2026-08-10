@@ -17,7 +17,6 @@ interface PlayerBoardProps {
   selectedTeamIsUser: boolean;
   onAction: (player: Player, action: DraftAction, cost?: number, teamNumber?: number) => void;
   onUndo: () => void;
-  onPreference: (player: Player, preference: "target" | "avoid" | "") => void;
 }
 
 function valueLabel(player: Player) {
@@ -35,7 +34,6 @@ export function PlayerBoard({
   selectedTeamIsUser,
   onAction,
   onUndo,
-  onPreference,
 }: PlayerBoardProps) {
   const [position, setPosition] = useState<PositionFilter>("Overall");
   const [search, setSearch] = useState("");
@@ -135,7 +133,6 @@ export function PlayerBoard({
                 <abbr title="Average draft position">ADP</abbr>
               </th>
               <th scope="col">Value</th>
-              <th scope="col">My list</th>
               <th scope="col">Actions</th>
             </tr>
           </thead>
@@ -164,26 +161,6 @@ export function PlayerBoard({
                 <td>
                   <span aria-hidden="true">{(player.adp - player.overallRank).toFixed(1)}</span>
                   <span className="sr-only">{valueLabel(player)}</span>
-                </td>
-                <td>
-                  <div className="preference-actions">
-                    <Button
-                      variant="neutral"
-                      aria-pressed={player.preference === "target"}
-                      onClick={() => onPreference(player, player.preference === "target" ? "" : "target")}
-                      disabled={busy}
-                    >
-                      Target
-                    </Button>
-                    <Button
-                      variant="neutral"
-                      aria-pressed={player.preference === "avoid"}
-                      onClick={() => onPreference(player, player.preference === "avoid" ? "" : "avoid")}
-                      disabled={busy}
-                    >
-                      Avoid
-                    </Button>
-                  </div>
                 </td>
                 <td>
                   <PlayerActions

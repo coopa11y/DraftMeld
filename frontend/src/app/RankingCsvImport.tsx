@@ -25,12 +25,13 @@ const rankingColumns: CsvColumnDefinition[] = [
 const requiredRankingColumns = rankingColumns.filter((column) => column.required);
 
 interface RankingCsvImportProps {
+  embedded?: boolean;
   busy: boolean;
   sources: RankingSource[];
   onImport: (name: string, file: File, mapping: Record<string, string>) => Promise<void>;
 }
 
-export function RankingCsvImport({ busy, sources, onImport }: RankingCsvImportProps) {
+export function RankingCsvImport({ busy, embedded = false, sources, onImport }: RankingCsvImportProps) {
   const [name, setName] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
@@ -66,8 +67,8 @@ export function RankingCsvImport({ busy, sources, onImport }: RankingCsvImportPr
 
   const customSources = sources.filter((source) => source.isCustom);
 
-  return (
-    <Panel variant="ranking" aria-labelledby="ranking-csv-import-heading">
+  const content = (
+    <>
       <div className="section-heading">
         <div>
           <p className="eyebrow">Your rankings</p>
@@ -130,6 +131,7 @@ export function RankingCsvImport({ busy, sources, onImport }: RankingCsvImportPr
       ) : (
         <p className="empty-state panel-empty-state">No private ranking CSVs imported yet.</p>
       )}
-    </Panel>
+    </>
   );
+  return embedded ? <div className="embedded-import">{content}</div> : <Panel variant="ranking">{content}</Panel>;
 }

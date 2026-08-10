@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -14,9 +15,10 @@ import (
 )
 
 type rankingRepositoryStub struct {
-	records []ranking.Record
-	custom  []ranking.SourceDefinition
-	players map[string]player.Player
+	records  []ranking.Record
+	custom   []ranking.SourceDefinition
+	players  map[string]player.Player
+	statuses map[string]ranking.SourceStatus
 }
 
 func TestRankingDownloadRetriesTransientServerFailure(t *testing.T) {
@@ -44,8 +46,12 @@ func TestRankingDownloadRetriesTransientServerFailure(t *testing.T) {
 	}
 }
 
-func (repository *rankingRepositoryStub) ReplaceRankings(_ context.Context, source ranking.SourceDefinition, records []ranking.Record, _ string, _ time.Time) error {
+func (repository *rankingRepositoryStub) ReplaceRankings(_ context.Context, source ranking.SourceDefinition, records []ranking.Record, published string, refreshed time.Time) error {
 	repository.records = append([]ranking.Record(nil), records...)
+	if repository.statuses == nil {
+		repository.statuses = make(map[string]ranking.SourceStatus)
+	}
+	repository.statuses[source.ID] = ranking.SourceStatus{SourceDefinition: source, RecordCount: len(records), RefreshedAt: &refreshed, PublishedAt: published}
 	if source.IsCustom {
 		repository.custom = []ranking.SourceDefinition{source}
 	}
@@ -57,7 +63,39 @@ func (repository *rankingRepositoryStub) RankingRecords(context.Context) ([]rank
 }
 
 func (repository *rankingRepositoryStub) RankingStatuses(context.Context) (map[string]ranking.SourceStatus, error) {
-	return map[string]ranking.SourceStatus{}, nil
+	return repository.statuses, nil
+}
+
+func TestRefreshSourceOnlyUpdatesTheRequestedFeed(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
+		_, _ = response.Write([]byte(`<div class="player-row"><div class="rank">1</div><a href="/nfl/players/1/alex-rivers/fantasy/"><span class="team position">RB</span></a></div><div class="player-row"><div class="rank">2</div><a href="/nfl/players/2/jordan-hale/fantasy/"><span class="team position">WR</span></a></div>`))
+	}))
+	defer server.Close()
+	repository := &rankingRepositoryStub{}
+	service := NewRankingService(repository)
+	service.sources = []ranking.SourceDefinition{
+		{ID: "cbs-ppr", Name: "Requested", DataURL: server.URL, ImportMode: "download"},
+		{ID: "other", Name: "Other", DataURL: "http://invalid.local", ImportMode: "download"},
+	}
+
+	status, err := service.RefreshSource(t.Context(), "cbs-ppr")
+	if err != nil {
+		t.Fatalf("refresh source: %v", err)
+	}
+	if status.ID != "cbs-ppr" || status.RecordCount != 2 || repository.records[0].SourceID != "cbs-ppr" {
+		t.Fatalf("unexpected refreshed source: %#v records=%#v", status, repository.records)
+	}
+}
+
+func TestRefreshSourceRejectsUnknownAndUploadSources(t *testing.T) {
+	service := NewRankingService(&rankingRepositoryStub{})
+	service.sources = []ranking.SourceDefinition{{ID: "upload", ImportMode: "pdf-upload"}}
+	if _, err := service.RefreshSource(t.Context(), "missing"); !errors.Is(err, ErrRankingSourceNotFound) {
+		t.Fatalf("expected not found, got %v", err)
+	}
+	if _, err := service.RefreshSource(t.Context(), "upload"); !errors.Is(err, ErrRankingSourceNotRefreshable) {
+		t.Fatalf("expected not refreshable, got %v", err)
+	}
 }
 
 func (repository *rankingRepositoryStub) CustomRankingSources(context.Context) ([]ranking.SourceDefinition, error) {
