@@ -708,6 +708,111 @@ tbody tr:focus-within {
   gap: 0.65rem;
   margin-top: 1rem;
 }
+.league-home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+.quick-demo-form {
+  display: grid;
+  gap: 1.25rem;
+  margin: 1.25rem 0;
+  padding: 1.25rem;
+  background: var(--color-surface-deep);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.75rem;
+}
+.quick-demo-form h2,
+.quick-demo-form p {
+  margin: 0;
+}
+.quick-demo-form p {
+  margin-top: 0.45rem;
+  color: var(--color-text-muted);
+}
+.quick-demo-grid {
+  grid-template-columns: repeat(5, minmax(8rem, 1fr));
+}
+.league-more-actions {
+  position: relative;
+}
+.league-more-actions summary {
+  min-height: 44px;
+  padding: 0.65rem 0.85rem;
+  cursor: pointer;
+  border: 1px solid var(--color-border-control);
+  border-radius: 0.5rem;
+  font-weight: 800;
+}
+.league-more-actions > div {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.league-overview {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.league-data-disclosure {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.league-data-disclosure > summary {
+  width: fit-content;
+  min-height: 44px;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  color: var(--text-strong);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.league-data-disclosure[open] > summary {
+  margin-bottom: 1rem;
+}
+.league-setup-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+.league-setup-summary > div {
+  padding: 1rem;
+  background: var(--color-surface-deep);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.65rem;
+}
+.league-setup-summary dt {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.league-setup-summary dd {
+  margin: 0.4rem 0 0;
+}
+.league-overview-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.league-overview-actions section {
+  padding: 1.1rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.65rem;
+}
+.league-overview-actions section h2,
+.league-overview-actions section p {
+  margin-top: 0;
+}
+.league-overview-actions section button {
+  margin: 0.35rem 0.5rem 0 0;
+}
 .delete-confirmation {
   margin-top: 1rem;
   padding: 1rem;
@@ -1354,6 +1459,10 @@ tbody tr:focus-within {
   .position-options {
     grid-column: 1 / -1;
   }
+  .quick-demo-grid,
+  .league-setup-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 680px) {
@@ -1399,6 +1508,11 @@ tbody tr:focus-within {
   }
   .form-grid,
   .roster-slot {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .quick-demo-grid,
+  .league-setup-summary,
+  .league-overview-actions {
     grid-template-columns: minmax(0, 1fr);
   }
   .position-options {

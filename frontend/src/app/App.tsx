@@ -15,7 +15,7 @@ export function App() {
   const [leagues, setLeagues] = useState<League[]>([]);
   const [activeLeagueId, setActiveLeagueId] = useState(() => localStorage.getItem(ACTIVE_LEAGUE_KEY) ?? "demo");
   const initialActiveLeagueId = useRef(activeLeagueId);
-  const [view, setView] = useState<"draft" | "tools" | "leagues" | "rankings">("draft");
+  const [view, setView] = useState<"draft" | "tools" | "leagues" | "league" | "rankings">("leagues");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [onboardingOpen, setOnboardingOpen] = useState(false);
@@ -91,10 +91,11 @@ export function App() {
 
   function handleLeagueSelection(value: string) {
     selectLeague(value);
-    setView("draft");
+    setView("league");
   }
 
   const activeLeague = leagues.find((league) => league.id === activeLeagueId);
+  const leagueContextOpen = view !== "leagues" && Boolean(activeLeague);
 
   if (loading) {
     return (
@@ -114,7 +115,7 @@ export function App() {
           <span className="version">v{__APP_VERSION__}</span>
         </div>
         <nav className="league-navigation" aria-label="DraftMeld navigation">
-          {leagues.length > 0 ? (
+          {leagueContextOpen ? (
             <label>
               <span>Active league</span>
               <select value={activeLeague?.id ?? ""} onChange={(event) => handleLeagueSelection(event.target.value)}>
@@ -126,21 +127,20 @@ export function App() {
               </select>
             </label>
           ) : null}
-          <Button
-            aria-current={view === "draft" ? "page" : undefined}
-            onClick={() => setView("draft")}
-            disabled={leagues.length === 0}
-          >
-            Draft
-          </Button>
-          <Button
-            aria-current={view === "rankings" ? "page" : undefined}
-            aria-label="Ranking sources"
-            onClick={() => setView("rankings")}
-            disabled={!activeLeague}
-          >
-            Sources
-          </Button>
+          {leagueContextOpen ? (
+            <>
+              <Button aria-current={view === "draft" ? "page" : undefined} onClick={() => setView("draft")}>
+                Draft
+              </Button>
+              <Button
+                aria-current={view === "rankings" ? "page" : undefined}
+                aria-label="Ranking sources"
+                onClick={() => setView("rankings")}
+              >
+                Sources
+              </Button>
+            </>
+          ) : null}
           <Button
             aria-current={view === "leagues" ? "page" : undefined}
             aria-label="Manage leagues"
@@ -148,13 +148,11 @@ export function App() {
           >
             Leagues
           </Button>
-          <Button
-            aria-current={view === "tools" ? "page" : undefined}
-            onClick={() => setView("tools")}
-            disabled={!activeLeague}
-          >
-            Draft tools
-          </Button>
+          {leagueContextOpen ? (
+            <Button aria-current={view === "tools" ? "page" : undefined} onClick={() => setView("tools")}>
+              Draft tools
+            </Button>
+          ) : null}
           {!onboardingDone && !onboardingOpen ? (
             <Button onClick={openOnboarding}>{hasOnboardingDraft ? "Resume setup" : "Setup guide"}</Button>
           ) : null}
@@ -184,15 +182,25 @@ export function App() {
         />
       ) : view === "rankings" && activeLeague ? (
         <RankingSources key={activeLeague.id} league={activeLeague} onLeagueUpdated={handleLeagueUpdated} />
-      ) : view === "leagues" ? (
+      ) : view === "leagues" || view === "league" ? (
         <LeagueManager
           leagues={leagues}
           activeLeagueId={activeLeagueId}
+          mode={view === "league" ? "overview" : "list"}
           onLeaguesChange={handleLeaguesChange}
+          onOpenLeague={(id) => {
+            selectLeague(id);
+            setView("league");
+          }}
           onOpenDraft={(id) => {
             selectLeague(id);
             setView("draft");
           }}
+          onOpenSources={(id) => {
+            selectLeague(id);
+            setView("rankings");
+          }}
+          onShowAll={() => setView("leagues")}
         />
       ) : (
         <DraftWorkspace
