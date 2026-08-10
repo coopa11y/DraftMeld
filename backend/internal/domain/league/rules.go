@@ -131,8 +131,8 @@ func (rules Rules) Validate() error {
 	if rules.TeamCount < 2 || rules.TeamCount > 32 {
 		return fmt.Errorf("team count must be between 2 and 32: %d", rules.TeamCount)
 	}
-	if rules.DraftPosition < 1 || rules.DraftPosition > rules.TeamCount {
-		return fmt.Errorf("draft position must be between 1 and %d: %d", rules.TeamCount, rules.DraftPosition)
+	if rules.DraftPosition < 0 || rules.DraftPosition > rules.TeamCount {
+		return fmt.Errorf("draft position must be not set or between 1 and %d: %d", rules.TeamCount, rules.DraftPosition)
 	}
 	if rules.UserTeamNumber != 0 && (rules.UserTeamNumber < 1 || rules.UserTeamNumber > rules.TeamCount) {
 		return fmt.Errorf("user team number must be between 1 and %d: %d", rules.TeamCount, rules.UserTeamNumber)

@@ -31,6 +31,7 @@ func registerDraftSessionRoutes(mux *http.ServeMux, drafts *application.DraftSer
 		snapshot, err := drafts.StartDraft(request.Context(), input.LeagueID)
 		if writeServiceError(response, err, http.StatusInternalServerError, "Unable to start the draft.",
 			serviceError{application.ErrLeagueNotFound, http.StatusNotFound, "That league was not found."},
+			serviceError{application.ErrDraftPositionUnassigned, http.StatusBadRequest, "Set your draft position in league setup before starting the draft."},
 			serviceError{application.ErrDraftStarted, http.StatusConflict, "This draft has already started."}) {
 			return
 		}

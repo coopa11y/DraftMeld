@@ -16,7 +16,8 @@ export function DraftSessionControls({ snapshot, busy, onStart, onReset, onUndoR
   const [reviewingReset, setReviewingReset] = useState(false);
   const [understood, setUnderstood] = useState(false);
   const [confirmation, setConfirmation] = useState("");
-  const userPosition = snapshot.draftOrder.indexOf(snapshot.userTeamNumber) + 1;
+  const userPosition = snapshot.draftPosition;
+  const needsDraftPosition = snapshot.draftType !== "auction" && userPosition === 0;
   const canConfirmReset = understood && confirmation === snapshot.leagueName;
 
   function cancelReset() {
@@ -69,7 +70,7 @@ export function DraftSessionControls({ snapshot, busy, onStart, onReset, onUndoR
             ) : null}
           </dl>
           <div className="form-actions">
-            <Button variant="primary" disabled={busy} onClick={() => void onStart()}>
+            <Button variant="primary" disabled={busy || needsDraftPosition} onClick={() => void onStart()}>
               Start draft
             </Button>
             {snapshot.canUndoReset ? (
@@ -78,6 +79,9 @@ export function DraftSessionControls({ snapshot, busy, onStart, onReset, onUndoR
               </Button>
             ) : null}
           </div>
+          {needsDraftPosition ? (
+            <p className="field-help">Set your draft position in league setup before starting this draft.</p>
+          ) : null}
           {snapshot.canUndoReset ? (
             <p className="field-help">The reset can be undone until you start this draft again.</p>
           ) : null}

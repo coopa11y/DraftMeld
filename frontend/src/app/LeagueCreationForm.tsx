@@ -46,7 +46,7 @@ export function LeagueCreationForm({ busy, onCancel, onSave }: LeagueCreationFor
       teamCount,
       userTeamNumber,
       draftOrder,
-      draftPosition: draftOrder.indexOf(userTeamNumber) + 1,
+      draftPosition: rules.draftPosition === 0 ? 0 : draftOrder.indexOf(userTeamNumber) + 1,
       teamNames: resizeTeamNames(rules.teamNames, teamCount),
     });
   }
@@ -110,12 +110,16 @@ export function LeagueCreationForm({ busy, onCancel, onSave }: LeagueCreationFor
             {rules.draftType !== "auction" ? (
               <FormField
                 label="Your draft position"
-                help="You only need your pick number; opponent names are optional."
+                help="Leave this not set if your league has not assigned your pick yet."
               >
                 <select
                   value={rules.draftPosition}
                   onChange={(event) => {
                     const draftPosition = Number(event.target.value);
+                    if (draftPosition === 0) {
+                      setRules({ ...rules, draftPosition: 0 });
+                      return;
+                    }
                     setRules({
                       ...rules,
                       draftPosition,
@@ -123,6 +127,7 @@ export function LeagueCreationForm({ busy, onCancel, onSave }: LeagueCreationFor
                     });
                   }}
                 >
+                  <option value="0">Not set yet</option>
                   {Array.from({ length: rules.teamCount }, (_, index) => (
                     <option key={index + 1} value={index + 1}>
                       Pick {index + 1}

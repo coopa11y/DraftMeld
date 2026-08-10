@@ -7,6 +7,7 @@ import type {
   DraftSnapshot,
   IdentityIssue,
   League,
+  LeagueRules,
   Player,
   RankingSource,
 } from "../shared/api/types";
@@ -104,6 +105,7 @@ function snapshot(overrides: Partial<DraftSnapshot> = {}): DraftSnapshot {
     faabTrades: false,
     budgetBalances: [],
     draftOrder: Array.from({ length: 12 }, (_, index) => index + 1),
+    draftPosition: 1,
     userTeamNumber: 1,
     sessionStatus: "in-progress",
     canReset: true,
@@ -509,6 +511,41 @@ describe("accessible draft board", () => {
         return request.method === "PUT";
       }),
     ).toBe(false);
+  });
+
+  it("saves basic league changes before the draft position is known", async () => {
+    const leagueWithoutPosition = { ...demoLeague, draftPosition: 0 };
+    let savedRules: LeagueRules | undefined;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = input instanceof Request ? input : new Request(input, init);
+      const url = new URL(request.url);
+      if (url.pathname.endsWith("/leagues") && request.method === "GET") return jsonResponse([leagueWithoutPosition]);
+      if (url.pathname.endsWith("/leagues/demo") && request.method === "PUT") {
+        savedRules = (await request.json()) as LeagueRules;
+        return jsonResponse({ id: "demo", ...savedRules });
+      }
+      return jsonResponse(snapshot());
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(await screen.findByText(/Draft position not set/)).toBeInTheDocument();
+    await user.click(screen.getByText("More actions", { selector: "summary" }));
+    await user.click(screen.getByRole("button", { name: "Edit league settings" }));
+    await user.clear(screen.getByRole("textbox", { name: "League name" }));
+    await user.type(screen.getByRole("textbox", { name: "League name" }), "League without a pick");
+
+    const consensus = screen.getByRole("combobox", { name: "Consensus method" });
+    expect(within(consensus).getByRole("option", { name: /Weighted median.*limits the effect/ })).toBeInTheDocument();
+    expect(screen.getByText(/Favors the middle weighted rank/, { selector: ".field-help" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save league" }));
+
+    await waitFor(() => expect(savedRules?.name).toBe("League without a pick"));
+    expect(savedRules?.draftPosition).toBe(0);
+    expect(await screen.findByText("Snake draft · Position not set")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start mock draft" })).toBeDisabled();
+    expect(screen.getByText("Set your draft position before starting a real or mock draft.")).toBeInTheDocument();
   });
 
   it("offers non-blocking first-run guidance and a resumable setup entry point", async () => {

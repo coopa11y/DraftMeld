@@ -2,6 +2,7 @@ import type { Dispatch, SetStateAction } from "react";
 import type { LeagueRules } from "../shared/api/types";
 import { FormField } from "../shared/ui/FormField";
 import { applyReceptionPreset, receptionPreset } from "./scoring";
+import { ConsensusMethodField } from "./ConsensusMethodField";
 
 type SetRules = Dispatch<SetStateAction<LeagueRules>>;
 
@@ -64,7 +65,7 @@ export function LeagueSettings({
                 const teamCount = Number(event.target.value);
                 const userTeamNumber = Math.min(rules.userTeamNumber, teamCount);
                 const draftOrder = resizeDraftOrder(rules.draftOrder, teamCount);
-                const draftPosition = draftOrder.indexOf(userTeamNumber) + 1;
+                const draftPosition = rules.draftPosition === 0 ? 0 : draftOrder.indexOf(userTeamNumber) + 1;
                 setRules({
                   ...rules,
                   teamCount,
@@ -131,18 +132,11 @@ export function LeagueSettings({
             </select>
           </FormField>
         ) : null}
-        <FormField label="Consensus method">
-          <select
-            value={rules.consensusMethod}
-            onChange={(event) =>
-              setRules({ ...rules, consensusMethod: event.target.value as LeagueRules["consensusMethod"] })
-            }
-          >
-            <option value="weighted-median">Weighted median</option>
-            <option value="trimmed-mean">Trimmed mean</option>
-            <option value="weighted-average">Weighted average</option>
-          </select>
-        </FormField>
+        <ConsensusMethodField
+          disabled={disabled}
+          value={rules.consensusMethod}
+          onChange={(consensusMethod) => setRules({ ...rules, consensusMethod })}
+        />
       </div>
     </fieldset>
   );
@@ -173,21 +167,27 @@ export function DraftSettings({
         {!hideBasic ? (
           <FormField
             label="Your draft position"
-            help="Choose the pick number assigned to you. You do not need to know the other teams' names."
+            help="Leave this not set until your league assigns your pick. Set it before starting a snake or linear draft."
           >
             <select
-              required
               value={rules.draftPosition}
               onChange={(event) => {
                 const draftPosition = Number(event.target.value);
-                const draftOrder = moveTeamToPosition(rules.draftOrder, rules.userTeamNumber, draftPosition);
+                if (draftPosition === 0) {
+                  setRules({ ...rules, draftPosition: 0 });
+                  return;
+                }
+                const userTeamNumber = rules.userTeamNumber || rules.draftOrder[draftPosition - 1] || draftPosition;
+                const draftOrder = moveTeamToPosition(rules.draftOrder, userTeamNumber, draftPosition);
                 setRules({
                   ...rules,
                   draftPosition,
                   draftOrder,
+                  userTeamNumber,
                 });
               }}
             >
+              <option value="0">Not set yet</option>
               {Array.from({ length: rules.teamCount }, (_, index) => (
                 <option key={index + 1} value={index + 1}>
                   Pick {index + 1}

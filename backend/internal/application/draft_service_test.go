@@ -589,6 +589,24 @@ func TestDraftSessionStartResetAndRestore(t *testing.T) {
 	}
 }
 
+func TestDraftCannotStartUntilDraftPositionIsAssigned(t *testing.T) {
+	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	configuration := DemoLeagueConfiguration()
+	configuration.Rules.DraftPosition = 0
+	service, err := NewDraftService(store, draft.DemoCatalog(), configuration)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err = service.StartDraft(t.Context(), "demo"); !errors.Is(err, ErrDraftPositionUnassigned) {
+		t.Fatalf("start without a draft position error = %v", err)
+	}
+}
+
 func TestLeagueDraftStructureLocksAfterStart(t *testing.T) {
 	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
 	if err != nil {

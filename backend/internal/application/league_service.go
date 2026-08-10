@@ -267,7 +267,11 @@ func slugify(name string) string {
 func withLeagueDefaults(rules league.Rules) league.Rules {
 	rules = rules.Clone()
 	if rules.UserTeamNumber == 0 {
-		rules.UserTeamNumber = rules.DraftPosition
+		if rules.DraftPosition > 0 {
+			rules.UserTeamNumber = rules.DraftPosition
+		} else {
+			rules.UserTeamNumber = 1
+		}
 	}
 	if len(rules.DraftOrder) != rules.TeamCount {
 		rules.DraftOrder = make([]int, rules.TeamCount)
@@ -275,8 +279,10 @@ func withLeagueDefaults(rules league.Rules) league.Rules {
 			rules.DraftOrder[index] = index + 1
 		}
 	}
-	if position := draftPositionForTeam(rules.DraftOrder, rules.UserTeamNumber); position > 0 {
-		rules.DraftPosition = position
+	if rules.DraftPosition > 0 {
+		if position := draftPositionForTeam(rules.DraftOrder, rules.UserTeamNumber); position > 0 {
+			rules.DraftPosition = position
+		}
 	}
 	rules.TeamNames = normalizedTeamNames(rules.TeamNames, rules.TeamCount, rules.UserTeamNumber)
 	defaults := DefaultRankingSourcePreferences()

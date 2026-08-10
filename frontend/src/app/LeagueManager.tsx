@@ -152,7 +152,7 @@ export function LeagueManager(props: LeagueManagerProps) {
                   <h2>{league.name}</h2>
                   <p>
                     {league.teamCount} teams · {formatDraftType(league.draftType)} · Draft position{" "}
-                    {league.draftPosition}
+                    {league.draftPosition > 0 ? league.draftPosition : "not set"}
                   </p>
                   <p>
                     {formatScoring(league.scoringRules.reception)} ·{" "}

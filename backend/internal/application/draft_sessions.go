@@ -7,12 +7,14 @@ import (
 	"time"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/draft"
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/league"
 )
 
 var (
-	ErrDraftNotStarted = errors.New("the draft has not started")
-	ErrDraftStarted    = errors.New("the draft has already started")
-	ErrNoResetToUndo   = errors.New("there is no draft reset to undo")
+	ErrDraftNotStarted         = errors.New("the draft has not started")
+	ErrDraftStarted            = errors.New("the draft has already started")
+	ErrDraftPositionUnassigned = errors.New("set your draft position in league setup before starting the draft")
+	ErrNoResetToUndo           = errors.New("there is no draft reset to undo")
 )
 
 type DraftSessionRepository interface {
@@ -28,6 +30,9 @@ func (service *DraftService) StartDraft(ctx context.Context, leagueID string) (d
 	configuration, err := service.configuration(ctx, leagueID)
 	if err != nil {
 		return draft.Snapshot{}, err
+	}
+	if configuration.Rules.DraftType != league.DraftTypeAuction && configuration.Rules.DraftPosition == 0 {
+		return draft.Snapshot{}, ErrDraftPositionUnassigned
 	}
 	events, err := service.listDraftEvents(ctx, leagueID, configuration.Rules.Season)
 	if err != nil {

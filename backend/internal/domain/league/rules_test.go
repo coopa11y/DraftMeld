@@ -40,6 +40,16 @@ func TestRulesValidate(t *testing.T) {
 	}
 }
 
+func TestRulesAllowDraftPositionToRemainUnassigned(t *testing.T) {
+	rules := Rules{
+		Name: "Home League", TeamCount: 12, DraftPosition: 0, DraftType: DraftTypeSnake,
+		RosterSlots: []RosterSlot{{Name: "QB", Count: 1, Positions: []string{"QB"}, IsStarting: true}},
+	}
+	if err := rules.Validate(); err != nil {
+		t.Fatalf("expected an unassigned draft position to be valid during setup, got %v", err)
+	}
+}
+
 func TestRulesRejectInvalidSourcePreferences(t *testing.T) {
 	rules := Rules{
 		Name: "Home League", TeamCount: 12, DraftPosition: 4, DraftType: DraftTypeSnake,

@@ -826,8 +826,9 @@ components:
           maximum: 32
         draftPosition:
           type: integer
-          minimum: 1
+          minimum: 0
           maximum: 32
+          description: Zero means the league has not assigned the user's draft position yet.
         userTeamNumber:
           type: integer
           minimum: 1
@@ -1279,6 +1280,7 @@ components:
           faabTrades,
           budgetBalances,
           draftOrder,
+          draftPosition,
           userTeamNumber,
           sessionStatus,
           canReset,
@@ -1333,6 +1335,10 @@ components:
         draftOrder:
           type: array
           items: { type: integer, minimum: 1 }
+        draftPosition:
+          type: integer
+          minimum: 0
+          description: Zero means the position has not been assigned yet.
         userTeamNumber: { type: integer, minimum: 1 }
         sessionStatus: { type: string, enum: [not-started, in-progress, complete] }
         canReset: { type: boolean }
