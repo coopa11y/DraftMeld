@@ -76,21 +76,35 @@ export function LeagueOverview(props: LeagueOverviewProps) {
         <section aria-labelledby="setup-actions-title">
           <h2 id="setup-actions-title">Finish setup</h2>
           <p>Configure rules, teams, positions, scoring, and ranking sources before draft day.</p>
-          <Button onClick={props.onEdit}>League rules and scoring</Button>
-          <Button onClick={props.onOpenSources}>Ranking sources</Button>
+          <ul className="league-overview-action-list" aria-label="League setup actions">
+            <li>
+              <Button onClick={props.onEdit}>League rules and scoring</Button>
+            </li>
+            <li>
+              <Button onClick={props.onOpenSources}>Ranking sources</Button>
+            </li>
+          </ul>
         </section>
         <section aria-labelledby="draft-actions-title">
           <h2 id="draft-actions-title">Draft</h2>
           <p>Open your real board, or practice safely in a separate session using this league&apos;s settings.</p>
-          <Button variant="primary" onClick={props.onOpenDraft}>
-            Open draft board
-          </Button>
-          <Button
-            disabled={props.busy}
-            onClick={() => (props.league.draftType === "auction" ? void props.onMockDraft() : setMockLaunchOpen(true))}
-          >
-            Start mock draft
-          </Button>
+          <ul className="league-overview-action-list" aria-label="Draft actions">
+            <li>
+              <Button variant="primary" onClick={props.onOpenDraft}>
+                Open draft board
+              </Button>
+            </li>
+            <li>
+              <Button
+                disabled={props.busy}
+                onClick={() =>
+                  props.league.draftType === "auction" ? void props.onMockDraft() : setMockLaunchOpen(true)
+                }
+              >
+                Start mock draft
+              </Button>
+            </li>
+          </ul>
         </section>
       </div>
       <p className="field-help">

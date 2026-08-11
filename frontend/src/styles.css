@@ -819,8 +819,18 @@ tbody tr:focus-within {
 .league-overview-actions section p {
   margin-top: 0;
 }
-.league-overview-actions section button {
-  margin: 0.35rem 0.5rem 0 0;
+.league-overview-action-list {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.league-overview-action-list li {
+  display: flex;
+}
+.league-overview-action-list button {
+  width: 100%;
 }
 .delete-confirmation {
   margin-top: 1rem;
