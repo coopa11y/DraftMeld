@@ -469,10 +469,14 @@ describe("accessible draft board", () => {
     expect(moreActionsDisclosure).toHaveAttribute("open");
     expect(screen.queryByRole("button", { name: "Start mock draft" })).not.toBeInTheDocument();
     await user.click(openLeague);
-    const setupActions = await screen.findByRole("list", { name: "League setup actions" });
+    expect(await screen.findByRole("heading", { name: "League configuration" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Finish setup" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit league setup" })).not.toBeInTheDocument();
+    const setupActions = screen.getByRole("list", { name: "League configuration actions" });
     expect(within(setupActions).getAllByRole("listitem")).toHaveLength(2);
-    expect(within(setupActions).getByRole("button", { name: "League rules and scoring" })).toBeInTheDocument();
+    expect(within(setupActions).getByRole("button", { name: "League settings" })).toBeInTheDocument();
     expect(within(setupActions).getByRole("button", { name: "Ranking sources" })).toBeInTheDocument();
+    expect(screen.getAllByText(/does not change this league or its draft history/i)).toHaveLength(1);
     const draftActions = screen.getByRole("list", { name: "Draft actions" });
     expect(within(draftActions).getAllByRole("listitem")).toHaveLength(2);
     expect(within(draftActions).getByRole("button", { name: "Open draft board" })).toBeInTheDocument();

@@ -31,11 +31,8 @@ export function LeagueOverview(props: LeagueOverviewProps) {
           <h1 id="league-overview-title" ref={heading} tabIndex={-1}>
             {props.league.name}
           </h1>
-          <p>Review setup, adjust league rules, or deliberately enter a real or mock draft.</p>
+          <p>Review this league and choose what you want to do next.</p>
         </div>
-        <Button variant="primary" onClick={props.onEdit}>
-          Edit league setup
-        </Button>
       </div>
 
       <dl className="league-setup-summary">
@@ -74,11 +71,11 @@ export function LeagueOverview(props: LeagueOverviewProps) {
 
       <div className="league-overview-actions">
         <section aria-labelledby="setup-actions-title">
-          <h2 id="setup-actions-title">Finish setup</h2>
-          <p>Configure rules, teams, positions, scoring, and ranking sources before draft day.</p>
-          <ul className="league-overview-action-list" aria-label="League setup actions">
+          <h2 id="setup-actions-title">League configuration</h2>
+          <p>Manage league rules, teams, roster positions, scoring, and ranking sources.</p>
+          <ul className="league-overview-action-list" aria-label="League configuration actions">
             <li>
-              <Button onClick={props.onEdit}>League rules and scoring</Button>
+              <Button onClick={props.onEdit}>League settings</Button>
             </li>
             <li>
               <Button onClick={props.onOpenSources}>Ranking sources</Button>
@@ -87,7 +84,10 @@ export function LeagueOverview(props: LeagueOverviewProps) {
         </section>
         <section aria-labelledby="draft-actions-title">
           <h2 id="draft-actions-title">Draft</h2>
-          <p>Open your real board, or practice safely in a separate session using this league&apos;s settings.</p>
+          <p>
+            Open the real draft board, or practice in a separate mock session that does not change this league or its
+            draft history.
+          </p>
           <ul className="league-overview-action-list" aria-label="Draft actions">
             <li>
               <Button variant="primary" onClick={props.onOpenDraft}>
@@ -107,9 +107,6 @@ export function LeagueOverview(props: LeagueOverviewProps) {
           </ul>
         </section>
       </div>
-      <p className="field-help">
-        Mock drafts use a separate session. This league and its draft history stay unchanged.
-      </p>
       {mockLaunchOpen ? (
         <DraftPositionDialog
           busy={props.busy}
