@@ -342,7 +342,7 @@ async function openLeagueHome(user: TestUser) {
 
 async function openDraftBoard(user: TestUser) {
   await openLeagueHome(user);
-  await user.click(screen.getByRole("button", { name: "Open draft board" }));
+  await user.click(screen.getByRole("button", { name: "Start Live Draft" }));
   await screen.findByRole("heading", { name: "Available players" });
 }
 
@@ -479,7 +479,7 @@ describe("accessible draft board", () => {
     expect(screen.getAllByText(/does not change this league or its draft history/i)).toHaveLength(1);
     const draftActions = screen.getByRole("list", { name: "Draft actions" });
     expect(within(draftActions).getAllByRole("listitem")).toHaveLength(2);
-    expect(within(draftActions).getByRole("button", { name: "Open draft board" })).toBeInTheDocument();
+    expect(within(draftActions).getByRole("button", { name: "Start Live Draft" })).toBeInTheDocument();
     await user.click(await screen.findByRole("button", { name: "Start mock draft" }));
     const mockLaunch = screen.getByRole("dialog", { name: "Choose your draft position" });
     await user.selectOptions(within(mockLaunch).getByRole("combobox", { name: "Your draft position" }), "5");
@@ -826,7 +826,7 @@ describe("accessible draft board", () => {
 
     expect(await screen.findByText("League A")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Open league: League A" }));
-    await user.click(screen.getByRole("button", { name: "Open draft board" }));
+    await user.click(screen.getByRole("button", { name: "Start Live Draft" }));
     await screen.findByRole("heading", { name: "Available players" });
     const requestInput = fetchMock.mock.calls[1][0];
     const requestUrl = requestInput instanceof Request ? requestInput.url : requestInput.toString();
@@ -904,7 +904,7 @@ describe("accessible draft board", () => {
     failDraft = true;
     render(<App />);
     await user.click(await screen.findByRole("button", { name: "Open league: Demo League" }));
-    await user.click(screen.getByRole("button", { name: "Open draft board" }));
+    await user.click(screen.getByRole("button", { name: "Start Live Draft" }));
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Unable to load the draft.");
     expect(alert.closest("main")).not.toBeNull();

@@ -91,7 +91,7 @@ export function LeagueOverview(props: LeagueOverviewProps) {
           <ul className="league-overview-action-list" aria-label="Draft actions">
             <li>
               <Button variant="primary" onClick={props.onOpenDraft}>
-                Open draft board
+                Start Live Draft
               </Button>
             </li>
             <li>
