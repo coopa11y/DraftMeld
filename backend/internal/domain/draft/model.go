@@ -168,6 +168,7 @@ type Snapshot struct {
 	FAABTrades          bool             `json:"faabTrades"`
 	BudgetBalances      []BudgetBalance  `json:"budgetBalances"`
 	DraftOrder          []int            `json:"draftOrder"`
+	DraftPosition       int              `json:"draftPosition"`
 	UserTeamNumber      int              `json:"userTeamNumber"`
 	SessionStatus       SessionStatus    `json:"sessionStatus"`
 	CanReset            bool             `json:"canReset"`

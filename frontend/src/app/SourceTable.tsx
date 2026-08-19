@@ -1,7 +1,7 @@
 import type { FormEvent } from "react";
 import type { LeagueRules, ProjectionSource, RankingSource, RankingSourcePreference } from "../shared/api/types";
 import { Button } from "../shared/ui/Button";
-import { FormField } from "../shared/ui/FormField";
+import { ConsensusMethodField } from "./ConsensusMethodField";
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
@@ -32,17 +32,11 @@ export function SourceTable(props: SourceTableProps) {
   return (
     <form className="sources-form" onSubmit={props.onSubmit}>
       <div className="source-settings-bar">
-        <FormField label="Consensus method">
-          <select
-            value={props.consensusMethod}
-            disabled={props.busy}
-            onChange={(event) => props.onConsensusMethodChange(event.target.value as LeagueRules["consensusMethod"])}
-          >
-            <option value="weighted-median">Weighted median</option>
-            <option value="trimmed-mean">Trimmed mean</option>
-            <option value="weighted-average">Weighted average</option>
-          </select>
-        </FormField>
+        <ConsensusMethodField
+          disabled={props.busy}
+          value={props.consensusMethod}
+          onChange={props.onConsensusMethodChange}
+        />
         <p>Equal weights have equal influence. Excluded rankings are still checked for outliers.</p>
       </div>
       <div className="table-scroll" role="region" aria-label="Ranking and projection sources" tabIndex={0}>

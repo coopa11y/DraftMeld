@@ -368,6 +368,7 @@ func (service *DraftService) buildSnapshot(configuration LeagueConfiguration, ev
 		FAABTrades:          configuration.Rules.FAABTrades,
 		BudgetBalances:      draftBudgetBalances(configuration.Rules, events, trades),
 		DraftOrder:          append([]int(nil), configuration.Rules.DraftOrder...),
+		DraftPosition:       configuration.Rules.DraftPosition,
 		UserTeamNumber:      userTeamNumber(configuration.Rules),
 		SessionStatus:       sessionStatus,
 		CanReset:            sessionStatus != draft.SessionNotStarted,

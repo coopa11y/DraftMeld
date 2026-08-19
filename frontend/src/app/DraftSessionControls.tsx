@@ -3,11 +3,12 @@ import type { DraftSnapshot } from "../shared/api/types";
 import { Button } from "../shared/ui/Button";
 import { FormField } from "../shared/ui/FormField";
 import { Panel } from "../shared/ui/Panel";
+import { DraftPositionDialog } from "./DraftPositionDialog";
 
 interface DraftSessionControlsProps {
   snapshot: DraftSnapshot;
   busy: boolean;
-  onStart: () => Promise<void>;
+  onStart: (draftPosition?: number) => Promise<void>;
   onReset: (confirmation: string) => Promise<void>;
   onUndoReset: () => Promise<void>;
 }
@@ -16,7 +17,8 @@ export function DraftSessionControls({ snapshot, busy, onStart, onReset, onUndoR
   const [reviewingReset, setReviewingReset] = useState(false);
   const [understood, setUnderstood] = useState(false);
   const [confirmation, setConfirmation] = useState("");
-  const userPosition = snapshot.draftOrder.indexOf(snapshot.userTeamNumber) + 1;
+  const [launchOpen, setLaunchOpen] = useState(false);
+  const userPosition = snapshot.draftPosition;
   const canConfirmReset = understood && confirmation === snapshot.leagueName;
 
   function cancelReset() {
@@ -69,7 +71,11 @@ export function DraftSessionControls({ snapshot, busy, onStart, onReset, onUndoR
             ) : null}
           </dl>
           <div className="form-actions">
-            <Button variant="primary" disabled={busy} onClick={() => void onStart()}>
+            <Button
+              variant="primary"
+              disabled={busy}
+              onClick={() => (snapshot.draftType === "auction" ? void onStart() : setLaunchOpen(true))}
+            >
               Start draft
             </Button>
             {snapshot.canUndoReset ? (
@@ -123,6 +129,19 @@ export function DraftSessionControls({ snapshot, busy, onStart, onReset, onUndoR
           </Button>
         </div>
       )}
+      {launchOpen ? (
+        <DraftPositionDialog
+          busy={busy}
+          kind="real"
+          teamCount={snapshot.teams.length}
+          initialPosition={userPosition}
+          onClose={() => setLaunchOpen(false)}
+          onConfirm={async (draftPosition) => {
+            await onStart(draftPosition);
+            setLaunchOpen(false);
+          }}
+        />
+      ) : null}
     </Panel>
   );
 }

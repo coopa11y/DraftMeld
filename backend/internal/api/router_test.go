@@ -470,7 +470,7 @@ func TestCreateMockDraftStartsHiddenSession(t *testing.T) {
 	defer closeStore()
 
 	response := httptest.NewRecorder()
-	router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/leagues/demo/mock-drafts", nil))
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/leagues/demo/mock-drafts", bytes.NewBufferString(`{"draftPosition":5}`)))
 	if response.Code != http.StatusCreated || !strings.Contains(response.Body.String(), `"leagueId":"demo"`) {
 		t.Fatalf("create mock draft failed: %d %s", response.Code, response.Body.String())
 	}
@@ -489,7 +489,7 @@ func TestCreateMockDraftStartsHiddenSession(t *testing.T) {
 
 	draftResponse := httptest.NewRecorder()
 	router.ServeHTTP(draftResponse, httptest.NewRequest(http.MethodGet, "/api/v1/draft?leagueId="+mock.ID, nil))
-	if draftResponse.Code != http.StatusOK || !strings.Contains(draftResponse.Body.String(), `"sessionStatus":"in-progress"`) {
+	if draftResponse.Code != http.StatusOK || !strings.Contains(draftResponse.Body.String(), `"sessionStatus":"in-progress"`) || !strings.Contains(draftResponse.Body.String(), `"draftPosition":5`) {
 		t.Fatalf("mock draft did not start: %d %s", draftResponse.Code, draftResponse.Body.String())
 	}
 }

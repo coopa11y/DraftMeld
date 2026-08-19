@@ -152,6 +152,11 @@ paths:
     post:
       operationId: createMockDraft
       summary: Start a disposable mock draft using a league's current rules
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MockDraftRequest" }
       responses:
         "201":
           description: Mock draft created and started.
@@ -511,7 +516,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/DraftSessionRequest" }
+            schema: { $ref: "#/components/schemas/DraftStartRequest" }
       responses:
         "200":
           description: Started draft state.
@@ -826,8 +831,9 @@ components:
           maximum: 32
         draftPosition:
           type: integer
-          minimum: 1
+          minimum: 0
           maximum: 32
+          description: Zero means the league has not assigned the user's draft position yet.
         userTeamNumber:
           type: integer
           minimum: 1
@@ -1279,6 +1285,7 @@ components:
           faabTrades,
           budgetBalances,
           draftOrder,
+          draftPosition,
           userTeamNumber,
           sessionStatus,
           canReset,
@@ -1333,6 +1340,10 @@ components:
         draftOrder:
           type: array
           items: { type: integer, minimum: 1 }
+        draftPosition:
+          type: integer
+          minimum: 0
+          description: Zero means the position has not been assigned yet.
         userTeamNumber: { type: integer, minimum: 1 }
         sessionStatus: { type: string, enum: [not-started, in-progress, complete] }
         canReset: { type: boolean }
@@ -1344,6 +1355,11 @@ components:
         id: { type: string }
         leagueId: { type: string }
         name: { type: string }
+    MockDraftRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        draftPosition: { type: integer, minimum: 1, maximum: 32 }
     DraftPickSlot:
       type: object
       required:
@@ -1573,6 +1589,17 @@ components:
       required: [leagueId]
       properties:
         leagueId: { type: string }
+    DraftStartRequest:
+      type: object
+      additionalProperties: false
+      required: [leagueId]
+      properties:
+        leagueId: { type: string }
+        draftPosition:
+          type: integer
+          minimum: 1
+          maximum: 32
+          description: The user's selected position for this real draft.
     DraftResetRequest:
       type: object
       additionalProperties: false

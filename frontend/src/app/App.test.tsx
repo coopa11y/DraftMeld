@@ -7,6 +7,7 @@ import type {
   DraftSnapshot,
   IdentityIssue,
   League,
+  LeagueRules,
   Player,
   RankingSource,
 } from "../shared/api/types";
@@ -104,6 +105,7 @@ function snapshot(overrides: Partial<DraftSnapshot> = {}): DraftSnapshot {
     faabTrades: false,
     budgetBalances: [],
     draftOrder: Array.from({ length: 12 }, (_, index) => index + 1),
+    draftPosition: 1,
     userTeamNumber: 1,
     sessionStatus: "in-progress",
     canReset: true,
@@ -333,14 +335,14 @@ function jsonResponse(body: unknown, status = 200) {
 type TestUser = ReturnType<typeof userEvent.setup>;
 
 async function openLeagueHome(user: TestUser) {
-  await user.click(await screen.findByRole("button", { name: "Open league" }));
+  await user.click(await screen.findByRole("button", { name: "Open league: Demo League" }));
   const heading = await screen.findByRole("heading", { name: "Demo League", level: 1 });
   await waitFor(() => expect(heading).toHaveFocus());
 }
 
 async function openDraftBoard(user: TestUser) {
   await openLeagueHome(user);
-  await user.click(screen.getByRole("button", { name: "Open draft board" }));
+  await user.click(screen.getByRole("button", { name: "Start Live Draft" }));
   await screen.findByRole("heading", { name: "Available players" });
 }
 
@@ -442,7 +444,7 @@ describe("accessible draft board", () => {
     expect((await axe(container)).violations).toHaveLength(0);
   });
 
-  it("starts an existing league mock draft without adding a copied league", async () => {
+  it("keeps mock drafts out of league quick actions and starts one from the league overview", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = input instanceof Request ? input : new Request(input, init);
       const url = new URL(request.url);
@@ -455,17 +457,124 @@ describe("accessible draft board", () => {
     const user = userEvent.setup();
     render(<App />);
 
+    const openLeague = await screen.findByRole("button", { name: "Open league: Demo League" });
+    expect(openLeague).toHaveTextContent("Open");
+    const moreActions = screen.getByText("More actions", { selector: "summary" });
+    const moreActionsDisclosure = moreActions.closest("details");
+    const editLeagueSettings = screen.getByRole("button", { name: "Edit league settings" });
+    expect(moreActionsDisclosure).not.toHaveAttribute("open");
+    expect(moreActionsDisclosure).toContainElement(editLeagueSettings);
+    expect(screen.queryByRole("button", { name: "Start mock draft" })).not.toBeInTheDocument();
+    await user.click(moreActions);
+    expect(moreActionsDisclosure).toHaveAttribute("open");
+    expect(screen.queryByRole("button", { name: "Start mock draft" })).not.toBeInTheDocument();
+    await user.click(openLeague);
+    expect(await screen.findByRole("heading", { name: "League configuration" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Finish setup" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit league setup" })).not.toBeInTheDocument();
+    const setupActions = screen.getByRole("list", { name: "League configuration actions" });
+    expect(within(setupActions).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(setupActions).getByRole("button", { name: "League settings" })).toBeInTheDocument();
+    expect(within(setupActions).getByRole("button", { name: "Ranking sources" })).toBeInTheDocument();
+    expect(screen.getAllByText(/does not change this league or its draft history/i)).toHaveLength(1);
+    const draftActions = screen.getByRole("list", { name: "Draft actions" });
+    expect(within(draftActions).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(draftActions).getByRole("button", { name: "Start Live Draft" })).toBeInTheDocument();
     await user.click(await screen.findByRole("button", { name: "Start mock draft" }));
+    const mockLaunch = screen.getByRole("dialog", { name: "Choose your draft position" });
+    await user.selectOptions(within(mockLaunch).getByRole("combobox", { name: "Your draft position" }), "5");
+    await user.click(within(mockLaunch).getByRole("button", { name: "Start mock draft" }));
     expect(await screen.findByRole("heading", { name: "Available players" })).toBeInTheDocument();
 
     const requests = fetchMock.mock.calls.map(([input, init]) =>
       input instanceof Request ? input : new Request(input, init),
     );
     expect(requests.some((request) => new URL(request.url).pathname.endsWith("/leagues/demo/mock-drafts"))).toBe(true);
+    const mockRequest = requests.find((request) => new URL(request.url).pathname.endsWith("/leagues/demo/mock-drafts"));
+    await expect(mockRequest?.clone().json()).resolves.toMatchObject({ draftPosition: 5 });
     expect(requests.some((request) => new URL(request.url).pathname.endsWith("/leagues/demo/duplicate"))).toBe(false);
     const draftRequest = requests.find((request) => new URL(request.url).pathname.endsWith("/draft"));
     expect(new URL(draftRequest?.url ?? "http://localhost").searchParams.get("leagueId")).toBe("mock-session");
     expect(screen.getByRole("button", { name: "Mock draft" })).toBeInTheDocument();
+  });
+
+  it("focuses the edit heading and does not save when Enter is pressed in a roster field", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = input instanceof Request ? input : new Request(input, init);
+      return new URL(request.url).pathname.endsWith("/leagues") ? jsonResponse([demoLeague]) : jsonResponse(snapshot());
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByText("More actions", { selector: "summary" }));
+    await user.click(screen.getByRole("button", { name: "Edit league settings" }));
+
+    const editHeading = screen.getByRole("heading", { name: "Edit Demo League" });
+    await waitFor(() => expect(editHeading).toHaveFocus());
+    await user.clear(screen.getByRole("textbox", { name: "League name" }));
+    await user.type(screen.getByRole("textbox", { name: "League name" }), "Renamed League");
+    await user.click(screen.getByRole("button", { name: "Roster" }));
+    const benchSpots = screen.getByRole("spinbutton", { name: "Bench spots" });
+    await user.clear(benchSpots);
+    await user.type(benchSpots, "12{Enter}");
+
+    expect(screen.getByRole("heading", { name: "Edit Demo League" })).toBeInTheDocument();
+    expect(screen.getByRole("spinbutton", { name: "Bench spots" })).toHaveValue(12);
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    const discardDialog = screen.getByRole("dialog", { name: "Discard unsaved changes?" });
+    await user.click(within(discardDialog).getByRole("button", { name: "Keep editing" }));
+    expect(screen.getByRole("heading", { name: "Edit Demo League" })).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([input, init]) => {
+        const request = input instanceof Request ? input : new Request(input, init);
+        return request.method === "PUT";
+      }),
+    ).toBe(false);
+  });
+
+  it("saves basic league changes before the draft position is known", async () => {
+    const leagueWithoutPosition = { ...demoLeague, draftPosition: 0 };
+    let configuredLeagues = [leagueWithoutPosition];
+    let savedRules: LeagueRules | undefined;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = input instanceof Request ? input : new Request(input, init);
+      const url = new URL(request.url);
+      if (url.pathname.endsWith("/leagues") && request.method === "GET") return jsonResponse(configuredLeagues);
+      if (url.pathname.endsWith("/leagues/demo") && request.method === "PUT") {
+        savedRules = (await request.json()) as LeagueRules;
+        const saved = { id: "demo", ...savedRules };
+        configuredLeagues = [saved];
+        return jsonResponse(saved);
+      }
+      return jsonResponse(snapshot());
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(await screen.findByText(/Draft position not set/)).toBeInTheDocument();
+    await user.click(screen.getByText("More actions", { selector: "summary" }));
+    await user.click(screen.getByRole("button", { name: "Edit league settings" }));
+    await user.clear(screen.getByRole("textbox", { name: "League name" }));
+    await user.type(screen.getByRole("textbox", { name: "League name" }), "League without a pick");
+
+    const consensus = screen.getByRole("combobox", { name: "Consensus method" });
+    expect(within(consensus).getByRole("option", { name: "Weighted median" })).toBeInTheDocument();
+    expect(screen.getByText(/Favors the middle weighted rank/, { selector: ".field-help" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => expect(savedRules?.name).toBe("League without a pick"));
+    expect(savedRules?.draftPosition).toBe(0);
+    expect(screen.getByRole("heading", { name: "Edit League without a pick" })).toBeInTheDocument();
+    expect(screen.getByText("All changes saved")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save and exit" }));
+    expect(await screen.findByText("Snake draft · Position not set")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Start mock draft" }));
+    const launch = screen.getByRole("dialog", { name: "Choose your draft position" });
+    expect(within(launch).getByRole("combobox", { name: "Your draft position" })).toHaveValue("1");
+    await user.click(within(launch).getByRole("button", { name: "Cancel" }));
   });
 
   it("offers non-blocking first-run guidance and a resumable setup entry point", async () => {
@@ -503,7 +612,16 @@ describe("accessible draft board", () => {
       const path = new URL(request.url).pathname;
       if (path.endsWith("/leagues")) return jsonResponse([demoLeague]);
       if (path.endsWith("/draft/session/start")) {
-        draft = snapshot({ sessionStatus: "in-progress", canReset: true, canUndoReset: false });
+        const { draftPosition } = (await request.clone().json()) as { draftPosition: number };
+        const draftOrder = [...Array.from({ length: 12 }, (_, index) => index + 1).filter((team) => team !== 1)];
+        draftOrder.splice(draftPosition - 1, 0, 1);
+        draft = snapshot({
+          sessionStatus: "in-progress",
+          canReset: true,
+          canUndoReset: false,
+          draftPosition,
+          draftOrder,
+        });
       } else if (path.endsWith("/draft/session/reset")) {
         draft = snapshot({ sessionStatus: "not-started", canReset: false, canUndoReset: true });
       } else if (path.endsWith("/draft/session/undo-reset")) {
@@ -524,6 +642,10 @@ describe("accessible draft board", () => {
     expect((await axe(container)).violations).toHaveLength(0);
 
     await user.click(screen.getByRole("button", { name: "Start draft" }));
+    const realLaunch = screen.getByRole("dialog", { name: "Choose your draft position" });
+    expect(within(realLaunch).getByRole("combobox", { name: "Your draft position" })).toHaveValue("1");
+    await user.selectOptions(within(realLaunch).getByRole("combobox", { name: "Your draft position" }), "6");
+    await user.click(within(realLaunch).getByRole("button", { name: "Start draft" }));
     expect(await screen.findByText("In progress")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Mark Alex Rivers, RB, as taken by another team" })[0]).toBeEnabled();
 
@@ -546,6 +668,10 @@ describe("accessible draft board", () => {
         return new URL(request.url).pathname.endsWith("/draft/session/reset");
       }),
     ).toBe(true);
+    const startRequest = fetchMock.mock.calls
+      .map(([input]) => (input instanceof Request ? input : new Request(input)))
+      .find((request) => new URL(request.url).pathname.endsWith("/draft/session/start"));
+    await expect(startRequest?.clone().json()).resolves.toMatchObject({ draftPosition: 6 });
   });
 
   it("creates a customized league through an accessible setup form", async () => {
@@ -699,8 +825,8 @@ describe("accessible draft board", () => {
     render(<App />);
 
     expect(await screen.findByText("League A")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Open league" }));
-    await user.click(screen.getByRole("button", { name: "Open draft board" }));
+    await user.click(screen.getByRole("button", { name: "Open league: League A" }));
+    await user.click(screen.getByRole("button", { name: "Start Live Draft" }));
     await screen.findByRole("heading", { name: "Available players" });
     const requestInput = fetchMock.mock.calls[1][0];
     const requestUrl = requestInput instanceof Request ? requestInput.url : requestInput.toString();
@@ -777,8 +903,8 @@ describe("accessible draft board", () => {
     firstRender.unmount();
     failDraft = true;
     render(<App />);
-    await user.click(await screen.findByRole("button", { name: "Open league" }));
-    await user.click(screen.getByRole("button", { name: "Open draft board" }));
+    await user.click(await screen.findByRole("button", { name: "Open league: Demo League" }));
+    await user.click(screen.getByRole("button", { name: "Start Live Draft" }));
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Unable to load the draft.");
     expect(alert.closest("main")).not.toBeNull();

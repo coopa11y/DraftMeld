@@ -1,19 +1,22 @@
+import { useState } from "react";
 import type { League } from "../shared/api/types";
 import { useViewHeadingFocus } from "../shared/hooks/useViewHeadingFocus";
 import { Button } from "../shared/ui/Button";
 import { Panel } from "../shared/ui/Panel";
+import { DraftPositionDialog } from "./DraftPositionDialog";
 
 interface LeagueOverviewProps {
   busy: boolean;
   league: League;
   onBack: () => void;
   onEdit: () => void;
-  onMockDraft: () => void;
+  onMockDraft: (draftPosition?: number) => Promise<void>;
   onOpenDraft: () => void;
   onOpenSources: () => void;
 }
 
 export function LeagueOverview(props: LeagueOverviewProps) {
+  const [mockLaunchOpen, setMockLaunchOpen] = useState(false);
   const heading = useViewHeadingFocus<HTMLHeadingElement>();
   const rosterSpots = props.league.rosterSlots.reduce((total, slot) => total + slot.count, 0);
   const namedTeams = props.league.teamNames.filter((name) => name.trim()).length;
@@ -28,11 +31,8 @@ export function LeagueOverview(props: LeagueOverviewProps) {
           <h1 id="league-overview-title" ref={heading} tabIndex={-1}>
             {props.league.name}
           </h1>
-          <p>Review setup, adjust league rules, or deliberately enter a real or mock draft.</p>
+          <p>Review this league and choose what you want to do next.</p>
         </div>
-        <Button variant="primary" onClick={props.onEdit}>
-          Edit league setup
-        </Button>
       </div>
 
       <dl className="league-setup-summary">
@@ -45,7 +45,8 @@ export function LeagueOverview(props: LeagueOverviewProps) {
         <div>
           <dt>Draft</dt>
           <dd>
-            {formatDraftType(props.league.draftType)} · Position {props.league.draftPosition}
+            {formatDraftType(props.league.draftType)} ·{" "}
+            {props.league.draftPosition > 0 ? `Position ${props.league.draftPosition}` : "Position not set"}
           </dd>
         </div>
         <div>
@@ -70,23 +71,55 @@ export function LeagueOverview(props: LeagueOverviewProps) {
 
       <div className="league-overview-actions">
         <section aria-labelledby="setup-actions-title">
-          <h2 id="setup-actions-title">Finish setup</h2>
-          <p>Configure rules, teams, positions, scoring, and ranking sources before draft day.</p>
-          <Button onClick={props.onEdit}>League rules and scoring</Button>
-          <Button onClick={props.onOpenSources}>Ranking sources</Button>
+          <h2 id="setup-actions-title">League configuration</h2>
+          <p>Manage league rules, teams, roster positions, scoring, and ranking sources.</p>
+          <ul className="league-overview-action-list" aria-label="League configuration actions">
+            <li>
+              <Button onClick={props.onEdit}>League settings</Button>
+            </li>
+            <li>
+              <Button onClick={props.onOpenSources}>Ranking sources</Button>
+            </li>
+          </ul>
         </section>
         <section aria-labelledby="draft-actions-title">
           <h2 id="draft-actions-title">Draft</h2>
-          <p>Open your real board, or practice safely using a separate copy of this league.</p>
-          <Button variant="primary" onClick={props.onOpenDraft}>
-            Open draft board
-          </Button>
-          <Button disabled={props.busy} onClick={props.onMockDraft}>
-            Start mock draft
-          </Button>
+          <p>
+            Open the real draft board, or practice in a separate mock session that does not change this league or its
+            draft history.
+          </p>
+          <ul className="league-overview-action-list" aria-label="Draft actions">
+            <li>
+              <Button variant="primary" onClick={props.onOpenDraft}>
+                Start Live Draft
+              </Button>
+            </li>
+            <li>
+              <Button
+                disabled={props.busy}
+                onClick={() =>
+                  props.league.draftType === "auction" ? void props.onMockDraft() : setMockLaunchOpen(true)
+                }
+              >
+                Start mock draft
+              </Button>
+            </li>
+          </ul>
         </section>
       </div>
-      <p className="field-help">Mock drafts use a new copy. This league and its draft history stay unchanged.</p>
+      {mockLaunchOpen ? (
+        <DraftPositionDialog
+          busy={props.busy}
+          kind="mock"
+          teamCount={props.league.teamCount}
+          initialPosition={props.league.draftPosition}
+          onClose={() => setMockLaunchOpen(false)}
+          onConfirm={async (draftPosition) => {
+            await props.onMockDraft(draftPosition);
+            setMockLaunchOpen(false);
+          }}
+        />
+      ) : null}
     </Panel>
   );
 }

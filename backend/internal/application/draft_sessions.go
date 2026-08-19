@@ -7,12 +7,14 @@ import (
 	"time"
 
 	"github.com/coopa11y/DraftMeld/backend/internal/domain/draft"
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/league"
 )
 
 var (
-	ErrDraftNotStarted = errors.New("the draft has not started")
-	ErrDraftStarted    = errors.New("the draft has already started")
-	ErrNoResetToUndo   = errors.New("there is no draft reset to undo")
+	ErrDraftNotStarted         = errors.New("the draft has not started")
+	ErrDraftStarted            = errors.New("the draft has already started")
+	ErrDraftPositionUnassigned = errors.New("set your draft position in league setup before starting the draft")
+	ErrNoResetToUndo           = errors.New("there is no draft reset to undo")
 )
 
 type DraftSessionRepository interface {
@@ -22,12 +24,24 @@ type DraftSessionRepository interface {
 	RestoreDraftSession(context.Context, draft.Session, []draft.Event) error
 }
 
-func (service *DraftService) StartDraft(ctx context.Context, leagueID string) (draft.Snapshot, error) {
+func (service *DraftService) StartDraft(ctx context.Context, leagueID string, draftPositions ...int) (draft.Snapshot, error) {
 	service.mu.Lock()
 	defer service.mu.Unlock()
 	configuration, err := service.configuration(ctx, leagueID)
 	if err != nil {
 		return draft.Snapshot{}, err
+	}
+	if len(draftPositions) > 0 {
+		configuration.Rules, err = assignDraftPosition(configuration.Rules, draftPositions[0])
+		if err != nil {
+			return draft.Snapshot{}, err
+		}
+		if err = configuration.Validate(); err != nil {
+			return draft.Snapshot{}, err
+		}
+	}
+	if configuration.Rules.DraftType != league.DraftTypeAuction && configuration.Rules.DraftPosition == 0 {
+		return draft.Snapshot{}, ErrDraftPositionUnassigned
 	}
 	events, err := service.listDraftEvents(ctx, leagueID, configuration.Rules.Season)
 	if err != nil {
@@ -40,6 +54,11 @@ func (service *DraftService) StartDraft(ctx context.Context, leagueID string) (d
 	}
 	if session.Status != draft.SessionNotStarted {
 		return draft.Snapshot{}, ErrDraftStarted
+	}
+	if len(draftPositions) > 0 {
+		if err = service.leagues.SaveLeague(ctx, configuration); err != nil {
+			return draft.Snapshot{}, err
+		}
 	}
 	repository, ok := service.repository.(DraftSessionRepository)
 	if !ok {

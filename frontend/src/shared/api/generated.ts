@@ -651,6 +651,7 @@ export interface components {
         LeagueRules: {
             name: string;
             teamCount: number;
+            /** @description Zero means the league has not assigned the user's draft position yet. */
             draftPosition: number;
             userTeamNumber: number;
             teamNames: string[];
@@ -928,6 +929,8 @@ export interface components {
             faabTrades: boolean;
             budgetBalances: components["schemas"]["BudgetBalance"][];
             draftOrder: number[];
+            /** @description Zero means the position has not been assigned yet. */
+            draftPosition: number;
             userTeamNumber: number;
             /** @enum {string} */
             sessionStatus: "not-started" | "in-progress" | "complete";
@@ -938,6 +941,9 @@ export interface components {
             id: string;
             leagueId: string;
             name: string;
+        };
+        MockDraftRequest: {
+            draftPosition?: number;
         };
         DraftPickSlot: {
             season: number;
@@ -1058,6 +1064,11 @@ export interface components {
         };
         DraftSessionRequest: {
             leagueId: string;
+        };
+        DraftStartRequest: {
+            leagueId: string;
+            /** @description The user's selected position for this real draft. */
+            draftPosition?: number;
         };
         DraftResetRequest: {
             leagueId: string;
@@ -1328,7 +1339,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MockDraftRequest"];
+            };
+        };
         responses: {
             /** @description Mock draft created and started. */
             201: {
@@ -1855,7 +1870,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["DraftSessionRequest"];
+                "application/json": components["schemas"]["DraftStartRequest"];
             };
         };
         responses: {

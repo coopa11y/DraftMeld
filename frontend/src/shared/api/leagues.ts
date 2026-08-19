@@ -27,9 +27,10 @@ export async function duplicateLeague(id: string): Promise<League> {
   return unwrap(data, error, response);
 }
 
-export async function createMockDraft(id: string): Promise<MockDraftSession> {
+export async function createMockDraft(id: string, draftPosition?: number): Promise<MockDraftSession> {
   const { data, error, response } = await apiClient.POST("/leagues/{leagueId}/mock-drafts", {
     params: { path: { leagueId: id } },
+    body: { draftPosition },
   });
   return unwrap(data, error, response);
 }

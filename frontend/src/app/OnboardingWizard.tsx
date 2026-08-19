@@ -89,7 +89,7 @@ export function OnboardingWizard({ onClose, onCreate, onOpenDraft, onOpenRanking
             <Button variant="primary" onClick={() => onOpenRankings(created.id)}>
               Configure ranking sources
             </Button>
-            <Button onClick={() => onOpenDraft(created.id)}>Open draft board</Button>
+            <Button onClick={() => onOpenDraft(created.id)}>Start Live Draft</Button>
             <Button onClick={() => onClose()}>Finish for now</Button>
           </div>
         </Panel>

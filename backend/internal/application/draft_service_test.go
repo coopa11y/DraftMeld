@@ -589,6 +589,35 @@ func TestDraftSessionStartResetAndRestore(t *testing.T) {
 	}
 }
 
+func TestDraftCannotStartUntilDraftPositionIsAssigned(t *testing.T) {
+	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	configuration := DemoLeagueConfiguration()
+	configuration.Rules.DraftPosition = 0
+	service, err := NewDraftService(store, draft.DemoCatalog(), configuration)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err = service.StartDraft(t.Context(), "demo"); !errors.Is(err, ErrDraftPositionUnassigned) {
+		t.Fatalf("start without a draft position error = %v", err)
+	}
+	started, err := service.StartDraft(t.Context(), "demo", 7)
+	if err != nil || started.DraftPosition != 7 || started.DraftOrder[6] != started.UserTeamNumber {
+		t.Fatalf("start with selected position: snapshot=%#v error=%v", started, err)
+	}
+	if _, err = service.StartDraft(t.Context(), "demo", 3); !errors.Is(err, ErrDraftStarted) {
+		t.Fatalf("change position after draft start error = %v", err)
+	}
+	current, err := service.Snapshot(t.Context(), "demo")
+	if err != nil || current.DraftPosition != 7 {
+		t.Fatalf("started draft position changed: snapshot=%#v error=%v", current, err)
+	}
+}
+
 func TestLeagueDraftStructureLocksAfterStart(t *testing.T) {
 	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
 	if err != nil {

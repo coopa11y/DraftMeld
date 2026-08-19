@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from "react";
+import { forwardRef, type ButtonHTMLAttributes } from "react";
 import { classNames } from "./classNames";
 
 type ButtonVariant = "primary" | "secondary" | "danger" | "dangerText" | "neutral";
@@ -16,18 +16,16 @@ const variantClasses: Record<ButtonVariant, string> = {
   neutral: "neutral-button",
 };
 
-export function Button({
-  className,
-  fullWidth = false,
-  type = "button",
-  variant = "secondary",
-  ...props
-}: ButtonProps) {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { className, fullWidth = false, type = "button", variant = "secondary", ...props },
+  ref,
+) {
   return (
     <button
       className={classNames(variantClasses[variant], fullWidth && "full-width-button", className)}
+      ref={ref}
       type={type}
       {...props}
     />
   );
-}
+});

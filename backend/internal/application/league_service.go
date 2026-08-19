@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -110,7 +111,7 @@ func (service *LeagueService) create(ctx context.Context, rules league.Rules, re
 	return configuration, nil
 }
 
-func (service *LeagueService) CreateMockDraft(ctx context.Context, id string) (LeagueConfiguration, error) {
+func (service *LeagueService) CreateMockDraft(ctx context.Context, id string, draftPositions ...int) (LeagueConfiguration, error) {
 	source, err := service.Get(ctx, id)
 	if err != nil {
 		return LeagueConfiguration{}, err
@@ -120,6 +121,12 @@ func (service *LeagueService) CreateMockDraft(ctx context.Context, id string) (L
 	}
 	rules := source.Rules.Clone()
 	rules.Name = source.Rules.Name + " Mock Draft"
+	if len(draftPositions) > 0 {
+		rules, err = assignDraftPosition(rules, draftPositions[0])
+		if err != nil {
+			return LeagueConfiguration{}, fmt.Errorf("%w: %v", ErrInvalidLeague, err)
+		}
+	}
 	mockID := fmt.Sprintf("%s-mock-%d", source.ID, time.Now().UTC().UnixNano())
 	return service.create(ctx, rules, source.Recommendation, league.ConfigurationKindMock, source.ID, mockID)
 }
@@ -267,7 +274,11 @@ func slugify(name string) string {
 func withLeagueDefaults(rules league.Rules) league.Rules {
 	rules = rules.Clone()
 	if rules.UserTeamNumber == 0 {
-		rules.UserTeamNumber = rules.DraftPosition
+		if rules.DraftPosition > 0 {
+			rules.UserTeamNumber = rules.DraftPosition
+		} else {
+			rules.UserTeamNumber = 1
+		}
 	}
 	if len(rules.DraftOrder) != rules.TeamCount {
 		rules.DraftOrder = make([]int, rules.TeamCount)
@@ -275,8 +286,10 @@ func withLeagueDefaults(rules league.Rules) league.Rules {
 			rules.DraftOrder[index] = index + 1
 		}
 	}
-	if position := draftPositionForTeam(rules.DraftOrder, rules.UserTeamNumber); position > 0 {
-		rules.DraftPosition = position
+	if rules.DraftPosition > 0 {
+		if position := draftPositionForTeam(rules.DraftOrder, rules.UserTeamNumber); position > 0 {
+			rules.DraftPosition = position
+		}
 	}
 	rules.TeamNames = normalizedTeamNames(rules.TeamNames, rules.TeamCount, rules.UserTeamNumber)
 	defaults := DefaultRankingSourcePreferences()
@@ -338,6 +351,25 @@ func draftPositionForTeam(order []int, teamNumber int) int {
 		}
 	}
 	return 0
+}
+
+func assignDraftPosition(rules league.Rules, position int) (league.Rules, error) {
+	if position < 1 || position > rules.TeamCount {
+		return league.Rules{}, fmt.Errorf("draft position must be between 1 and %d", rules.TeamCount)
+	}
+	updated := rules.Clone()
+	if len(updated.DraftOrder) != updated.TeamCount {
+		return league.Rules{}, errors.New("draft order must contain every league team")
+	}
+	currentIndex := slices.Index(updated.DraftOrder, updated.UserTeamNumber)
+	if currentIndex < 0 {
+		return league.Rules{}, errors.New("your team must be present in the draft order")
+	}
+	targetIndex := position - 1
+	updated.DraftOrder[currentIndex], updated.DraftOrder[targetIndex] =
+		updated.DraftOrder[targetIndex], updated.DraftOrder[currentIndex]
+	updated.DraftPosition = position
+	return updated, nil
 }
 
 func normalizedTeamNames(names []string, teamCount, userPosition int) []string {

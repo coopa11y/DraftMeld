@@ -14,6 +14,10 @@ const isPositionSlot = (slot: RosterSlot, position: PlayerPosition) =>
 const isBenchSlot = (slot: RosterSlot) => !slot.isStarting && normalizedSlotName(slot) === "BENCH";
 const isFlexSlot = (slot: RosterSlot) => slot.isStarting && normalizedSlotName(slot).includes("FLEX");
 
+export function isStandardRosterSlot(slot: RosterSlot): boolean {
+  return playerPositions.some((position) => isPositionSlot(slot, position)) || isBenchSlot(slot) || isFlexSlot(slot);
+}
+
 export function enabledRosterPositions(slots: RosterSlot[]): PlayerPosition[] {
   return playerPositions.filter((position) => slots.some((slot) => isPositionSlot(slot, position)));
 }

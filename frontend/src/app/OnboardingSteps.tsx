@@ -57,17 +57,19 @@ export function LeagueBasicsStep({
             onChange={(event) => updateTeamCount(Number(event.target.value))}
           />
         </FormField>
-        <FormField label="Your draft position" help="You do not need to know the other team names.">
+        <FormField label="Your draft position" help="Leave this not set until your league assigns your pick.">
           <select
             value={rules.draftPosition}
-            onChange={(event) =>
+            onChange={(event) => {
+              const draftPosition = Number(event.target.value);
               setRules({
                 ...rules,
-                draftPosition: Number(event.target.value),
-                userTeamNumber: Number(event.target.value),
-              })
-            }
+                draftPosition,
+                userTeamNumber: draftPosition || rules.userTeamNumber,
+              });
+            }}
           >
+            <option value="0">Not set yet</option>
             {Array.from({ length: rules.teamCount }, (_, index) => (
               <option key={index + 1} value={index + 1}>
                 Pick {index + 1}
@@ -129,7 +131,7 @@ export function OnboardingReviewStep({ rules }: { rules: LeagueRules }) {
         <div>
           <dt>Draft</dt>
           <dd>
-            {rules.draftType} from pick {rules.draftPosition}
+            {rules.draftType} · {rules.draftPosition > 0 ? `pick ${rules.draftPosition}` : "position not set"}
           </dd>
         </div>
         <div>
