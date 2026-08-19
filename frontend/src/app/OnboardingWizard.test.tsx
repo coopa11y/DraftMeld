@@ -100,8 +100,9 @@ describe("resumable onboarding wizard", () => {
     const file = new File(["Setting,Value\nNumber of teams,10\nPassing touchdowns,6"], "rules.csv", {
       type: "text/csv",
     });
-    await user.upload(screen.getByLabelText("League rules PDF or CSV"), file);
-    await user.click(screen.getByRole("button", { name: "Import and apply recognized settings" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Import method" }), "file");
+    await user.upload(screen.getByLabelText("League settings PDF or CSV"), file);
+    await user.click(screen.getByRole("button", { name: "Import and review" }));
     expect(await screen.findByText(/Applied 2 recognized values/)).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "League name" })).toHaveValue("Imported League");
     expect(screen.getByRole("spinbutton", { name: "Number of teams" })).toHaveValue(10);
@@ -120,6 +121,48 @@ describe("resumable onboarding wizard", () => {
     await user.click(screen.getByRole("button", { name: "Undo all imported values" }));
     expect(screen.getByRole("textbox", { name: "League name" })).toHaveValue("My League");
     expect(screen.getByRole("spinbutton", { name: "Number of teams" })).toHaveValue(12);
+  });
+
+  it("imports a public ESPN league URL without requesting ESPN credentials", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, _request?: RequestInit) =>
+        new Response(
+          JSON.stringify({
+            fileType: "espn",
+            rules: { reception: 1 },
+            matches: [
+              {
+                key: "reception",
+                label: "Reception",
+                value: 1,
+                source: "settings.scoringSettings",
+                confidence: "high",
+              },
+            ],
+            settings: { name: "ESPN League", teamCount: 12 },
+            settingMatches: [
+              { key: "teamCount", label: "Number of teams", value: "12", source: "settings.size", confidence: "high" },
+            ],
+            warnings: ["Review every imported value before saving."],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    renderWizard();
+    await user.type(
+      screen.getByRole("textbox", { name: "ESPN league URL" }),
+      "https://fantasy.espn.com/football/league/settings?leagueId=793949449",
+    );
+    await user.click(screen.getByRole("button", { name: "Import and review" }));
+    expect(await screen.findByRole("heading", { name: "Imported values to review" })).toHaveFocus();
+    expect(screen.getByRole("textbox", { name: "League name" })).toHaveValue("ESPN League");
+    expect(screen.queryByLabelText(/password|cookie|espn_s2|swid/i)).not.toBeInTheDocument();
+    const [request] = fetchMock.mock.calls[0];
+    expect(await (request as Request).clone().json()).toMatchObject({
+      leagueUrl: expect.stringContaining("793949449"),
+    });
   });
 
   it("creates a league only after review and completes the guide", async () => {

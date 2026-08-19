@@ -6,13 +6,22 @@ The guided flow covers league basics, scoring, and a final review. **Save and fi
 
 After a league is created, the guide recommends configuring ranking sources before opening the draft board. Projection imports are optional.
 
-## League rule import
+## League settings import
 
-The league-basics step accepts one PDF or CSV file up to 20 MiB. Uploads stay on the DraftMeld host and are discarded after extraction. DraftMeld returns a preview containing the canonical setting, value, confidence, and detected source text. Recognized values are applied to the unsaved league draft and can be edited or undone before creation. Unrecognized settings never erase existing values.
+The league-basics step and full league editor provide four built-in import methods:
+
+- An ESPN fantasy football league URL for leagues ESPN exposes publicly
+- Settings copied from a private ESPN league page
+- An ESPN JSON export or print-to-PDF file
+- A provider-neutral PDF or CSV file
+
+DraftMeld never requests or stores ESPN passwords, cookies, `espn_s2`, or `SWID`. The public URL method extracts only the numeric `leagueId` from a validated `espn.com` URL and contacts ESPN's read endpoint from the DraftMeld backend. ESPN does not publish a supported settings API, so this method can change without notice. Private leagues fall back to pasted text or PDF without requiring a browser extension.
+
+Files are limited to 20 MiB. Uploads stay on the DraftMeld host and are discarded after extraction. Every method returns the same preview containing the canonical setting, value, confidence, and detected source path or text. Recognized values are applied to the unsaved league draft and can be edited or undone before creation. Unknown and ambiguous ESPN values are disclosed as warnings and never overwrite existing values.
 
 DraftMeld can recognize league name, team count, redraft or dynasty format, snake, linear, or auction draft format, future-pick seasons, rookie rounds, FAAB and auction budgets, budget-trading options, common roster slots, and supported scoring rules. A zero-count roster setting removes that position from the default roster. User-specific draft position, franchise names, full draft order, keeper spend, and ranking-source preferences remain manual because a general league document cannot reliably identify them.
 
-DraftMeld first reads selectable PDF text. When a PDF contains no selectable text, it can recognize up to 25 scanned pages with local English OCR. OCR imports carry a prominent review warning because recognition and provider wording can be imperfect. See [local PDF OCR](ocr.md) for installation, limits, and privacy behavior.
+DraftMeld first reads selectable PDF text. ESPN and provider-neutral PDFs share this same extractor. When a PDF contains no selectable text, DraftMeld can recognize up to 25 scanned pages with local English OCR. OCR imports carry a prominent review warning because recognition and provider wording can be imperfect. See [local PDF OCR](ocr.md) for installation, limits, and privacy behavior.
 
 CSV supports a Setting/Value list:
 

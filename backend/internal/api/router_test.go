@@ -345,6 +345,41 @@ func TestLeagueRuleCSVImportReturnsAReviewablePreview(t *testing.T) {
 	}
 }
 
+func TestESPNLeagueSettingsJSONImportReturnsAReviewablePreview(t *testing.T) {
+	router, closeStore := testRouter(t)
+	defer closeStore()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	_ = writer.WriteField("provider", "espn")
+	file, err := writer.CreateFormFile("file", "espn-settings.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = file.Write([]byte(`{"settings":{"name":"ESPN League","size":12,"rosterSettings":{"lineupSlotCounts":{"0":1,"2":2,"20":6}},"scoringSettings":{"scoringItems":[{"statId":4,"points":6}]}}}`))
+	_ = writer.Close()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/leagues/rules/import", &body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("ESPN settings import failed: %d %s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), `"fileType":"espn"`) || !strings.Contains(response.Body.String(), `"passingTouchdown":6`) || !strings.Contains(response.Body.String(), `"teamCount":12`) {
+		t.Fatalf("unexpected ESPN import preview: %s", response.Body.String())
+	}
+}
+
+func TestESPNPublicImportRejectsNonESPNURLs(t *testing.T) {
+	router, closeStore := testRouter(t)
+	defer closeStore()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/leagues/rules/import/espn", strings.NewReader(`{"leagueUrl":"https://example.com/?leagueId=1","season":2026}`))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "ESPN fantasy football league URL") {
+		t.Fatalf("unexpected invalid ESPN URL response: %d %s", response.Code, response.Body.String())
+	}
+}
+
 func testRouter(t *testing.T) (http.Handler, func()) {
 	router, closeStore, _ := testRouterWithDraftService(t)
 	return router, closeStore

@@ -201,7 +201,7 @@ export function LeagueCreationForm({ busy, onCancel, onSave }: LeagueCreationFor
       </form>
 
       <details className="league-rule-import-disclosure">
-        <summary>Import settings from PDF or CSV</summary>
+        <summary>Import league settings</summary>
         <LeagueRulesImport
           rules={rules}
           setRules={setRules}

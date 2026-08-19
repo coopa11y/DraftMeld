@@ -304,6 +304,15 @@ func findLeagueSetting(value string) (leagueSettingDefinition, string, bool) {
 	return bestDefinition, bestAlias, bestAlias != ""
 }
 
+func leagueSettingByKey(key string) leagueSettingDefinition {
+	for _, definition := range leagueSettingDefinitions {
+		if definition.Key == key {
+			return definition
+		}
+	}
+	return leagueSettingDefinition{}
+}
+
 func findRosterSlot(value string) (rosterSlotDefinition, bool) {
 	normalized := normalizeRuleText(value)
 	for _, definition := range rosterSlotDefinitions {

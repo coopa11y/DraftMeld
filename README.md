@@ -83,7 +83,7 @@ go run ./cmd/draftmeld
 
 The frontend proxies `/api` requests to `http://localhost:8080`. A production build compiles the frontend into the Go executable.
 
-On first launch, DraftMeld creates a customizable demo league. The resumable setup guide can import common league, draft, roster, auction, dynasty, FAAB, and scoring settings from a PDF or CSV before creation. Use **Manage leagues** to create, edit, duplicate, or delete leagues and switch the active draft board.
+The resumable setup guide can import common league, draft, roster, auction, dynasty, FAAB, and scoring settings before creation. Built-in methods support a public ESPN league URL, settings pasted from a private ESPN page, an ESPN JSON or PDF file, and provider-neutral PDF or CSV files. The same importer is available while editing an existing league. Every import is reviewable and reversible; DraftMeld never asks for ESPN credentials or cookies. Use **Manage leagues** to create, edit, duplicate, or delete leagues and switch the active draft board.
 
 The **Export and backup center** under Manage leagues downloads versioned league backups, consensus ranking CSVs, and draft results. Restores always create a new league rather than overwriting existing data. See [data portability](docs/data-portability.md) for formats and compatibility guarantees.
 

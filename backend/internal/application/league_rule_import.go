@@ -1,10 +1,12 @@
 package application
 
 import (
+	"context"
 	"encoding/csv"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"regexp"
 	"sort"
 	"strconv"
@@ -121,14 +123,50 @@ var (
 
 type LeagueRuleImportService struct {
 	pdfExtractor document.PDFExtractor
+	espnImporter *ESPNLeagueImporter
 }
 
 func NewLeagueRuleImportService() *LeagueRuleImportService {
-	return &LeagueRuleImportService{pdfExtractor: document.NewPDFExtractor()}
+	return &LeagueRuleImportService{
+		pdfExtractor: document.NewPDFExtractor(),
+		espnImporter: NewESPNLeagueImporter(nil),
+	}
 }
 
 func NewLeagueRuleImportServiceWithExtractor(extractor document.PDFExtractor) *LeagueRuleImportService {
-	return &LeagueRuleImportService{pdfExtractor: extractor}
+	return &LeagueRuleImportService{pdfExtractor: extractor, espnImporter: NewESPNLeagueImporter(nil)}
+}
+
+func NewLeagueRuleImportServiceWithESPNClient(client *http.Client) *LeagueRuleImportService {
+	return &LeagueRuleImportService{pdfExtractor: document.NewPDFExtractor(), espnImporter: NewESPNLeagueImporter(client)}
+}
+
+func (service *LeagueRuleImportService) ImportESPNLeague(ctx context.Context, leagueURL string, season int) (LeagueRuleImportResult, error) {
+	return service.espnImporter.ImportLeague(ctx, leagueURL, season)
+}
+
+func (service *LeagueRuleImportService) ImportESPNJSON(contents []byte) (LeagueRuleImportResult, error) {
+	return service.espnImporter.ImportJSON(contents)
+}
+
+func (service *LeagueRuleImportService) ImportESPNText(contents []byte) (LeagueRuleImportResult, error) {
+	result := parseLeagueRuleLines(strings.Split(string(contents), "\n"), "espn-text")
+	parseLeagueSettingsLines(&result, strings.Split(string(contents), "\n"))
+	if len(result.Matches) == 0 && len(result.SettingMatches) == 0 {
+		return LeagueRuleImportResult{}, ErrNoLeagueRulesFound
+	}
+	result.Warnings = append(result.Warnings, "Pasted ESPN text can omit settings that are collapsed or off screen. Compare the review with ESPN before saving.")
+	return result, nil
+}
+
+func (service *LeagueRuleImportService) ImportESPNPDF(contents []byte) (LeagueRuleImportResult, error) {
+	result, err := service.ImportPDF(contents)
+	if err != nil {
+		return LeagueRuleImportResult{}, err
+	}
+	result.FileType = "espn-pdf"
+	result.Warnings = append(result.Warnings, "ESPN print layouts can omit collapsed settings. Compare the review with ESPN before saving.")
+	return result, nil
 }
 
 func (service *LeagueRuleImportService) ImportPDF(contents []byte) (LeagueRuleImportResult, error) {
@@ -317,6 +355,15 @@ func findLeagueRule(value string) (leagueRuleDefinition, string, bool) {
 		}
 	}
 	return leagueRuleDefinition{}, "", false
+}
+
+func leagueRuleByKey(key string) (leagueRuleDefinition, bool) {
+	for _, definition := range leagueRuleDefinitions {
+		if definition.Key == key {
+			return definition, true
+		}
+	}
+	return leagueRuleDefinition{}, false
 }
 
 func normalizeRuleText(value string) string {
