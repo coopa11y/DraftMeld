@@ -15,8 +15,8 @@ func (store *DraftEventStore) ReplaceProjections(ctx context.Context, source pro
 		return fmt.Errorf("begin projection import: %w", err)
 	}
 	defer tx.Rollback()
-	if _, err = tx.ExecContext(ctx, `INSERT INTO projection_sources (id, name, imported_at, record_count)
-VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, imported_at=excluded.imported_at, record_count=excluded.record_count`, source.ID, source.Name, source.ImportedAt.Format(time.RFC3339Nano), len(records)); err != nil {
+	if _, err = tx.ExecContext(ctx, `INSERT INTO projection_sources (id, name, imported_at, record_count, published_at)
+VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, imported_at=excluded.imported_at, record_count=excluded.record_count, published_at=excluded.published_at`, source.ID, source.Name, source.ImportedAt.Format(time.RFC3339Nano), len(records), source.PublishedAt); err != nil {
 		return fmt.Errorf("save projection source: %w", err)
 	}
 	if _, err = tx.ExecContext(ctx, "DELETE FROM player_projections WHERE source_id = ?", source.ID); err != nil {
@@ -64,7 +64,7 @@ func (store *DraftEventStore) ProjectionRecords(ctx context.Context) ([]projecti
 }
 
 func (store *DraftEventStore) ProjectionStatuses(ctx context.Context) ([]projection.SourceStatus, error) {
-	rows, err := store.database.QueryContext(ctx, `SELECT id, name, imported_at, record_count FROM projection_sources ORDER BY name`)
+	rows, err := store.database.QueryContext(ctx, `SELECT id, name, imported_at, record_count, published_at FROM projection_sources ORDER BY name`)
 	if err != nil {
 		return nil, fmt.Errorf("query projection sources: %w", err)
 	}
@@ -73,7 +73,7 @@ func (store *DraftEventStore) ProjectionStatuses(ctx context.Context) ([]project
 	for rows.Next() {
 		var status projection.SourceStatus
 		var imported string
-		if err = rows.Scan(&status.ID, &status.Name, &imported, &status.RecordCount); err != nil {
+		if err = rows.Scan(&status.ID, &status.Name, &imported, &status.RecordCount, &status.PublishedAt); err != nil {
 			return nil, fmt.Errorf("scan projection source: %w", err)
 		}
 		status.ImportedAt, err = time.Parse(time.RFC3339Nano, imported)

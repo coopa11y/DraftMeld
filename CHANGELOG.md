@@ -6,6 +6,8 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 
 ### Added
 
+- Current Sleeper player availability plus attributed ESPN and PFF RSS stories linked to canonical players
+- Accessible player-news details on the draft board and compact source management with optional public HTTPS RSS or Atom feeds
 - Resumable first-run setup with guided and full-manual paths, device-local progress, and clear next steps
 - Built-in ESPN league setup from public URLs, private browser-pasted settings, JSON exports, and printable or scanned PDFs without requiring ESPN credentials or cookies
 - Exact ESPN team-name and current-team detection, vertical roster-table parsing, and detailed kicking, defensive point, defensive yard, and one-point-safety scoring imports

@@ -118,7 +118,7 @@ func (service *RankingService) ImportCSV(ctx context.Context, name string, input
 	definition := ranking.SourceDefinition{
 		ID: sourceID, Name: name, Description: "Private ranking CSV uploaded by the user.",
 		Methodology: "User-supplied ordinal player ranking", License: "Private user data",
-		DefaultWeight: 1, ImportMode: "csv-upload", Role: "ranking", IsCustom: true,
+		DefaultWeight: 1, DefaultEnabled: true, ImportMode: "csv-upload", Role: "ranking", IsCustom: true,
 	}
 	if err = service.repository.ReplaceRankings(ctx, definition, records, "Private CSV import", refreshed); err != nil {
 		return ranking.SourceStatus{}, err

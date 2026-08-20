@@ -11,7 +11,7 @@ interface SourceDetailsViewProps {
 export function SourceDetailsView({ source, onBack }: SourceDetailsViewProps) {
   const heading = useViewHeadingFocus<HTMLHeadingElement>();
   if (!source) return null;
-  const ranking = "importMode" in source;
+  const ranking = "defaultWeight" in source;
   return (
     <main className="focused-page" id="main-content">
       <div className="focused-heading">
@@ -27,7 +27,13 @@ export function SourceDetailsView({ source, onBack }: SourceDetailsViewProps) {
         <dl className="source-details-list">
           <div>
             <dt>Type</dt>
-            <dd>{ranking ? source.importMode.replace("-", " ") : "CSV projection"}</dd>
+            <dd>
+              {ranking
+                ? source.importMode.replace("-", " ")
+                : source.importMode === "download"
+                  ? "Online projection"
+                  : "CSV projection"}
+            </dd>
           </div>
           <div>
             <dt>Players</dt>
@@ -43,6 +49,12 @@ export function SourceDetailsView({ source, onBack }: SourceDetailsViewProps) {
                 <dt>Methodology</dt>
                 <dd>{source.methodology}</dd>
               </div>
+              {source.profile ? (
+                <div>
+                  <dt>Scoring profile</dt>
+                  <dd>{source.profile}</dd>
+                </div>
+              ) : null}
               <div>
                 <dt>License</dt>
                 <dd>{source.license}</dd>
@@ -63,10 +75,40 @@ export function SourceDetailsView({ source, onBack }: SourceDetailsViewProps) {
               ) : null}
             </>
           ) : (
-            <div>
-              <dt>Imported</dt>
-              <dd>{new Date(source.importedAt).toLocaleString()}</dd>
-            </div>
+            <>
+              <div>
+                <dt>Description</dt>
+                <dd>{source.description}</dd>
+              </div>
+              <div>
+                <dt>Methodology</dt>
+                <dd>{source.methodology}</dd>
+              </div>
+              <div>
+                <dt>License</dt>
+                <dd>{source.license}</dd>
+              </div>
+              <div>
+                <dt>Updated</dt>
+                <dd>{source.recordCount > 0 ? new Date(source.importedAt).toLocaleString() : "Not updated"}</dd>
+              </div>
+              {source.publishedAt ? (
+                <div>
+                  <dt>Upstream data</dt>
+                  <dd>{source.publishedAt}</dd>
+                </div>
+              ) : null}
+              {source.projectUrl ? (
+                <div>
+                  <dt>Website</dt>
+                  <dd>
+                    <a href={source.projectUrl} target="_blank" rel="noreferrer">
+                      Open source website
+                    </a>
+                  </dd>
+                </div>
+              ) : null}
+            </>
           )}
         </dl>
       </Panel>

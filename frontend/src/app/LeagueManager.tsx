@@ -27,6 +27,7 @@ interface LeagueManagerProps {
   onOpenDraft: (id: string) => void;
   onOpenMockDraft: (session: MockDraftSession) => void;
   onOpenSources: (id: string) => void;
+  onOpenNews: (id: string) => void;
   onShowAll: () => void;
 }
 
@@ -129,6 +130,7 @@ export function LeagueManager(props: LeagueManagerProps) {
           onEdit={() => beginEditing(activeLeague.id)}
           onOpenDraft={() => props.onOpenDraft(activeLeague.id)}
           onOpenSources={() => props.onOpenSources(activeLeague.id)}
+          onOpenNews={() => props.onOpenNews(activeLeague.id)}
           onMockDraft={(draftPosition) => openMockDraft(activeLeague, draftPosition)}
         />
         <details className="league-data-disclosure">

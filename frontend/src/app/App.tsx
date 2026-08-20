@@ -7,6 +7,7 @@ import { DraftWorkspace } from "./DraftWorkspace";
 import { LeagueManager } from "./LeagueManager";
 import { OnboardingWizard } from "./OnboardingWizard";
 import { RankingSources } from "./RankingSources";
+import { PlayerNewsSources } from "./PlayerNewsSources";
 import { loadOnboardingDraft, onboardingComplete } from "./onboarding";
 
 const ACTIVE_LEAGUE_KEY = "draftmeld.active-league.v1";
@@ -15,7 +16,7 @@ export function App() {
   const [leagues, setLeagues] = useState<League[]>([]);
   const [activeLeagueId, setActiveLeagueId] = useState(() => localStorage.getItem(ACTIVE_LEAGUE_KEY) ?? "demo");
   const initialActiveLeagueId = useRef(activeLeagueId);
-  const [view, setView] = useState<"draft" | "tools" | "leagues" | "league" | "rankings">("leagues");
+  const [view, setView] = useState<"draft" | "tools" | "leagues" | "league" | "rankings" | "news">("leagues");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [onboardingOpen, setOnboardingOpen] = useState(false);
@@ -188,6 +189,8 @@ export function App() {
         />
       ) : view === "rankings" && activeLeague ? (
         <RankingSources key={activeLeague.id} league={activeLeague} onLeagueUpdated={handleLeagueUpdated} />
+      ) : view === "news" && activeLeague ? (
+        <PlayerNewsSources onBack={() => setView("league")} />
       ) : view === "leagues" || view === "league" ? (
         <LeagueManager
           leagues={leagues}
@@ -208,6 +211,11 @@ export function App() {
             setMockDraft(null);
             selectLeague(id);
             setView("rankings");
+          }}
+          onOpenNews={(id) => {
+            setMockDraft(null);
+            selectLeague(id);
+            setView("news");
           }}
           onShowAll={() => {
             setMockDraft(null);

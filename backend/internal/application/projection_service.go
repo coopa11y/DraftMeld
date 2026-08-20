@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
@@ -29,6 +30,8 @@ var projectionStatColumns = []string{
 	"defenseYardsAllowed350To399", "defenseYardsAllowed400To449", "defenseYardsAllowed450To499",
 	"defenseYardsAllowed500To549", "defenseYardsAllowed550Plus",
 }
+
+var ErrProjectionSourceNotFound = errors.New("projection source not found")
 
 var nonCSVHeaderCharacter = regexp.MustCompile(`[^a-z0-9]+`)
 
@@ -81,14 +84,91 @@ type ProjectionRepository interface {
 	ProjectionStatuses(context.Context) ([]projection.SourceStatus, error)
 }
 
-type ProjectionService struct{ repository ProjectionRepository }
+type ProjectionService struct {
+	repository ProjectionRepository
+	client     *http.Client
+}
 
 func NewProjectionService(repository ProjectionRepository) *ProjectionService {
-	return &ProjectionService{repository: repository}
+	return &ProjectionService{repository: repository, client: &http.Client{Timeout: 60 * time.Second}}
 }
 
 func (service *ProjectionService) Sources(ctx context.Context) ([]projection.SourceStatus, error) {
-	return service.repository.ProjectionStatuses(ctx)
+	stored, err := service.repository.ProjectionStatuses(ctx)
+	if err != nil {
+		return nil, err
+	}
+	statuses := make([]projection.SourceStatus, 0, len(stored)+1)
+	builtIn := sleeperProjectionDefinition()
+	for index, status := range stored {
+		if status.ID == builtIn.ID {
+			builtIn.RecordCount, builtIn.ImportedAt = status.RecordCount, status.ImportedAt
+			builtIn.PublishedAt = status.PublishedAt
+			stored = append(stored[:index], stored[index+1:]...)
+			break
+		}
+	}
+	statuses = append(statuses, builtIn)
+	for _, status := range stored {
+		statuses = append(statuses, customProjectionStatus(status))
+	}
+	return statuses, nil
+}
+
+func customProjectionStatus(status projection.SourceStatus) projection.SourceStatus {
+	status.ImportMode = "csv-upload"
+	status.Description = "User-supplied raw statistical projections scored using the active league rules."
+	status.Methodology = "Imported granular player statistics"
+	status.License = "User supplied"
+	return status
+}
+
+func (service *ProjectionService) Refresh(ctx context.Context) (projection.SourceStatus, error) {
+	return service.RefreshSource(ctx, sleeperProjectionID)
+}
+
+func (service *ProjectionService) RefreshSource(ctx context.Context, sourceID string) (projection.SourceStatus, error) {
+	if sourceID != sleeperProjectionID {
+		return projection.SourceStatus{}, ErrProjectionSourceNotFound
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, sleeperProjectionURL, nil)
+	if err != nil {
+		return projection.SourceStatus{}, fmt.Errorf("build Sleeper projection request: %w", err)
+	}
+	request.Header.Set("User-Agent", "DraftMeld/0.3 (+https://github.com/coopa11y/DraftMeld)")
+	response, err := service.client.Do(request)
+	if err != nil {
+		return projection.SourceStatus{}, fmt.Errorf("download Sleeper projections: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return projection.SourceStatus{}, fmt.Errorf("download Sleeper projections: HTTP %d", response.StatusCode)
+	}
+	records, published, err := parseSleeperProjections(io.LimitReader(response.Body, (20<<20)+1))
+	if err != nil {
+		return projection.SourceStatus{}, err
+	}
+	refreshedAt := time.Now().UTC()
+	records, err = resolveProjectionPlayers(ctx, service.repository, records, refreshedAt)
+	if err != nil {
+		return projection.SourceStatus{}, err
+	}
+	status := sleeperProjectionDefinition()
+	status.RecordCount, status.ImportedAt, status.PublishedAt = len(records), refreshedAt, published
+	if err = service.repository.ReplaceProjections(ctx, status, records); err != nil {
+		return projection.SourceStatus{}, err
+	}
+	return status, nil
+}
+
+func sleeperProjectionDefinition() projection.SourceStatus {
+	return projection.SourceStatus{
+		ID: sleeperProjectionID, Name: sleeperProjectionName,
+		Description: "Sleeper offensive statistical projections recalculated using each league's scoring rules.",
+		Methodology: "Raw passing, rushing, and receiving season projections; DraftMeld does not reuse Sleeper's pre-scored point totals.",
+		License:     "Public undocumented feed; noncommercial use only unless licensed by Sleeper",
+		ProjectURL:  sleeperProjectURL, DataURL: sleeperProjectionURL, ImportMode: "download",
+	}
 }
 
 func (service *ProjectionService) ImportCSV(ctx context.Context, name string, input io.Reader, mappings ...map[string]string) (projection.SourceStatus, error) {
@@ -112,6 +192,9 @@ func (service *ProjectionService) ImportCSV(ctx context.Context, name string, in
 		}
 	}
 	sourceID := slugify(name)
+	if sourceID == sleeperProjectionID {
+		return projection.SourceStatus{}, errors.New("that projection source name is reserved for the built-in Sleeper importer")
+	}
 	records := make([]projection.Record, 0, len(rows)-1)
 	seen := make(map[string]bool)
 	for rowIndex, row := range rows[1:] {
@@ -150,7 +233,7 @@ func (service *ProjectionService) ImportCSV(ctx context.Context, name string, in
 	if err != nil {
 		return projection.SourceStatus{}, err
 	}
-	status := projection.SourceStatus{ID: sourceID, Name: name, RecordCount: len(records), ImportedAt: importedAt}
+	status := customProjectionStatus(projection.SourceStatus{ID: sourceID, Name: name, RecordCount: len(records), ImportedAt: importedAt})
 	if err = service.repository.ReplaceProjections(ctx, status, records); err != nil {
 		return projection.SourceStatus{}, err
 	}

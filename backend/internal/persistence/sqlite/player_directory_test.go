@@ -100,3 +100,23 @@ func TestPlayerDirectoryUsesProviderIDAcrossANameChange(t *testing.T) {
 		t.Fatalf("provider ID did not preserve the player: %#v %#v %v", first, renamed, err)
 	}
 }
+
+func TestPlayerDirectoryDoesNotEraseMetadataMissingFromAContextSource(t *testing.T) {
+	store, err := Open(t.TempDir() + "/draftmeld.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	_, err = store.ResolvePlayer(t.Context(), player.Candidate{
+		IdentityKey: "joshallen", Name: "Josh Allen", Position: "QB", Team: "BUF", Provider: "espn", ProviderID: "1",
+	}, "player-josh-allen")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := store.ResolvePlayer(t.Context(), player.Candidate{
+		IdentityKey: "joshallen", Name: "Josh Allen", Provider: "yahoo-standard",
+	}, "player-unused")
+	if err != nil || resolved.Position != "QB" || resolved.Team != "BUF" {
+		t.Fatalf("context source erased canonical metadata: %#v err=%v", resolved, err)
+	}
+}

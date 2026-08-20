@@ -225,6 +225,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/player-news": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get player-linked news and the latest structured availability */
+        get: operations["getPlayerNews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/player-news/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refresh every enabled player-news source now */
+        post: operations["refreshPlayerNews"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/player-news/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List built-in and user-added player-news sources */
+        get: operations["listPlayerNewsSources"];
+        put?: never;
+        /** Add a public HTTPS RSS or Atom source */
+        post: operations["addPlayerNewsSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/player-news/sources/{sourceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sourceId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a user-added player-news source */
+        delete: operations["deletePlayerNewsSource"];
+        options?: never;
+        head?: never;
+        /** Enable or disable a player-news source */
+        patch: operations["updatePlayerNewsSource"];
+        trace?: never;
+    };
     "/ranking-sources": {
         parameters: {
             query?: never;
@@ -242,6 +314,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ranking-sources/recommendations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Recommend source settings for one league's format, roster, and scoring */
+        get: operations["getRankingSourceRecommendations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ranking-sources/refresh": {
         parameters: {
             query?: never;
@@ -251,7 +340,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Download and normalize every built-in ranking feed */
+        /** Download and normalize built-in feeds enabled for a league */
         post: operations["refreshRankingSources"];
         delete?: never;
         options?: never;
@@ -317,10 +406,44 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List user-imported granular projection sources */
+        /** List online and user-imported granular projection sources */
         get: operations["listProjectionSources"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projection-sources/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Download and normalize built-in raw projection feeds */
+        post: operations["refreshProjectionSources"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projection-sources/{sourceId}/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Download and normalize one built-in raw projection feed */
+        post: operations["refreshProjectionSource"];
         delete?: never;
         options?: never;
         head?: never;
@@ -654,6 +777,75 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        PlayerNewsSource: {
+            id: string;
+            name: string;
+            /** @enum {string} */
+            kind: "rss" | "sleeper";
+            /** Format: uri */
+            url: string;
+            attribution: string;
+            enabled: boolean;
+            builtIn: boolean;
+            refreshMinutes: number;
+            /** Format: date-time */
+            lastRefreshedAt?: string;
+            lastError?: string;
+        };
+        AddPlayerNewsSourceRequest: {
+            name: string;
+            /** Format: uri */
+            url: string;
+            attribution: string;
+            refreshMinutes: number;
+        };
+        UpdatePlayerNewsSourceRequest: {
+            enabled: boolean;
+        };
+        PlayerAvailability: {
+            playerId: string;
+            status: string;
+            injury?: string;
+            practiceParticipation?: string;
+            sourceId: string;
+            sourceName: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        PlayerNewsEvent: {
+            id: string;
+            sourceId: string;
+            sourceName: string;
+            playerIds: string[];
+            playerNames: string[];
+            category: string;
+            title: string;
+            summary?: string;
+            /** Format: uri */
+            url: string;
+            /** Format: date-time */
+            publishedAt: string;
+            /** Format: date-time */
+            observedAt: string;
+            /** @enum {string} */
+            confidence: "high" | "medium" | "low";
+        };
+        PlayerNewsUpdate: {
+            playerId: string;
+            playerName: string;
+            availability?: components["schemas"]["PlayerAvailability"];
+            events: components["schemas"]["PlayerNewsEvent"][];
+        };
+        PlayerNewsFeed: {
+            /** Format: date-time */
+            updatedAt?: string;
+            updates: components["schemas"]["PlayerNewsUpdate"][];
+        };
+        PlayerNewsRefreshResult: {
+            refreshed: number;
+            skipped: number;
+            errors: string[];
+        };
         ErrorResponse: {
             error: string;
         };
@@ -795,6 +987,9 @@ export interface components {
             projectUrl: string;
             dataUrl: string;
             defaultWeight: number;
+            defaultEnabled: boolean;
+            variantGroup?: string;
+            profile?: string;
             /** @enum {string} */
             importMode: "download" | "pdf-upload" | "csv-upload";
             /** @enum {string} */
@@ -808,6 +1003,17 @@ export interface components {
         RankingSourcePreference: {
             weight: number;
             enabled: boolean;
+        };
+        RankingSourceRecommendation: {
+            sourceId: string;
+            /** @enum {string} */
+            fit: "recommended" | "context" | "fallback" | "not recommended" | "user source";
+            reason: string;
+            preference: components["schemas"]["RankingSourcePreference"];
+        };
+        RankingSourceRecommendations: {
+            profile: string;
+            sources: components["schemas"]["RankingSourceRecommendation"][];
         };
         RankingPDFImport: {
             source: components["schemas"]["RankingSource"];
@@ -835,10 +1041,35 @@ export interface components {
             method: "weighted-average" | "weighted-median" | "trimmed-mean";
             adp: number;
             tier: number;
+            projection?: components["schemas"]["RankingProjectionEvidence"];
+        };
+        RankingProjectionEvidence: {
+            sourceId: string;
+            sourceName: string;
+            profile: string;
+            games: number;
+            byeWeek: number;
+            floorProjection: number;
+            consensusProjection: number;
+            sourceProjection: number;
+            ceilingProjection: number;
+            sourceValue: number;
+            injuryRisk: number;
+            scheduleStrength: number;
         };
         ProjectionSource: {
             id: string;
             name: string;
+            description: string;
+            methodology: string;
+            license: string;
+            /** Format: uri */
+            projectUrl: string;
+            /** Format: uri */
+            dataUrl: string;
+            /** @enum {string} */
+            importMode: "download" | "csv-upload";
+            publishedAt: string;
             recordCount: number;
             /** Format: date-time */
             importedAt: string;
@@ -895,6 +1126,7 @@ export interface components {
             /** @enum {string} */
             preference: "target" | "avoid" | "";
             auctionValue: number;
+            news?: components["schemas"]["PlayerNewsUpdate"];
         };
         Recommendation: {
             player: components["schemas"]["Player"];
@@ -1553,6 +1785,148 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    getPlayerNews: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current player news feed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerNewsFeed"];
+                };
+            };
+            500: components["responses"]["ServerError"];
+        };
+    };
+    refreshPlayerNews: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Refresh completed or partially completed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerNewsRefreshResult"];
+                };
+            };
+            /** @description No source could be refreshed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerNewsRefreshResult"];
+                };
+            };
+        };
+    };
+    listPlayerNewsSources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Configured news sources. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerNewsSource"][];
+                };
+            };
+        };
+    };
+    addPlayerNewsSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddPlayerNewsSourceRequest"];
+            };
+        };
+        responses: {
+            /** @description RSS source added. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerNewsSource"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    deletePlayerNewsSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sourceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Source deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updatePlayerNewsSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sourceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePlayerNewsSourceRequest"];
+            };
+        };
+        responses: {
+            /** @description Source updated. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
     listRankingSources: {
         parameters: {
             query?: never;
@@ -1574,9 +1948,36 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
+    getRankingSourceRecommendations: {
+        parameters: {
+            query: {
+                leagueId: components["parameters"]["LeagueId"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description League-aware ranking source recommendations. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RankingSourceRecommendations"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["ServerError"];
+        };
+    };
     refreshRankingSources: {
         parameters: {
-            query?: never;
+            query?: {
+                leagueId?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1713,13 +2114,74 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Imported projection sources. */
+            /** @description Available projection sources and their current status. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectionSource"][];
+                };
+            };
+        };
+    };
+    refreshProjectionSources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Refreshed projection source. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectionSource"];
+                };
+            };
+            /** @description The upstream projection feed could not be downloaded or parsed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    refreshProjectionSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sourceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Refreshed projection source. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectionSource"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description The upstream projection feed could not be downloaded or parsed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

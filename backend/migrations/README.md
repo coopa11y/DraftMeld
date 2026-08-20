@@ -23,3 +23,9 @@ Use a zero-padded numeric prefix such as `0002_leagues.sql`. Migrations must be 
 `0010_custom_ranking_sources.sql` stores user-imported ordinal source metadata plus optional ADP and tier values.
 
 `0011_player_directory.sql` stores stable canonical players, normalized identity keys, and provider-specific player identifiers.
+
+`0019_ranking_projection_evidence.sql` retains optional games, bye week, projection range, source value, injury risk, and schedule-strength evidence attached to ranking records.
+
+`0020_projection_provenance.sql` retains an online projection feed's upstream publication timestamp across restarts.
+
+`0021_player_news.sql` stores configurable news feeds, player-linked articles, and the latest structured availability snapshot.

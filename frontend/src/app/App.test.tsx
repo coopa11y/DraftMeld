@@ -10,6 +10,7 @@ import type {
   LeagueRules,
   Player,
   RankingSource,
+  ProjectionSource,
 } from "../shared/api/types";
 import { App } from "./App";
 
@@ -139,8 +140,10 @@ const demoLeague: League = {
     "dynasty-superflex": { weight: 0.5, enabled: true },
     "expected-opportunity": { weight: 0.6, enabled: true },
     "cbs-ppr": { weight: 0.9, enabled: true },
+    "espn-ppr-online": { weight: 0.9, enabled: true },
     "espn-ppr-pdf": { weight: 0.9, enabled: true },
     "espn-dynasty-pdf": { weight: 0.6, enabled: true },
+    "yahoo-standard": { weight: 0.3, enabled: false },
   },
   consensusMethod: "weighted-median",
   playerPreferences: {},
@@ -197,6 +200,7 @@ const rankingSources: RankingSource[] = [
     projectUrl: "https://github.com/dynastyprocess/data",
     dataUrl: "https://example.test/ecr.csv",
     defaultWeight: 1,
+    defaultEnabled: true,
     importMode: "download",
     role: "ranking",
     isCustom: false,
@@ -212,6 +216,7 @@ const rankingSources: RankingSource[] = [
     projectUrl: "https://github.com/dynastyprocess/data",
     dataUrl: "https://example.test/1qb.csv",
     defaultWeight: 0.7,
+    defaultEnabled: false,
     importMode: "download",
     role: "market",
     isCustom: false,
@@ -227,6 +232,7 @@ const rankingSources: RankingSource[] = [
     projectUrl: "https://github.com/dynastyprocess/data",
     dataUrl: "https://example.test/superflex.csv",
     defaultWeight: 0.5,
+    defaultEnabled: false,
     importMode: "download",
     role: "market",
     isCustom: false,
@@ -242,6 +248,7 @@ const rankingSources: RankingSource[] = [
     projectUrl: "https://github.com/ffverse/ffopportunity",
     dataUrl: "https://example.test/opportunity.csv",
     defaultWeight: 0.6,
+    defaultEnabled: true,
     importMode: "download",
     role: "usage",
     isCustom: false,
@@ -257,11 +264,28 @@ const rankingSources: RankingSource[] = [
     projectUrl: "https://www.cbssports.com/fantasy/football/rankings/",
     dataUrl: "https://www.cbssports.com/fantasy/football/rankings/",
     defaultWeight: 0.9,
+    defaultEnabled: true,
     importMode: "download",
     role: "ranking",
     isCustom: false,
     recordCount: 200,
     publishedAt: "Updated today",
+  },
+  {
+    id: "espn-ppr-online",
+    name: "ESPN PPR draft rankings",
+    description: "Current ESPN PPR default draft order.",
+    methodology: "ESPN PPR draft rank",
+    license: "Proprietary; retrieved on demand",
+    projectUrl: "https://www.espn.com/fantasy/football/",
+    dataUrl: "https://example.test/espn.json",
+    defaultWeight: 0.9,
+    defaultEnabled: true,
+    importMode: "download",
+    role: "ranking",
+    isCustom: false,
+    recordCount: 300,
+    publishedAt: "Current ESPN PPR draft order",
   },
   {
     id: "espn-ppr-pdf",
@@ -272,6 +296,7 @@ const rankingSources: RankingSource[] = [
     projectUrl: "https://www.espn.com/fantasy/football/",
     dataUrl: "https://www.espn.com/fantasy/football/",
     defaultWeight: 0.9,
+    defaultEnabled: false,
     importMode: "pdf-upload",
     role: "ranking",
     isCustom: false,
@@ -286,12 +311,68 @@ const rankingSources: RankingSource[] = [
     projectUrl: "https://www.espn.com/fantasy/football/",
     dataUrl: "https://www.espn.com/fantasy/football/",
     defaultWeight: 0.6,
+    defaultEnabled: false,
     importMode: "pdf-upload",
     role: "market",
     isCustom: false,
     recordCount: 0,
   },
+  {
+    id: "yahoo-standard",
+    name: "Yahoo default Standard Top 200",
+    description: "Yahoo public default Standard order.",
+    methodology: "Yahoo platform draft order",
+    license: "Proprietary; retrieved on demand",
+    projectUrl: "https://football.fantasysports.yahoo.com/f1/public_prerank",
+    dataUrl: "https://football.fantasysports.yahoo.com/f1/public_prerank",
+    defaultWeight: 0.3,
+    defaultEnabled: false,
+    importMode: "download",
+    role: "market",
+    isCustom: false,
+    recordCount: 200,
+    publishedAt: "Current Yahoo default Standard order",
+  },
 ];
+
+const sleeperProjectionSource: ProjectionSource = {
+  id: "sleeper-projections",
+  name: "Sleeper statistical projections",
+  description: "Sleeper offensive statistical projections recalculated using league scoring.",
+  methodology: "Raw passing, rushing, and receiving statistics.",
+  license: "Noncommercial",
+  projectUrl: "https://sleeper.com/fantasy-football",
+  dataUrl: "https://api.sleeper.com/projections/nfl/2026",
+  importMode: "download",
+  publishedAt: "2026 season",
+  recordCount: 556,
+  importedAt: "2026-08-20T12:00:00Z",
+};
+
+const rankingRecommendations = {
+  profile: "redraft, 1-QB, 1 PPR",
+  sources: rankingSources.map((source) => ({
+    sourceId: source.id,
+    fit:
+      source.id === "espn-ppr-pdf"
+        ? "fallback"
+        : source.id.startsWith("dynasty") || source.id === "espn-dynasty-pdf" || source.id === "yahoo-standard"
+          ? "not recommended"
+          : "recommended",
+    reason: source.id.startsWith("dynasty")
+      ? "Long-term dynasty values do not match this league."
+      : "Matches this league.",
+    preference: {
+      enabled: !(
+        source.id.startsWith("dynasty") ||
+        source.id === "espn-dynasty-pdf" ||
+        source.id === "espn-ppr-pdf" ||
+        source.id === "yahoo-standard"
+      ),
+      weight: source.id === "expected-opportunity" ? 0.35 : source.defaultWeight,
+    },
+  })),
+};
 
 const consensusRankings: ConsensusRanking[] = [
   {
@@ -473,9 +554,10 @@ describe("accessible draft board", () => {
     expect(screen.queryByRole("heading", { name: "Finish setup" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Edit league setup" })).not.toBeInTheDocument();
     const setupActions = screen.getByRole("list", { name: "League configuration actions" });
-    expect(within(setupActions).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(setupActions).getAllByRole("listitem")).toHaveLength(3);
     expect(within(setupActions).getByRole("button", { name: "League settings" })).toBeInTheDocument();
     expect(within(setupActions).getByRole("button", { name: "Ranking sources" })).toBeInTheDocument();
+    expect(within(setupActions).getByRole("button", { name: "Player news sources" })).toBeInTheDocument();
     expect(screen.getAllByText(/does not change this league or its draft history/i)).toHaveLength(1);
     const draftActions = screen.getByRole("list", { name: "Draft actions" });
     expect(within(draftActions).getAllByRole("listitem")).toHaveLength(2);
@@ -607,12 +689,14 @@ describe("accessible draft board", () => {
 
   it("starts, safely resets, and restores a draft session", async () => {
     let draft = snapshot({ sessionStatus: "not-started", canReset: false, canUndoReset: false });
+    let startDraftPayload: { draftPosition: number } | undefined;
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const request = input instanceof Request ? input : new Request(input);
       const path = new URL(request.url).pathname;
       if (path.endsWith("/leagues")) return jsonResponse([demoLeague]);
       if (path.endsWith("/draft/session/start")) {
-        const { draftPosition } = (await request.clone().json()) as { draftPosition: number };
+        startDraftPayload = (await request.json()) as { draftPosition: number };
+        const { draftPosition } = startDraftPayload;
         const draftOrder = [...Array.from({ length: 12 }, (_, index) => index + 1).filter((team) => team !== 1)];
         draftOrder.splice(draftPosition - 1, 0, 1);
         draft = snapshot({
@@ -668,10 +752,7 @@ describe("accessible draft board", () => {
         return new URL(request.url).pathname.endsWith("/draft/session/reset");
       }),
     ).toBe(true);
-    const startRequest = fetchMock.mock.calls
-      .map(([input]) => (input instanceof Request ? input : new Request(input)))
-      .find((request) => new URL(request.url).pathname.endsWith("/draft/session/start"));
-    await expect(startRequest?.clone().json()).resolves.toMatchObject({ draftPosition: 6 });
+    expect(startDraftPayload).toMatchObject({ draftPosition: 6 });
   });
 
   it("creates a customized league through an accessible setup form", async () => {
@@ -865,6 +946,7 @@ describe("accessible draft board", () => {
         const url = input instanceof Request ? input.url : input.toString();
         const path = new URL(url).pathname;
         if (path.endsWith("/leagues")) return jsonResponse([demoLeague]);
+        if (path.endsWith("/ranking-sources/recommendations")) return jsonResponse(rankingRecommendations);
         if (path.endsWith("/ranking-sources")) return jsonResponse(rankingSources);
         if (
           path.endsWith("/projection-sources") ||
@@ -1023,15 +1105,22 @@ describe("accessible draft board", () => {
       if (path.endsWith("/ranking-sources/import-pdf") && request.method === "POST")
         return jsonResponse(
           {
-            source: { ...rankingSources[5], recordCount: 245, publishedAt: "2026-08-02" },
+            source: {
+              ...rankingSources.find((source) => source.id === "espn-ppr-pdf")!,
+              recordCount: 245,
+              publishedAt: "2026-08-02",
+            },
             pageCount: 1,
             ocrApplied: true,
           },
           201,
         );
       if (path.endsWith("/ranking-sources/refresh") && request.method === "POST") return jsonResponse(rankingSources);
+      if (path.endsWith("/projection-sources/refresh") && request.method === "POST")
+        return jsonResponse(sleeperProjectionSource);
       if (path.endsWith("/ranking-sources/redraft-ecr/refresh") && request.method === "POST")
         return jsonResponse({ ...rankingSources[0], recordCount: 300 });
+      if (path.endsWith("/ranking-sources/recommendations")) return jsonResponse(rankingRecommendations);
       if (path.endsWith("/ranking-sources"))
         return jsonResponse(rankingSources.map((source) => ({ ...source, recordCount: 0, publishedAt: undefined })));
       if (path.endsWith("/projection-sources")) return jsonResponse([]);
@@ -1065,19 +1154,30 @@ describe("accessible draft board", () => {
     await openDraftBoard(user);
     await user.click(await screen.findByRole("button", { name: "Ranking sources" }));
     expect(await screen.findByRole("table", { name: "Sources used by DraftMeld" })).toBeInTheDocument();
-    await user.click(screen.getAllByRole("button", { name: "Details" })[0]);
+    expect(screen.getByText("redraft, 1-QB, 1 PPR")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Apply league recommendations" }));
+    const dynastyRow = screen.getByRole("rowheader", { name: "Dynasty market - 1 QB" }).closest("tr");
+    if (!dynastyRow) throw new Error("Dynasty source row was not rendered.");
+    expect(
+      within(dynastyRow).getByRole("checkbox", { name: "Include Dynasty market - 1 QB in consensus" }),
+    ).not.toBeChecked();
+    expect(screen.getByText(/Recommended settings applied for redraft, 1-QB, 1 PPR/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+    await user.click(screen.getByRole("button", { name: "Details for Redraft expert consensus" }));
     expect(await screen.findByText("GPL-3.0")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back to sources" }));
-    await user.click(screen.getAllByRole("button", { name: "Update now" })[0]);
+    await user.click(screen.getByRole("button", { name: "Update Redraft expert consensus now" }));
     expect(await screen.findByText("Redraft expert consensus updated with 300 players.")).toBeInTheDocument();
 
     const cbsRow = screen.getByRole("rowheader", { name: "CBS Sports PPR Top 200" }).closest("tr");
     if (!cbsRow) throw new Error("CBS source row was not rendered.");
-    const cbsWeight = within(cbsRow).getByRole("spinbutton", { name: "Weight" });
+    const cbsWeight = within(cbsRow).getByRole("spinbutton", { name: "Weight for CBS Sports PPR Top 200" });
     await user.clear(cbsWeight);
     await user.type(cbsWeight, "1");
-    await user.click(within(cbsRow).getByRole("checkbox", { name: "Include in consensus" }));
-    expect(within(cbsRow).queryByRole("spinbutton", { name: "Weight" })).not.toBeInTheDocument();
+    await user.click(within(cbsRow).getByRole("checkbox", { name: "Include CBS Sports PPR Top 200 in consensus" }));
+    expect(
+      within(cbsRow).queryByRole("spinbutton", { name: "Weight for CBS Sports PPR Top 200" }),
+    ).not.toBeInTheDocument();
     expect(within(cbsRow).getByText("Not used")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Save preferences" }));
     expect(
@@ -1107,7 +1207,9 @@ describe("accessible draft board", () => {
 
     await user.click(screen.getByRole("button", { name: "Back to sources" }));
     await user.click(screen.getByRole("button", { name: "Refresh online sources" }));
-    expect(screen.getByText("Rankings refreshed. 1900 source records were normalized.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Online sources refreshed. 2400 ranking records and 556 offensive projections were normalized."),
+    ).toBeInTheDocument();
     expect((await axe(container)).violations).toHaveLength(0);
   });
 
@@ -1143,6 +1245,7 @@ describe("accessible draft board", () => {
             projectUrl: "",
             dataUrl: "",
             defaultWeight: 1,
+            defaultEnabled: true,
             importMode: "csv-upload",
             role: "ranking",
             isCustom: true,
@@ -1157,12 +1260,26 @@ describe("accessible draft board", () => {
         const form = init?.body as FormData;
         importedMapping = JSON.parse(String(form.get("mapping"))) as Record<string, string>;
         return jsonResponse(
-          { id: "mapped", name: "Mapped model", recordCount: 1, importedAt: new Date().toISOString() },
+          {
+            ...sleeperProjectionSource,
+            id: "mapped",
+            name: "Mapped model",
+            description: "User-supplied raw projections.",
+            methodology: "Imported granular statistics.",
+            license: "User supplied",
+            projectUrl: "",
+            dataUrl: "",
+            importMode: "csv-upload",
+            publishedAt: "",
+            recordCount: 1,
+            importedAt: new Date().toISOString(),
+          },
           201,
         );
       }
       const request = input instanceof Request ? input : new Request(input, init);
       if (path.endsWith("/leagues")) return jsonResponse([demoLeague]);
+      if (path.endsWith("/ranking-sources/recommendations")) return jsonResponse(rankingRecommendations);
       if (path.endsWith("/ranking-sources")) return jsonResponse(rankingSources);
       if (path.endsWith("/projection-sources")) return jsonResponse([]);
       if (path.endsWith("/ranking-identities/review")) {
@@ -1233,7 +1350,7 @@ describe("accessible draft board", () => {
     await user.click(screen.getByRole("button", { name: "Back to sources" }));
     const projectionRow = screen.getByRole("rowheader", { name: "Mapped model" }).closest("tr");
     if (!projectionRow) throw new Error("Projection row was not rendered.");
-    await user.click(within(projectionRow).getByRole("button", { name: "Details" }));
+    await user.click(within(projectionRow).getByRole("button", { name: "Details for Mapped model" }));
     expect(await screen.findByText("CSV projection")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back to sources" }));
     await user.click(screen.getByRole("button", { name: "Identity issues" }));

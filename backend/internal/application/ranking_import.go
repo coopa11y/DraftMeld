@@ -32,7 +32,17 @@ func parseRankingSource(sourceID string, input io.Reader) ([]ranking.Record, str
 		return parseOpportunity(input)
 	case "cbs-ppr":
 		return parseCBS(input)
+	case "espn-ppr-online":
+		return parseESPNPPR(input)
+	case "yahoo-standard":
+		return parseYahooStandard(input)
 	default:
+		if strings.HasPrefix(sourceID, "draft-sharks-") {
+			return parseDraftSharks(input, sourceID)
+		}
+		if strings.HasPrefix(sourceID, "sleeper-adp-") {
+			return parseSleeperADP(input, sourceID)
+		}
 		return nil, "", fmt.Errorf("unsupported ranking source %q", sourceID)
 	}
 }

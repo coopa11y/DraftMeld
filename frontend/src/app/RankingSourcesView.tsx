@@ -21,6 +21,7 @@ export function RankingSourcesView({ controller }: RankingSourcesViewProps) {
   const [details, setDetails] = useState<{ id: string; kind: "ranking" | "projection" }>();
   const heading = useViewHeadingFocus<HTMLHeadingElement>(view === "list");
   const { actions, busy, busySourceId, error, identityIssues, message, projectionSources, sources } = controller;
+  const hasRankingProjectionEvidence = controller.rankings.some((ranking) => ranking.projection);
 
   function openImport(kind?: SourceImportKind) {
     setImportKind(kind);
@@ -95,6 +96,7 @@ export function RankingSourcesView({ controller }: RankingSourcesViewProps) {
           preferences={controller.preferences}
           preferencesChanged={controller.preferencesChanged}
           projectionSources={projectionSources}
+          recommendations={controller.recommendations}
           sources={sources}
           onConsensusMethodChange={actions.setConsensusMethod}
           onDetails={(id, kind) => {
@@ -103,11 +105,20 @@ export function RankingSourcesView({ controller }: RankingSourcesViewProps) {
           }}
           onImport={openImport}
           onPreferencesChange={actions.setPreferences}
+          onApplyRecommendations={actions.applyRecommendations}
           onRefreshSource={actions.refreshSource}
+          onRefreshProjectionSource={actions.refreshProjectionSource}
           onReset={actions.resetPreferences}
           onSubmit={actions.saveWeights}
         />
       </Panel>
+      {projectionSources.every((source) => source.recordCount === 0) ? (
+        <StatusMessage>
+          {hasRankingProjectionEvidence
+            ? "Draft Sharks projection ranges are available in Consensus results. Update Sleeper projections or add a raw-stat projection CSV when you want DraftMeld to recalculate points using league scoring."
+            : "No stat projections are imported. Update Sleeper projections or add a projection CSV to calculate projected points and value over replacement using league scoring."}
+        </StatusMessage>
+      ) : null}
       <div className="source-followups">
         <p>{identityIssues.filter((issue) => !issue.resolution).length} identity issues need review.</p>
         <Button onClick={() => setView("identity")}>Identity issues</Button>

@@ -20,7 +20,8 @@ func NewRouter(
 	drafts *application.DraftService,
 	leagues *application.LeagueService,
 	rankings *application.RankingService,
-	projectionServices ...*application.ProjectionService,
+	projections *application.ProjectionService,
+	newsServices ...*application.PlayerNewsService,
 ) http.Handler {
 	mux := http.NewServeMux()
 	registerHealthRoute(mux, version)
@@ -30,8 +31,11 @@ func NewRouter(
 	registerLeagueRoutes(mux, leagues, drafts)
 	registerExportRoutes(mux, application.NewExportService(leagues, drafts, rankings))
 	registerRankingRoutes(mux, rankings, leagues)
-	if len(projectionServices) > 0 && projectionServices[0] != nil {
-		registerProjectionRoutes(mux, projectionServices[0])
+	if projections != nil {
+		registerProjectionRoutes(mux, projections)
+	}
+	if len(newsServices) > 0 && newsServices[0] != nil {
+		registerPlayerNewsRoutes(mux, newsServices[0])
 	}
 	mux.Handle("/", webui.Handler())
 	return requestLogger(logger, mux)

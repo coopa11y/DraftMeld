@@ -14,7 +14,7 @@ Source ranks are normalized to the current eligible player-pool depth before com
 
 ## Projection CSV format
 
-Projection files are user-supplied CSVs. The import screen detects the source headers and lets the user map them to DraftMeld's player identity, metadata, and scoring fields. Required mappings are `name`, `position`, and `team`; `adp`, `byeWeek`, and every statistic mapping are optional. Missing statistics contribute zero, so a league and its projection source can be as simple or detailed as needed.
+Projection sources can be refreshed from Sleeper or supplied as user CSVs. The CSV import screen detects the source headers and lets the user map them to DraftMeld's player identity, metadata, and scoring fields. Required mappings are `name`, `position`, and `team`; `adp`, `byeWeek`, and every statistic mapping are optional. Missing statistics contribute zero, so a league and its projection source can be as simple or detailed as needed.
 
 Core statistics include:
 

@@ -36,22 +36,27 @@ func main() {
 	leagueService := application.NewLeagueService(store)
 	rankingService := application.NewRankingService(store)
 	projectionService := application.NewProjectionService(store)
+	playerNewsService := application.NewPlayerNewsService(store)
 	draftService, err := application.NewDraftServiceWithLeagues(store, store, draft.DemoCatalog())
 	if err != nil {
 		logger.Error("configure draft service", "error", err)
 		os.Exit(1)
 	}
 	draftService.UseIntelligence(rankingService, projectionService)
+	draftService.UsePlayerNews(playerNewsService)
 
 	server := &http.Server{
 		Addr:              address,
-		Handler:           draftapi.NewRouter(logger, version, draftService, leagueService, rankingService, projectionService),
+		Handler:           draftapi.NewRouter(logger, version, draftService, leagueService, rankingService, projectionService, playerNewsService),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	newsContext, stopNews := context.WithCancel(context.Background())
+	defer stopNews()
+	go refreshPlayerNews(newsContext, logger, playerNewsService)
 
 	go func() {
 		logger.Info("DraftMeld started", "address", address, "version", version)
@@ -67,6 +72,26 @@ func main() {
 	if err := server.Shutdown(ctx); err != nil {
 		logger.Error("graceful shutdown failed", "error", err)
 		os.Exit(1)
+	}
+}
+
+func refreshPlayerNews(ctx context.Context, logger *slog.Logger, service *application.PlayerNewsService) {
+	refresh := func() {
+		result := service.Refresh(ctx, false)
+		if len(result.Errors) > 0 {
+			logger.Warn("player news refresh incomplete", "errors", result.Errors)
+		}
+	}
+	refresh()
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			refresh()
+		}
 	}
 }
 

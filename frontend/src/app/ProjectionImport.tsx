@@ -62,6 +62,7 @@ export function ProjectionImport({
   const [file, setFile] = useState<File | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
+  const importedSources = sources.filter((source) => source.recordCount > 0);
 
   async function chooseFile(selected: File | null) {
     setFile(selected);
@@ -148,9 +149,9 @@ export function ProjectionImport({
           Import projections
         </Button>
       </form>
-      {sources.length > 0 ? (
+      {importedSources.length > 0 ? (
         <ul className="compact-data-list">
-          {sources.map((source) => (
+          {importedSources.map((source) => (
             <li key={source.id}>
               <strong>{source.name}</strong>
               <span>{source.recordCount} players</span>

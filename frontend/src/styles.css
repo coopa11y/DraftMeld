@@ -417,6 +417,73 @@ tbody tr:focus-within {
   font-size: 0.8rem;
   font-weight: 450;
 }
+.player-news-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.45rem;
+}
+.availability-alert,
+.news-available {
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+.availability-alert {
+  color: #19080a;
+  background: #ffb4ba;
+}
+.news-available {
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+}
+.inline-details-button {
+  min-height: 32px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.78rem;
+}
+.news-status-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 0;
+}
+.news-status-details > div {
+  padding: 0.75rem;
+  background: var(--color-surface-deep);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.5rem;
+}
+.news-status-details dt {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.news-status-details dd {
+  margin: 0.25rem 0 0;
+}
+.player-news-list {
+  display: grid;
+  gap: 0.75rem;
+  padding-left: 1.25rem;
+}
+.player-news-list li span {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+.source-settings-table td,
+.source-settings-table th {
+  vertical-align: middle;
+}
+.source-settings-table input[type="checkbox"] {
+  width: 1.35rem;
+  height: 1.35rem;
+}
 .player-actions {
   display: flex;
   gap: 0.45rem;
@@ -1186,6 +1253,36 @@ tbody tr:focus-within {
 .source-details-list dd {
   margin: 0;
   color: var(--color-text-muted);
+}
+
+.projection-evidence-details {
+  margin-top: 0.45rem;
+  font-weight: 400;
+}
+
+.projection-evidence-details summary {
+  color: var(--accent-soft, #79cfae);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.projection-evidence-details dl {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.6rem 0 0;
+}
+
+.projection-evidence-details dl div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.projection-evidence-details dt {
+  font-weight: 700;
+}
+
+.projection-evidence-details dd {
+  margin: 0;
 }
 
 @media (max-width: 70rem) {

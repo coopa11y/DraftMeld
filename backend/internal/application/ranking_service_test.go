@@ -46,6 +46,20 @@ func TestRankingDownloadRetriesTransientServerFailure(t *testing.T) {
 	}
 }
 
+func TestESPNRankingDownloadSendsBoundedPlayerFilter(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.Header.Get("X-Fantasy-Filter") != espnPPRFilter {
+			t.Errorf("unexpected ESPN filter: %q", request.Header.Get("X-Fantasy-Filter"))
+		}
+		_, _ = response.Write([]byte(`{"players":[]}`))
+	}))
+	defer server.Close()
+	service := NewRankingService(&rankingRepositoryStub{})
+	if _, err := service.download(t.Context(), ranking.SourceDefinition{ID: "espn-ppr-online", Name: "ESPN", DataURL: server.URL}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func (repository *rankingRepositoryStub) ReplaceRankings(_ context.Context, source ranking.SourceDefinition, records []ranking.Record, published string, refreshed time.Time) error {
 	repository.records = append([]ranking.Record(nil), records...)
 	if repository.statuses == nil {
@@ -156,7 +170,9 @@ func TestConsensusMergesStoredDefenseAliases(t *testing.T) {
 	}}
 	service := NewRankingService(repository)
 
-	consensus, err := service.Consensus(t.Context(), nil)
+	consensus, err := service.Consensus(t.Context(), map[string]league.RankingSourcePreference{
+		"cbs-ppr": {Weight: 1, Enabled: true}, "espn-ppr-pdf": {Weight: 1, Enabled: true},
+	})
 	if err != nil {
 		t.Fatalf("build consensus: %v", err)
 	}
@@ -199,6 +215,29 @@ func TestConsensusUsesEqualAndCustomWeightsWithoutDroppingEnabledSources(t *test
 		if player.SourceCount != 2 {
 			t.Fatalf("expected every available source to contribute, got %#v", player)
 		}
+	}
+}
+
+func TestConsensusExposesDraftSharksProjectionEvidence(t *testing.T) {
+	repository := &rankingRepositoryStub{records: []ranking.Record{{
+		SourceID: "draft-sharks-ppr-1qb", PlayerKey: "player-a", ProviderID: "13542",
+		Name: "Player A", Position: "RB", Team: "DET", Rank: 1, ADP: 1, Tier: 1,
+		Games: 17, ByeWeek: 6, FloorProjection: 231, ConsensusProjection: 273,
+		SourceProjection: 285, CeilingProjection: 328, SourceValue: 100, InjuryRisk: 54, ScheduleStrength: 0.9,
+	}}}
+	service := NewRankingService(repository)
+	consensus, err := service.Consensus(t.Context(), map[string]league.RankingSourcePreference{
+		"draft-sharks-ppr-1qb": {Weight: 0.9, Enabled: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(consensus) != 1 || consensus[0].Projection == nil {
+		t.Fatalf("expected Draft Sharks projection evidence: %#v", consensus)
+	}
+	evidence := consensus[0].Projection
+	if evidence.SourceName != "Draft Sharks - PPR, 1QB" || evidence.Profile != "PPR, 1QB" || evidence.SourceProjection != 285 || evidence.CeilingProjection != 328 {
+		t.Fatalf("unexpected projection evidence: %#v", evidence)
 	}
 }
 

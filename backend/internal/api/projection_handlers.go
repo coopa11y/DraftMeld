@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -19,6 +20,26 @@ func registerProjectionRoutes(mux *http.ServeMux, service *application.Projectio
 			return
 		}
 		writeJSON(response, http.StatusOK, sources)
+	})
+	mux.HandleFunc("POST /api/v1/projection-sources/refresh", func(response http.ResponseWriter, request *http.Request) {
+		source, err := service.Refresh(request.Context())
+		if err != nil {
+			writeError(response, http.StatusBadGateway, err.Error())
+			return
+		}
+		writeJSON(response, http.StatusOK, source)
+	})
+	mux.HandleFunc("POST /api/v1/projection-sources/{sourceId}/refresh", func(response http.ResponseWriter, request *http.Request) {
+		source, err := service.RefreshSource(request.Context(), request.PathValue("sourceId"))
+		if err != nil {
+			if errors.Is(err, application.ErrProjectionSourceNotFound) {
+				writeError(response, http.StatusNotFound, "That projection source was not found or cannot be refreshed online.")
+				return
+			}
+			writeError(response, http.StatusBadGateway, err.Error())
+			return
+		}
+		writeJSON(response, http.StatusOK, source)
 	})
 	mux.HandleFunc("POST /api/v1/projection-sources/import-csv", func(response http.ResponseWriter, request *http.Request) {
 		request.Body = http.MaxBytesReader(response, request.Body, maxProjectionCSVBytes+(1<<20))
