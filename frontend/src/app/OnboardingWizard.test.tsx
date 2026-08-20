@@ -100,7 +100,7 @@ describe("resumable onboarding wizard", () => {
     const file = new File(["Setting,Value\nNumber of teams,10\nPassing touchdowns,6"], "rules.csv", {
       type: "text/csv",
     });
-    await user.selectOptions(screen.getByRole("combobox", { name: "Import method" }), "file");
+    await user.click(screen.getByRole("button", { name: /Other PDF or CSV/ }));
     await user.upload(screen.getByLabelText("League settings PDF or CSV"), file);
     await user.click(screen.getByRole("button", { name: "Import and review" }));
     expect(await screen.findByText(/Applied 2 recognized values/)).toBeInTheDocument();
@@ -151,6 +151,9 @@ describe("resumable onboarding wizard", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
     renderWizard();
+    expect(screen.queryByRole("textbox", { name: "ESPN league URL" })).not.toBeInTheDocument();
+    screen.getByRole("button", { name: /ESPN league URL/ }).focus();
+    await user.keyboard("{Enter}");
     await user.type(
       screen.getByRole("textbox", { name: "ESPN league URL" }),
       "https://fantasy.espn.com/football/league/settings?leagueId=793949449",

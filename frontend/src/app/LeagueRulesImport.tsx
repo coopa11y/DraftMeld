@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type Dispatch, type FormEvent, type RefObject, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { importESPNLeagueRules, importLeagueRules } from "../shared/api/leagues";
 import type { LeagueRuleImport, LeagueRules } from "../shared/api/types";
 import { Button } from "../shared/ui/Button";
@@ -9,6 +9,7 @@ import { cloneLeagueRules } from "./leagueDefaults";
 import type { OnboardingImportReview } from "./onboarding";
 
 interface LeagueRulesImportProps {
+  headingLevel?: 2 | 3;
   rules: LeagueRules;
   setRules: Dispatch<SetStateAction<LeagueRules>>;
   importReview?: OnboardingImportReview;
@@ -17,8 +18,21 @@ interface LeagueRulesImportProps {
 
 type ImportMethod = "espn-url" | "espn-paste" | "espn-file" | "file";
 
-export function LeagueRulesImport({ rules, setRules, importReview, setImportReview }: LeagueRulesImportProps) {
-  const [method, setMethod] = useState<ImportMethod>("espn-url");
+const importMethods: Array<{ value: ImportMethod; label: string; description: string }> = [
+  { value: "espn-url", label: "ESPN league URL", description: "For leagues ESPN makes publicly readable." },
+  { value: "espn-paste", label: "Paste ESPN settings", description: "For private leagues you can open in ESPN." },
+  { value: "espn-file", label: "ESPN JSON or PDF", description: "Use an ESPN export or print-to-PDF file." },
+  { value: "file", label: "Other PDF or CSV", description: "Use a file from another league provider." },
+];
+
+export function LeagueRulesImport({
+  headingLevel = 3,
+  rules,
+  setRules,
+  importReview,
+  setImportReview,
+}: LeagueRulesImportProps) {
+  const [method, setMethod] = useState<ImportMethod>();
   const [leagueURL, setLeagueURL] = useState("");
   const [season, setSeason] = useState(new Date().getFullYear());
   const [pastedSettings, setPastedSettings] = useState("");
@@ -31,8 +45,7 @@ export function LeagueRulesImport({ rules, setRules, importReview, setImportRevi
     if (importReview) resultsHeading.current?.focus();
   }, [importReview]);
 
-  async function handleImport(event: FormEvent) {
-    event.preventDefault();
+  async function handleImport() {
     setBusy(true);
     setError("");
     try {
@@ -47,6 +60,7 @@ export function LeagueRulesImport({ rules, setRules, importReview, setImportRevi
   }
 
   async function runImport() {
+    if (!method) throw new Error("Choose an import method.");
     if (method === "espn-url") return importESPNLeagueRules(leagueURL, season);
     if (method === "espn-paste") {
       return importLeagueRules(new File([pastedSettings], "espn-settings.txt", { type: "text/plain" }), "espn");
@@ -61,38 +75,54 @@ export function LeagueRulesImport({ rules, setRules, importReview, setImportRevi
     setImportReview(undefined);
   }
 
+  function chooseMethod(nextMethod: ImportMethod) {
+    if (method === nextMethod) return;
+    setMethod(nextMethod);
+    setError("");
+    setFile(null);
+  }
+
   const canSubmit =
     method === "espn-url"
       ? leagueURL.trim().length > 0
       : method === "espn-paste"
         ? pastedSettings.trim().length > 0
         : file !== null;
+  const Heading = headingLevel === 2 ? "h2" : "h3";
 
   return (
     <section className="league-rules-import" aria-labelledby="league-rules-import-title">
-      <h3 id="league-rules-import-title">Import league settings</h3>
+      <Heading id="league-rules-import-title">Import league settings</Heading>
       <p>
         DraftMeld applies only recognized settings. You review the results before saving, and you can undo the entire
         import.
       </p>
-      <form className="rule-import" onSubmit={handleImport}>
+      <div className="rule-import">
         <fieldset disabled={busy}>
           <legend>Choose how to import</legend>
-          <FormField label="Import method" help="Choose one method. Only the fields needed for that method are shown.">
-            <select
-              value={method}
-              onChange={(event) => {
-                setMethod(event.target.value as ImportMethod);
-                setError("");
-                setFile(null);
-              }}
-            >
-              <option value="espn-url">ESPN league URL</option>
-              <option value="espn-paste">Paste ESPN settings</option>
-              <option value="espn-file">ESPN JSON or PDF file</option>
-              <option value="file">Other PDF or CSV file</option>
-            </select>
-          </FormField>
+          <p className="field-help">Choose one method. DraftMeld will then show only the fields you need.</p>
+          <div className="import-method-options">
+            {importMethods.map((option) => (
+              <Button
+                className="import-method-option"
+                variant="neutral"
+                key={option.value}
+                aria-pressed={method === option.value}
+                onClick={() => chooseMethod(option.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    chooseMethod(option.value);
+                  }
+                }}
+              >
+                <span>
+                  <strong>{option.label}</strong>
+                  <small>{option.description}</small>
+                </span>
+              </Button>
+            ))}
+          </div>
 
           {method === "espn-url" ? (
             <ESPNURLFields leagueURL={leagueURL} season={season} setLeagueURL={setLeagueURL} setSeason={setSeason} />
@@ -122,11 +152,11 @@ export function LeagueRulesImport({ rules, setRules, importReview, setImportRevi
             />
           ) : null}
 
-          <Button type="submit" variant="primary" disabled={!canSubmit || busy}>
+          <Button variant="primary" disabled={!canSubmit || busy} onClick={() => void handleImport()}>
             {busy ? "Reading league settings…" : "Import and review"}
           </Button>
         </fieldset>
-      </form>
+      </div>
 
       {error ? (
         <StatusMessage tone="error">

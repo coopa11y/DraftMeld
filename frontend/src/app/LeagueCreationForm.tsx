@@ -64,6 +64,13 @@ export function LeagueCreationForm({ busy, onCancel, onSave }: LeagueCreationFor
 
         <fieldset disabled={busy} className="basic-league-setup">
           <legend>Basic setup</legend>
+          <LeagueRulesImport
+            headingLevel={2}
+            rules={rules}
+            setRules={setRules}
+            importReview={importReview}
+            setImportReview={setImportReview}
+          />
           <div className="form-grid">
             <FormField label="League name">
               <input
@@ -199,16 +206,6 @@ export function LeagueCreationForm({ busy, onCancel, onSave }: LeagueCreationFor
           </Button>
         </div>
       </form>
-
-      <details className="league-rule-import-disclosure">
-        <summary>Import league settings</summary>
-        <LeagueRulesImport
-          rules={rules}
-          setRules={setRules}
-          importReview={importReview}
-          setImportReview={setImportReview}
-        />
-      </details>
     </div>
   );
 }
