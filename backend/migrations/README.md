@@ -29,3 +29,5 @@ Use a zero-padded numeric prefix such as `0002_leagues.sql`. Migrations must be 
 `0020_projection_provenance.sql` retains an online projection feed's upstream publication timestamp across restarts.
 
 `0021_player_news.sql` stores configurable news feeds, player-linked articles, and the latest structured availability snapshot.
+
+`0022_custom_ranking_source_profiles.sql` preserves provider and scoring-profile labels for private ranking imports.

@@ -4,6 +4,8 @@ DraftMeld starts with transparent ranking signals from open-data projects and pu
 
 Users can also add any number of private ordinal ranking CSVs. These sources are named by the user, mapped interactively, stored only as normalized records, and exposed to the same per-league inclusion and influence controls as built-in sources.
 
+Fantasy Footballers UDK subscribers have a focused private-import path. The user selects scoring in UDK, downloads the **Top 200** CSV using UDK's own export action, and uploads it to DraftMeld. DraftMeld recognizes the Top 200 schema and its consensus order automatically. The file and subscriber session remain on the user's device; DraftMeld stores normalized records only and does not redistribute premium rankings.
+
 | DraftMeld source | Signal | Project and license |
 | --- | --- | --- |
 | Redraft PPR expert consensus | Current PPR expert consensus across supported fantasy positions | [DynastyProcess data](https://github.com/dynastyprocess/data), GPL-3.0 repository with upstream FantasyPros attribution |
@@ -24,6 +26,7 @@ Users can also add any number of private ordinal ranking CSVs. These sources are
 - Online data is fetched from fixed public source URLs only when a user selects **Refresh online sources** or an individual **Update now** action. The league-scoped refresh downloads enabled sources, the matching Draft Sharks and Sleeper ADP profiles, and Sleeper's raw offensive projections; PDF sources are excluded.
 - PDF uploads are limited to 20 MiB and 200 pages for selectable text. PDFs with no selectable text can use local English OCR for up to 25 pages. Temporary OCR files are removed after each attempt, and DraftMeld stores only normalized player records and source status.
 - Ranking CSV uploads are limited to 10 MiB. Player name, overall rank, and position are required; team, ADP, and tier are optional. Reimporting the same source name replaces that source atomically.
+- UDK position-ranking exports are rejected with guidance to use the Top 200 export. Their ranks are position-relative and cannot safely be blended as overall ranks. The Top 200 import remains filterable by position on DraftMeld's draft board.
 - The importer detects a supported provider and document type from the extracted document text. Users do not need to choose column mappings or a parser.
 - Provider columns are converted to a common record containing source, normalized player key, display name, position, team, and ordinal rank. Optional tier, ADP, provider ID, and projection evidence are retained when supplied.
 - Team defenses use canonical NFL team identities, so values such as `DEN`, `Denver Defense`, and `Broncos D/ST` contribute to the same consensus player.
@@ -63,3 +66,4 @@ Source terms and upstream availability can change. Maintainers should verify lic
 - **ESPN:** the current PPR draft order is refreshed online with ESPN player IDs, positions, teams, and ADP. PPR Top 300 and Dynasty Cheat Sheet PDFs remain supported as user-supplied fallbacks, and DraftMeld never retains the uploaded source files.
 - **Draft Sharks:** the public 250-player tables are supported for Standard, Half-PPR, PPR, and TE Premium in both 1QB and Superflex. DraftMeld shows only the closest preset for the active league. Subscriber-only league sync is not scraped; a future private-import path can accept an export obtained by the authorized user.
 - **Sleeper:** DraftMeld derives an ordinal market ranking from the matching public ADP field and separately imports raw offensive season projections. The projection endpoint is public but not part of Sleeper's documented API contract, so the adapter is isolated, validates minimum record counts, and preserves CSV projections as a fallback. Sleeper's documented API permits noncommercial use; commercial distribution requires contacting Sleeper.
+- **Fantasy Footballers UDK:** private Top 200 CSV exports are supported for authorized subscribers. DraftMeld does not automate sign-in, copy browser sessions, scrape subscriber pages, retain the original CSV, or publish UDK data. Position exports can be considered later as provider evidence after a position-aware model is defined.

@@ -20,14 +20,15 @@ VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET refreshed_at=excluded.refreshe
 	}
 	if source.IsCustom {
 		if _, err = tx.ExecContext(ctx, `INSERT INTO custom_ranking_sources
-(id, name, description, methodology, license, project_url, data_url, default_weight, import_mode, role)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+(id, name, description, methodology, license, project_url, data_url, default_weight, import_mode, role, variant_group, profile)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET name=excluded.name, description=excluded.description,
 methodology=excluded.methodology, license=excluded.license, project_url=excluded.project_url,
 data_url=excluded.data_url, default_weight=excluded.default_weight,
-import_mode=excluded.import_mode, role=excluded.role`, source.ID, source.Name, source.Description,
+import_mode=excluded.import_mode, role=excluded.role, variant_group=excluded.variant_group,
+profile=excluded.profile`, source.ID, source.Name, source.Description,
 			source.Methodology, source.License, source.ProjectURL, source.DataURL, source.DefaultWeight,
-			source.ImportMode, source.Role); err != nil {
+			source.ImportMode, source.Role, source.VariantGroup, source.Profile); err != nil {
 			return fmt.Errorf("save custom ranking source: %w", err)
 		}
 	}
@@ -80,7 +81,8 @@ ceiling_projection, source_value, injury_risk, schedule_strength FROM ranking_en
 
 func (store *DraftEventStore) CustomRankingSources(ctx context.Context) ([]ranking.SourceDefinition, error) {
 	rows, err := store.database.QueryContext(ctx, `SELECT id, name, description, methodology, license,
-project_url, data_url, default_weight, import_mode, role FROM custom_ranking_sources ORDER BY name, id`)
+project_url, data_url, default_weight, import_mode, role, variant_group, profile
+FROM custom_ranking_sources ORDER BY name, id`)
 	if err != nil {
 		return nil, fmt.Errorf("query custom ranking sources: %w", err)
 	}
@@ -90,7 +92,7 @@ project_url, data_url, default_weight, import_mode, role FROM custom_ranking_sou
 		var definition ranking.SourceDefinition
 		if err = rows.Scan(&definition.ID, &definition.Name, &definition.Description, &definition.Methodology,
 			&definition.License, &definition.ProjectURL, &definition.DataURL, &definition.DefaultWeight,
-			&definition.ImportMode, &definition.Role); err != nil {
+			&definition.ImportMode, &definition.Role, &definition.VariantGroup, &definition.Profile); err != nil {
 			return nil, fmt.Errorf("scan custom ranking source: %w", err)
 		}
 		definition.IsCustom = true

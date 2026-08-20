@@ -14,7 +14,7 @@ func TestReplaceRankingsIsAtomicPerSource(t *testing.T) {
 		t.Fatalf("open store: %v", err)
 	}
 	defer store.Close()
-	source := ranking.SourceDefinition{ID: "test", Name: "Test", Description: "Private", Methodology: "Ordinal", License: "Private", DefaultWeight: 1, ImportMode: "csv-upload", Role: "ranking", IsCustom: true}
+	source := ranking.SourceDefinition{ID: "test", Name: "Test", Description: "Private", Methodology: "Ordinal", License: "Private", DefaultWeight: 1, ImportMode: "csv-upload", Role: "ranking", IsCustom: true, VariantGroup: "private-provider", Profile: "Top 200"}
 	now := time.Now().UTC()
 	if err = store.ReplaceRankings(context.Background(), source, []ranking.Record{{SourceID: "test", PlayerKey: "one", Name: "One", Position: "RB", Team: "AAA", Rank: 1}}, "today", now); err != nil {
 		t.Fatalf("replace rankings: %v", err)
@@ -45,7 +45,8 @@ func TestReplaceRankingsIsAtomicPerSource(t *testing.T) {
 		t.Fatalf("unexpected status: %#v", statuses["test"])
 	}
 	definitions, err := store.CustomRankingSources(context.Background())
-	if err != nil || len(definitions) != 1 || definitions[0].ID != "test" || !definitions[0].IsCustom {
+	if err != nil || len(definitions) != 1 || definitions[0].ID != "test" || !definitions[0].IsCustom ||
+		definitions[0].VariantGroup != "private-provider" || definitions[0].Profile != "Top 200" {
 		t.Fatalf("unexpected custom definitions: %#v err=%v", definitions, err)
 	}
 }

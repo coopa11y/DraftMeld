@@ -41,6 +41,10 @@ func (service *RankingService) ImportCSV(ctx context.Context, name string, input
 		headers[normalizeCSVHeader(header)] = index
 	}
 	columns := rankingCSVColumnIndexes(headers, mapping)
+	csvFormat := detectRankingCSVFormat(headers)
+	if csvFormat == rankingCSVFantasyFootballersPosition {
+		return ranking.SourceStatus{}, errors.New("Fantasy Footballers UDK position rankings use position-relative ranks; export the UDK Top 200 CSV so DraftMeld can preserve the published overall order")
+	}
 	for _, required := range []string{"name", "rank", "position"} {
 		if _, exists := columns[required]; !exists {
 			return ranking.SourceStatus{}, fmt.Errorf("ranking CSV is missing %s", required)
@@ -120,10 +124,46 @@ func (service *RankingService) ImportCSV(ctx context.Context, name string, input
 		Methodology: "User-supplied ordinal player ranking", License: "Private user data",
 		DefaultWeight: 1, DefaultEnabled: true, ImportMode: "csv-upload", Role: "ranking", IsCustom: true,
 	}
-	if err = service.repository.ReplaceRankings(ctx, definition, records, "Private CSV import", refreshed); err != nil {
+	publishedAt := "Private CSV import"
+	if csvFormat == rankingCSVFantasyFootballersTop200 {
+		definition.Description = "Private Fantasy Footballers Ultimate Draft Kit Top 200 export uploaded by the subscriber."
+		definition.Methodology = "Fantasy Footballers UDK Top 200 consensus order"
+		definition.License = "Private subscriber export; not redistributed by DraftMeld"
+		definition.ProjectURL = "https://www.thefantasyfootballers.com/ultimate-draft-kit/"
+		definition.Profile = "UDK Top 200"
+		publishedAt = "Private UDK Top 200 CSV import"
+	}
+	if err = service.repository.ReplaceRankings(ctx, definition, records, publishedAt, refreshed); err != nil {
 		return ranking.SourceStatus{}, err
 	}
-	return ranking.SourceStatus{SourceDefinition: definition, RecordCount: len(records), RefreshedAt: &refreshed, PublishedAt: "Private CSV import"}, nil
+	return ranking.SourceStatus{SourceDefinition: definition, RecordCount: len(records), RefreshedAt: &refreshed, PublishedAt: publishedAt}, nil
+}
+
+type rankingCSVFormat string
+
+const (
+	rankingCSVGeneric                    rankingCSVFormat = "generic"
+	rankingCSVFantasyFootballersTop200   rankingCSVFormat = "fantasy-footballers-top-200"
+	rankingCSVFantasyFootballersPosition rankingCSVFormat = "fantasy-footballers-position"
+)
+
+func detectRankingCSVFormat(headers map[string]int) rankingCSVFormat {
+	if hasCSVHeaders(headers, "name", "position", "team", "byeweek", "rank", "points", "risk", "upside", "adp", "tier", "outlook") {
+		return rankingCSVFantasyFootballersPosition
+	}
+	if hasCSVHeaders(headers, "rank", "name", "bye", "team", "pos", "andy", "jason", "mike", "markers") {
+		return rankingCSVFantasyFootballersTop200
+	}
+	return rankingCSVGeneric
+}
+
+func hasCSVHeaders(headers map[string]int, required ...string) bool {
+	for _, header := range required {
+		if _, exists := headers[header]; !exists {
+			return false
+		}
+	}
+	return true
 }
 
 func rankingCSVColumnIndexes(headers map[string]int, mapping map[string]string) map[string]int {
