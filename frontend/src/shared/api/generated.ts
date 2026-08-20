@@ -48,8 +48,25 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Preview league settings and scoring rules recognized from a user-supplied PDF or CSV */
+        /** Preview league settings and scoring rules recognized from a user-supplied file */
         post: operations["importLeagueRules"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leagues/rules/import/espn": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview settings and scoring from a public ESPN fantasy football league */
+        post: operations["importESPNLeagueRules"];
         delete?: never;
         options?: never;
         head?: never;
@@ -692,7 +709,7 @@ export interface components {
         } & components["schemas"]["LeagueRules"];
         LeagueRuleImport: {
             /** @enum {string} */
-            fileType: "pdf" | "csv";
+            fileType: "pdf" | "csv" | "espn" | "espn-pdf" | "espn-text";
             rules: {
                 [key: string]: number;
             };
@@ -700,6 +717,11 @@ export interface components {
             settings: components["schemas"]["ImportedLeagueSettings"];
             settingMatches: components["schemas"]["LeagueSettingMatch"][];
             warnings: string[];
+        };
+        ESPNLeagueImportRequest: {
+            /** Format: uri */
+            leagueUrl: string;
+            season: number;
         };
         LeagueRuleMatch: {
             key: string;
@@ -726,6 +748,8 @@ export interface components {
         ImportedLeagueSettings: {
             name?: string;
             teamCount?: number;
+            teamNames?: string[];
+            userTeamNumber?: number;
             /** @enum {string} */
             draftType?: "snake" | "linear" | "auction";
             /** @enum {string} */
@@ -1201,6 +1225,8 @@ export interface operations {
                 "multipart/form-data": {
                     /** Format: binary */
                     file: string;
+                    /** @enum {string} */
+                    provider?: "espn";
                 };
             };
         };
@@ -1226,6 +1252,49 @@ export interface operations {
             };
             /** @description The file was readable but contained no supported league settings or scoring rules. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    importESPNLeagueRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ESPNLeagueImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Recognized ESPN settings for user review. ESPN credentials are never accepted or stored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueRuleImport"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description The ESPN league is private or no supported settings were recognized. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description ESPN could not be reached or returned an unexpected response. */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

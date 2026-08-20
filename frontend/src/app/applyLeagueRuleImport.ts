@@ -11,6 +11,8 @@ export function applyLeagueRuleImport(current: LeagueRules, imported: LeagueRule
 
   if (settings.name) next.name = settings.name;
   if (settings.teamCount !== undefined) resizeLeague(next, settings.teamCount);
+  if (settings.teamNames?.length === next.teamCount) next.teamNames = [...settings.teamNames];
+  if (settings.userTeamNumber !== undefined) next.userTeamNumber = settings.userTeamNumber;
   if (settings.draftType) next.draftType = settings.draftType;
   if (settings.leagueFormat) next.leagueFormat = settings.leagueFormat;
   if (settings.futurePickSeasons !== undefined) next.futurePickSeasons = settings.futurePickSeasons;

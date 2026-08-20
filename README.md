@@ -8,7 +8,7 @@ Current prerelease version: **0.3.0**
 
 ## Project status
 
-DraftMeld is in active `0.3.0` development. It includes an accessible live board powered by normalized multi-source consensus, mapped projection imports, roster-aware VOR and tiers, targets and avoids, mock opponents, keeper-aware auction tracking, canonical alias review, and read-only reconciled Sleeper synchronization. Five downloadable feeds and two user-supplied ESPN PDF formats are currently supported.
+DraftMeld is in active `0.3.0` development. It includes an accessible live board powered by normalized multi-source consensus, mapped projection imports, roster-aware VOR and tiers, targets and avoids, mock opponents, keeper-aware auction tracking, canonical alias review, and read-only reconciled Sleeper synchronization. Five downloadable ranking feeds are supported alongside review-first league setup from public ESPN URLs, private ESPN settings pasted from the browser, ESPN JSON or PDF files, and provider-neutral PDF or CSV files.
 
 ## Product goals
 
@@ -83,7 +83,7 @@ go run ./cmd/draftmeld
 
 The frontend proxies `/api` requests to `http://localhost:8080`. A production build compiles the frontend into the Go executable.
 
-On first launch, DraftMeld creates a customizable demo league. The resumable setup guide can import common league, draft, roster, auction, dynasty, FAAB, and scoring settings from a PDF or CSV before creation. Use **Manage leagues** to create, edit, duplicate, or delete leagues and switch the active draft board.
+The resumable setup guide can import common league, draft, roster, auction, dynasty, FAAB, and scoring settings before creation. Built-in methods support a public ESPN league URL, settings pasted from a private ESPN page, an ESPN JSON or PDF file, and provider-neutral PDF or CSV files. Pasted ESPN settings recognize exact league and team identity, vertical roster tables, distance-based kicking, defensive point and yard tiers, and other supported scoring rules without confusing playoff-team counts with league size. The review shows every detected source and an evidence-based confidence level before anything is saved. The same importer is available while editing an existing league, and every import is reversible; DraftMeld never asks for ESPN credentials or cookies. Use **Manage leagues** to create, edit, duplicate, or delete leagues and switch the active draft board.
 
 The **Export and backup center** under Manage leagues downloads versioned league backups, consensus ranking CSVs, and draft results. Restores always create a new league rather than overwriting existing data. See [data portability](docs/data-portability.md) for formats and compatibility guarantees.
 

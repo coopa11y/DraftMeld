@@ -7,6 +7,9 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 ### Added
 
 - Resumable first-run setup with guided and full-manual paths, device-local progress, and clear next steps
+- Built-in ESPN league setup from public URLs, private browser-pasted settings, JSON exports, and printable or scanned PDFs without requiring ESPN credentials or cookies
+- Exact ESPN team-name and current-team detection, vertical roster-table parsing, and detailed kicking, defensive point, defensive yard, and one-point-safety scoring imports
+- Reviewable import evidence with deterministic high-confidence labels for exact adjacent ESPN settings and scoring values
 - Review-first league scoring imports from selectable-text PDF and flexible row- or column-oriented CSV files
 - League-wide PDF and CSV imports for format, draft, roster, dynasty, FAAB, auction, and scoring settings while preserving manual user-specific choices
 - Local, bounded OCR fallback for scanned league-rule and supported ranking PDFs, included in the Docker image
@@ -61,6 +64,8 @@ All notable DraftMeld changes will be documented here. DraftMeld follows Semanti
 
 ### Changed
 
+- League-setting imports now use exact leading labels and section-aware parsing so playoff-team counts, IDP roster labels, stat codes, and numeric ranges cannot overwrite unrelated league or scoring values
+- New leagues leave draft position unset until the user starts or configures a draft
 - NVDA-tested setup transitions now focus each active step and clearly confirm saved in-progress setup.
 - Split draft-workspace and ranking-source orchestration from their presentation components, added function-size enforcement, and raised coverage regression floors.
 - Backend draft trades, HTTP routes, and frontend trade workflows are split into cohesive feature modules with shared strict JSON decoding and presentation helpers

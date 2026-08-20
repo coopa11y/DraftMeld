@@ -15,6 +15,8 @@ describe("applyLeagueRuleImport", () => {
       settings: {
         name: "Saturday League",
         teamCount: 10,
+        teamNames: Array.from({ length: 10 }, (_, index) => `Imported Team ${index + 1}`),
+        userTeamNumber: 9,
         leagueFormat: "dynasty",
         draftType: "auction",
         futurePickSeasons: 3,
@@ -34,7 +36,7 @@ describe("applyLeagueRuleImport", () => {
       name: "Saturday League",
       teamCount: 10,
       draftPosition: 8,
-      userTeamNumber: 8,
+      userTeamNumber: 9,
       leagueFormat: "dynasty",
       draftType: "auction",
       futurePickSeasons: 3,
@@ -42,6 +44,7 @@ describe("applyLeagueRuleImport", () => {
       faabTrades: true,
     });
     expect(result.scoringRules.passingTouchdown).toBe(6);
+    expect(result.teamNames[8]).toBe("Imported Team 9");
     expect(result.rosterSlots.find((slot) => slot.name === "WR")?.count).toBe(3);
     expect(result.rosterSlots.some((slot) => slot.name === "K")).toBe(false);
   });

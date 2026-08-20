@@ -117,15 +117,37 @@ func registerLeagueRoutes(mux *http.ServeMux, service *application.LeagueService
 }
 
 func registerLeagueRuleImportRoute(mux *http.ServeMux, service *application.LeagueRuleImportService) {
+	mux.HandleFunc("POST /api/v1/leagues/rules/import/espn", func(response http.ResponseWriter, request *http.Request) {
+		input, ok := decodeJSON[struct {
+			LeagueURL string `json:"leagueUrl"`
+			Season    int    `json:"season"`
+		}](response, request, "The ESPN import request was not valid JSON.")
+		if !ok {
+			return
+		}
+		result, err := service.ImportESPNLeague(request.Context(), input.LeagueURL, input.Season)
+		if err != nil {
+			status := http.StatusBadGateway
+			if errors.Is(err, application.ErrInvalidESPNLeagueURL) {
+				status = http.StatusBadRequest
+			} else if errors.Is(err, application.ErrESPNLeaguePrivate) {
+				status = http.StatusUnprocessableEntity
+			}
+			writeError(response, status, err.Error())
+			return
+		}
+		writeJSON(response, http.StatusOK, result)
+	})
+
 	mux.HandleFunc("POST /api/v1/leagues/rules/import", func(response http.ResponseWriter, request *http.Request) {
 		request.Body = http.MaxBytesReader(response, request.Body, document.MaxPDFBytes+(1<<20))
 		if err := request.ParseMultipartForm(document.MaxPDFBytes); err != nil {
-			writeError(response, http.StatusBadRequest, "Upload one PDF or CSV file no larger than 20 MiB.")
+			writeError(response, http.StatusBadRequest, "Upload one supported file no larger than 20 MiB.")
 			return
 		}
 		file, header, err := request.FormFile("file")
 		if err != nil {
-			writeError(response, http.StatusBadRequest, "Choose a league rules PDF or CSV to import.")
+			writeError(response, http.StatusBadRequest, "Choose a league settings file to import.")
 			return
 		}
 		defer file.Close()
@@ -135,14 +157,31 @@ func registerLeagueRuleImportRoute(mux *http.ServeMux, service *application.Leag
 			return
 		}
 		extension := strings.ToLower(filepath.Ext(header.Filename))
+		provider := strings.ToLower(strings.TrimSpace(request.FormValue("provider")))
 		var result application.LeagueRuleImportResult
 		switch extension {
 		case ".pdf":
-			result, err = service.ImportPDF(contents)
+			if provider == "espn" {
+				result, err = service.ImportESPNPDF(contents)
+			} else {
+				result, err = service.ImportPDF(contents)
+			}
 		case ".csv":
 			result, err = service.ImportCSV(strings.NewReader(string(contents)))
+		case ".json":
+			if provider != "espn" {
+				writeError(response, http.StatusBadRequest, "JSON league settings imports currently support ESPN files only.")
+				return
+			}
+			result, err = service.ImportESPNJSON(contents)
+		case ".txt":
+			if provider != "espn" {
+				writeError(response, http.StatusBadRequest, "Text league settings imports currently support ESPN text only.")
+				return
+			}
+			result, err = service.ImportESPNText(contents)
 		default:
-			writeError(response, http.StatusBadRequest, "League rules must be uploaded as a PDF or CSV file.")
+			writeError(response, http.StatusBadRequest, "Use a PDF or CSV, or an ESPN JSON or text file.")
 			return
 		}
 		if errors.Is(err, application.ErrNoLeagueRulesFound) {

@@ -5,10 +5,12 @@ import { useViewHeadingFocus } from "../shared/hooks/useViewHeadingFocus";
 import { Button } from "../shared/ui/Button";
 import { Dialog } from "../shared/ui/Dialog";
 import { DraftSettings, LeagueSettings, TeamSettings } from "./LeagueSetupSections";
+import { LeagueRulesImport } from "./LeagueRulesImport";
 import { RosterSettings } from "./RosterSettings";
 import { ScoringSettings } from "./ScoringSettings";
 import { cloneLeagueRules, defaultLeagueRules } from "./leagueDefaults";
 import { enabledRosterPositions } from "./rosterConfiguration";
+import type { OnboardingImportReview } from "./onboarding";
 
 interface LeagueFormProps {
   league?: League;
@@ -30,6 +32,7 @@ export function LeagueForm({ league, initialRules, busy, onCancel, onChange, onS
   const [savedRules, setSavedRules] = useState<LeagueRules>(() => cloneLeagueRules(rules));
   const [section, setSection] = useState<Section>("League");
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [importReview, setImportReview] = useState<OnboardingImportReview>();
   const heading = useViewHeadingFocus<HTMLHeadingElement>();
   const discardHeading = useRef<HTMLHeadingElement>(null);
   const hasUnsavedChanges = JSON.stringify(rules) !== JSON.stringify(savedRules);
@@ -79,12 +82,20 @@ export function LeagueForm({ league, initialRules, busy, onCancel, onChange, onS
 
       <section className="league-form-section" aria-label={`${section} configuration`}>
         {section === "League" ? (
-          <LeagueSettings
-            rules={rules}
-            setRules={setRules}
-            disabled={busy}
-            lockSeason={Boolean(league && rules.leagueFormat === "dynasty")}
-          />
+          <>
+            <LeagueSettings
+              rules={rules}
+              setRules={setRules}
+              disabled={busy}
+              lockSeason={Boolean(league && rules.leagueFormat === "dynasty")}
+            />
+            <LeagueRulesImport
+              rules={rules}
+              setRules={setRules}
+              importReview={importReview}
+              setImportReview={setImportReview}
+            />
+          </>
         ) : null}
         {section === "Draft" ? <DraftSettings rules={rules} setRules={setRules} disabled={busy} /> : null}
         {section === "Teams" ? <TeamSettings rules={rules} setRules={setRules} disabled={busy} /> : null}

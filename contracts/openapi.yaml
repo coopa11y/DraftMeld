@@ -57,7 +57,7 @@ paths:
   /leagues/rules/import:
     post:
       operationId: importLeagueRules
-      summary: Preview league settings and scoring rules recognized from a user-supplied PDF or CSV
+      summary: Preview league settings and scoring rules recognized from a user-supplied file
       requestBody:
         required: true
         content:
@@ -69,6 +69,9 @@ paths:
                 file:
                   type: string
                   format: binary
+                provider:
+                  type: string
+                  enum: [espn]
       responses:
         "200":
           description: Recognized rules for user review. The uploaded file is not retained.
@@ -85,6 +88,35 @@ paths:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
         "422":
           description: The file was readable but contained no supported league settings or scoring rules.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /leagues/rules/import/espn:
+    post:
+      operationId: importESPNLeagueRules
+      summary: Preview settings and scoring from a public ESPN fantasy football league
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ESPNLeagueImportRequest"
+      responses:
+        "200":
+          description: Recognized ESPN settings for user review. ESPN credentials are never accepted or stored.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeagueRuleImport"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "422":
+          description: The ESPN league is private or no supported settings were recognized.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "502":
+          description: ESPN could not be reached or returned an unexpected response.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
@@ -917,7 +949,7 @@ components:
       properties:
         fileType:
           type: string
-          enum: [pdf, csv]
+          enum: [pdf, csv, espn, espn-pdf, espn-text]
         rules:
           type: object
           additionalProperties: { type: number }
@@ -934,6 +966,18 @@ components:
         warnings:
           type: array
           items: { type: string }
+    ESPNLeagueImportRequest:
+      type: object
+      additionalProperties: false
+      required: [leagueUrl, season]
+      properties:
+        leagueUrl:
+          type: string
+          format: uri
+          pattern: ^https://.*espn\.com/.*leagueId=\d+
+        season:
+          type: integer
+          minimum: 2000
     LeagueRuleMatch:
       type: object
       additionalProperties: false
@@ -976,6 +1020,12 @@ components:
       properties:
         name: { type: string }
         teamCount: { type: integer, minimum: 2, maximum: 32 }
+        teamNames:
+          type: array
+          minItems: 2
+          maxItems: 32
+          items: { type: string, minLength: 1, maxLength: 80 }
+        userTeamNumber: { type: integer, minimum: 1, maximum: 32 }
         draftType: { type: string, enum: [snake, linear, auction] }
         leagueFormat: { type: string, enum: [redraft, dynasty] }
         futurePickSeasons: { type: integer, minimum: 0, maximum: 5 }

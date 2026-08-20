@@ -47,10 +47,18 @@ export async function importLeagueBackup(backup: LeagueBackup): Promise<League> 
   return unwrap(data, error, response);
 }
 
-export async function importLeagueRules(file: File): Promise<LeagueRuleImport> {
+export async function importLeagueRules(file: File, provider?: "espn"): Promise<LeagueRuleImport> {
   const form = new FormData();
   form.append("file", file);
+  if (provider) form.append("provider", provider);
   return postMultipart<LeagueRuleImport>("leagues/rules/import", form);
+}
+
+export async function importESPNLeagueRules(leagueUrl: string, season: number): Promise<LeagueRuleImport> {
+  const { data, error, response } = await apiClient.POST("/leagues/rules/import/espn", {
+    body: { leagueUrl, season },
+  });
+  return unwrap(data, error, response);
 }
 
 export type LeagueExportKind = "backup" | "rankings.csv" | "draft.csv" | "draft.json";
