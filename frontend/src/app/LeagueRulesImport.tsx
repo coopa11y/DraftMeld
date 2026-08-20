@@ -164,7 +164,12 @@ export function LeagueRulesImport({
         </StatusMessage>
       ) : null}
       {importReview ? (
-        <ImportResults headingRef={resultsHeading} result={importReview.result} onUndo={undoImport} />
+        <ImportResults
+          headingLevel={headingLevel === 2 ? 3 : 4}
+          headingRef={resultsHeading}
+          result={importReview.result}
+          onUndo={undoImport}
+        />
       ) : null}
     </section>
   );
@@ -228,21 +233,24 @@ function ImportFileField({
 }
 
 function ImportResults({
+  headingLevel,
   headingRef,
   result,
   onUndo,
 }: {
+  headingLevel: 3 | 4;
   headingRef: RefObject<HTMLHeadingElement | null>;
   result: LeagueRuleImport;
   onUndo: () => void;
 }) {
   const total = result.settingMatches.length + result.matches.length;
   const sourceName = formatImportSource(result.fileType);
+  const Heading = headingLevel === 3 ? "h3" : "h4";
   return (
     <section className="rule-import-results" aria-labelledby="imported-rules-title">
-      <h4 id="imported-rules-title" ref={headingRef} tabIndex={-1}>
+      <Heading id="imported-rules-title" ref={headingRef} tabIndex={-1}>
         Imported values to review
-      </h4>
+      </Heading>
       <StatusMessage tone="success">
         Applied {total} recognized {total === 1 ? "value" : "values"}: {result.settingMatches.length} league settings
         and {result.matches.length} scoring values.

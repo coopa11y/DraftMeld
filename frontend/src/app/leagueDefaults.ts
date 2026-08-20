@@ -20,7 +20,7 @@ export function defaultLeagueRules(): LeagueRules {
   return {
     name: "My League",
     teamCount: 12,
-    draftPosition: 1,
+    draftPosition: 0,
     userTeamNumber: 1,
     teamNames: ["My Team", ...Array.from({ length: 11 }, () => "")],
     draftOrder: Array.from({ length: 12 }, (_, index) => index + 1),

@@ -1020,6 +1020,12 @@ components:
       properties:
         name: { type: string }
         teamCount: { type: integer, minimum: 2, maximum: 32 }
+        teamNames:
+          type: array
+          minItems: 2
+          maxItems: 32
+          items: { type: string, minLength: 1, maxLength: 80 }
+        userTeamNumber: { type: integer, minimum: 1, maximum: 32 }
         draftType: { type: string, enum: [snake, linear, auction] }
         leagueFormat: { type: string, enum: [redraft, dynasty] }
         futurePickSeasons: { type: integer, minimum: 0, maximum: 5 }

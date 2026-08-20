@@ -748,6 +748,8 @@ export interface components {
         ImportedLeagueSettings: {
             name?: string;
             teamCount?: number;
+            teamNames?: string[];
+            userTeamNumber?: number;
             /** @enum {string} */
             draftType?: "snake" | "linear" | "auction";
             /** @enum {string} */

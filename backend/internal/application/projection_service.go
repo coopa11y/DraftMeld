@@ -17,13 +17,17 @@ import (
 var projectionStatColumns = []string{
 	"reception", "passingYard", "passingTouchdown", "interception", "rushingYard", "rushingTouchdown",
 	"receivingYard", "receivingTouchdown", "fieldGoalMade", "extraPointMade", "defenseSack",
-	"defenseInterception", "defenseFumbleRecovery", "defenseTouchdown", "defenseSafety",
+	"defenseInterception", "defenseFumbleRecovery", "defenseTouchdown", "defenseSafety", "defenseOnePointSafety",
 	"passingTwoPointConversion", "rushingTwoPointConversion", "receivingTwoPointConversion", "fumble", "fumbleLost",
 	"passing300YardGame", "passing400YardGame", "rushing100YardGame", "rushing200YardGame",
-	"receiving100YardGame", "receiving200YardGame", "fieldGoal0To39", "fieldGoal40To49", "fieldGoal50Plus",
+	"receiving100YardGame", "receiving200YardGame", "fieldGoal0To39", "fieldGoal40To49", "fieldGoal50To59", "fieldGoal60Plus", "fieldGoal50Plus",
 	"fieldGoalMissed", "extraPointMissed", "defenseBlockedKick", "defenseTwoPointReturn", "defensePointsAllowed0",
 	"defensePointsAllowed1To6", "defensePointsAllowed7To13", "defensePointsAllowed14To20",
 	"defensePointsAllowed21To27", "defensePointsAllowed28To34", "defensePointsAllowed35Plus",
+	"defensePointsAllowed14To17", "defensePointsAllowed35To45", "defensePointsAllowed46Plus",
+	"defenseYardsAllowedUnder100", "defenseYardsAllowed100To199", "defenseYardsAllowed200To299",
+	"defenseYardsAllowed350To399", "defenseYardsAllowed400To449", "defenseYardsAllowed450To499",
+	"defenseYardsAllowed500To549", "defenseYardsAllowed550Plus",
 }
 
 var nonCSVHeaderCharacter = regexp.MustCompile(`[^a-z0-9]+`)
@@ -48,6 +52,8 @@ var projectionHeaderAliases = map[string][]string{
 	"fieldGoal0To39":              {"fieldgoal0to39", "fg0to39", "fg039"},
 	"fieldGoal40To49":             {"fieldgoal40to49", "fg40to49", "fg4049"},
 	"fieldGoal50Plus":             {"fieldgoal50plus", "fg50plus", "fg50"},
+	"fieldGoal50To59":             {"fieldgoal50to59", "fg50to59", "fg5059"},
+	"fieldGoal60Plus":             {"fieldgoal60plus", "fg60plus", "fg60"},
 	"defensePointsAllowed0":       {"defensepointsallowed0", "dstpa0"},
 	"defensePointsAllowed1To6":    {"defensepointsallowed1to6", "dstpa1to6"},
 	"defensePointsAllowed7To13":   {"defensepointsallowed7to13", "dstpa7to13"},
@@ -55,6 +61,18 @@ var projectionHeaderAliases = map[string][]string{
 	"defensePointsAllowed21To27":  {"defensepointsallowed21to27", "dstpa21to27"},
 	"defensePointsAllowed28To34":  {"defensepointsallowed28to34", "dstpa28to34"},
 	"defensePointsAllowed35Plus":  {"defensepointsallowed35plus", "dstpa35plus"},
+	"defensePointsAllowed14To17":  {"defensepointsallowed14to17", "dstpa14to17"},
+	"defensePointsAllowed35To45":  {"defensepointsallowed35to45", "dstpa35to45"},
+	"defensePointsAllowed46Plus":  {"defensepointsallowed46plus", "dstpa46plus"},
+	"defenseYardsAllowedUnder100": {"defenseyardsallowedunder100", "dstyaunder100"},
+	"defenseYardsAllowed100To199": {"defenseyardsallowed100to199", "dstya100to199"},
+	"defenseYardsAllowed200To299": {"defenseyardsallowed200to299", "dstya200to299"},
+	"defenseYardsAllowed350To399": {"defenseyardsallowed350to399", "dstya350to399"},
+	"defenseYardsAllowed400To449": {"defenseyardsallowed400to449", "dstya400to449"},
+	"defenseYardsAllowed450To499": {"defenseyardsallowed450to499", "dstya450to499"},
+	"defenseYardsAllowed500To549": {"defenseyardsallowed500to549", "dstya500to549"},
+	"defenseYardsAllowed550Plus":  {"defenseyardsallowed550plus", "dstya550plus"},
+	"defenseOnePointSafety":       {"defenseonepointsafety", "dst1ptsafety"},
 }
 
 type ProjectionRepository interface {

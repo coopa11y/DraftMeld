@@ -35,7 +35,7 @@ var leagueSettingDefinitions = []leagueSettingDefinition{
 	{Key: "faabBudget", Label: "FAAB budget", Kind: settingNumber, Aliases: []string{"faab budget", "free agent budget", "waiver budget"}},
 	{Key: "futurePickSeasons", Label: "Future pick seasons", Kind: settingNumber, Aliases: []string{"future pick seasons", "future draft pick years", "future picks years"}},
 	{Key: "rookieDraftRounds", Label: "Rookie draft rounds", Kind: settingNumber, Aliases: []string{"rookie draft rounds", "rookie rounds"}},
-	{Key: "teamCount", Label: "Number of teams", Kind: settingNumber, Aliases: []string{"number of teams", "team count", "league size", "teams"}},
+	{Key: "teamCount", Label: "Number of teams", Kind: settingNumber, Aliases: []string{"number of teams", "team count", "league size"}},
 	{Key: "draftType", Label: "Draft format", Kind: settingDraftType, Aliases: []string{"draft format", "draft type"}},
 	{Key: "leagueFormat", Label: "League format", Kind: settingLeagueFormat, Aliases: []string{"league format", "league type"}},
 	{Key: "name", Label: "League name", Kind: settingText, Aliases: []string{"league name"}},
@@ -49,16 +49,16 @@ type rosterSlotDefinition struct {
 }
 
 var rosterSlotDefinitions = []rosterSlotDefinition{
-	{Name: "SUPERFLEX", Positions: []string{"QB", "RB", "WR", "TE"}, IsStarting: true, Aliases: []string{"superflex", "super flex"}},
-	{Name: "FLEX", Positions: []string{"RB", "WR", "TE"}, IsStarting: true, Aliases: []string{"flex", "rb wr te flex"}},
-	{Name: "DST", Positions: []string{"DST"}, IsStarting: true, Aliases: []string{"d st", "dst", "team defense", "defense special teams"}},
-	{Name: "QB", Positions: []string{"QB"}, IsStarting: true, Aliases: []string{"quarterbacks", "quarterback", "qb"}},
-	{Name: "RB", Positions: []string{"RB"}, IsStarting: true, Aliases: []string{"running backs", "running back", "rb"}},
-	{Name: "WR", Positions: []string{"WR"}, IsStarting: true, Aliases: []string{"wide receivers", "wide receiver", "wr"}},
-	{Name: "TE", Positions: []string{"TE"}, IsStarting: true, Aliases: []string{"tight ends", "tight end", "te"}},
-	{Name: "K", Positions: []string{"K"}, IsStarting: true, Aliases: []string{"kickers", "kicker", "pk", "k"}},
-	{Name: "Bench", Positions: []string{"QB", "RB", "WR", "TE", "K", "DST"}, IsStarting: false, Aliases: []string{"bench slots", "bench players", "bench"}},
-	{Name: "IR", Positions: []string{"QB", "RB", "WR", "TE", "K", "DST"}, IsStarting: false, Aliases: []string{"injured reserve", "reserve slots", "ir slots", "ir"}},
+	{Name: "SUPERFLEX", Positions: []string{"QB", "RB", "WR", "TE"}, IsStarting: true, Aliases: []string{"superflex", "super flex", "offensive player utility op"}},
+	{Name: "FLEX", Positions: []string{"RB", "WR", "TE"}, IsStarting: true, Aliases: []string{"flex", "flex flex", "rb wr te flex"}},
+	{Name: "DST", Positions: []string{"DST"}, IsStarting: true, Aliases: []string{"d st", "dst", "team defense", "defense special teams", "team defense special teams d st"}},
+	{Name: "QB", Positions: []string{"QB"}, IsStarting: true, Aliases: []string{"quarterbacks", "quarterback", "qb", "quarterback qb"}},
+	{Name: "RB", Positions: []string{"RB"}, IsStarting: true, Aliases: []string{"running backs", "running back", "rb", "running back rb"}},
+	{Name: "WR", Positions: []string{"WR"}, IsStarting: true, Aliases: []string{"wide receivers", "wide receiver", "wr", "wide receiver wr"}},
+	{Name: "TE", Positions: []string{"TE"}, IsStarting: true, Aliases: []string{"tight ends", "tight end", "te", "tight end te"}},
+	{Name: "K", Positions: []string{"K"}, IsStarting: true, Aliases: []string{"kickers", "kicker", "pk", "k", "place kicker k"}},
+	{Name: "Bench", Positions: []string{"QB", "RB", "WR", "TE", "K", "DST"}, IsStarting: false, Aliases: []string{"bench slots", "bench players", "bench", "bench be"}},
+	{Name: "IR", Positions: []string{"QB", "RB", "WR", "TE", "K", "DST"}, IsStarting: false, Aliases: []string{"injured reserve", "reserve slots", "ir slots", "ir", "injured reserve ir"}},
 }
 
 func parseLeagueSettingsCSV(result *LeagueRuleImportResult, rows [][]string) {
@@ -103,14 +103,103 @@ func parseLeagueSettingsLines(result *LeagueRuleImportResult, lines []string) {
 			if value == "" && index+1 < len(lines) {
 				value = strings.TrimSpace(lines[index+1])
 			}
-			builder.addSetting(definition, value, strings.TrimSpace(line), "medium")
+			builder.addSetting(definition, value, strings.TrimSpace(line), "high")
+		}
+		if slot, ok := findRosterSlot(line); ok && index+1 < len(lines) {
+			if count, valid := integerValue(lines[index+1]); valid && count >= 0 && count <= 40 {
+				builder.addRoster(slot, count, strings.TrimSpace(line), "high")
+			}
 		}
 		builder.parseRosterText(line, "medium")
 	}
+	builder.parseTeamNames(lines)
+	builder.parseUserTeamNumber(lines)
 	if strings.Contains(strings.ToLower(strings.Join(lines, " ")), "individual defensive player") || strings.Contains(strings.ToLower(strings.Join(lines, " ")), "idp") {
 		result.Warnings = append(result.Warnings, "Individual defensive-player roster slots are not supported and were not imported.")
 	}
 	builder.finish()
+}
+
+func (builder *leagueSettingsBuilder) parseUserTeamNumber(lines []string) {
+	teamCount := builder.result.Settings.TeamCount
+	teamNames := builder.result.Settings.TeamNames
+	if teamCount == nil || len(teamNames) != *teamCount {
+		return
+	}
+	for index, line := range lines {
+		if normalizeRuleText(line) != "opposing teams" {
+			continue
+		}
+		nonEmpty := make([]string, 0, *teamCount)
+		for _, candidate := range lines[index+1:] {
+			if value := strings.TrimSpace(candidate); value != "" {
+				nonEmpty = append(nonEmpty, value)
+			}
+			if len(nonEmpty) == *teamCount {
+				break
+			}
+		}
+		if len(nonEmpty) != *teamCount {
+			return
+		}
+		ownTeam := nonEmpty[*teamCount-1]
+		for teamIndex, teamName := range teamNames {
+			if strings.EqualFold(ownTeam, teamName) {
+				teamNumber := teamIndex + 1
+				builder.result.Settings.UserTeamNumber = &teamNumber
+				builder.addMatch(LeagueSettingMatch{Key: "userTeamNumber", Label: "Your team", Value: teamName, Source: "Opposing Teams", Confidence: "high"})
+				return
+			}
+		}
+		return
+	}
+}
+
+func (builder *leagueSettingsBuilder) parseTeamNames(lines []string) {
+	if builder.result.Settings.TeamCount == nil {
+		return
+	}
+	sectionStart, sectionEnd := -1, len(lines)
+	for index, line := range lines {
+		switch normalizeRuleText(line) {
+		case "teams and divisions settings":
+			sectionStart = index + 1
+		case "player rules":
+			if sectionStart >= 0 {
+				sectionEnd = index
+			}
+		}
+	}
+	if sectionStart < 0 || sectionStart >= sectionEnd {
+		return
+	}
+	candidates := make([]string, 0, *builder.result.Settings.TeamCount)
+	for _, line := range lines[sectionStart:sectionEnd] {
+		if name := strings.TrimSpace(line); name != "" {
+			candidates = append(candidates, name)
+		}
+	}
+	for len(candidates) > *builder.result.Settings.TeamCount {
+		removed := false
+		for index, candidate := range candidates {
+			if candidate == strings.ToUpper(candidate) && strings.ToLower(candidate) != candidate {
+				candidates = append(candidates[:index], candidates[index+1:]...)
+				removed = true
+				break
+			}
+		}
+		if !removed {
+			return
+		}
+	}
+	if len(candidates) != *builder.result.Settings.TeamCount {
+		return
+	}
+	builder.result.Settings.TeamNames = append([]string(nil), candidates...)
+	builder.addMatch(LeagueSettingMatch{
+		Key: "teamNames", Label: "Team names", Value: strings.Join(candidates, ", "),
+		Source: "Teams And Divisions Settings", Confidence: "high",
+	})
 }
 
 type leagueSettingsBuilder struct {
@@ -287,15 +376,12 @@ func (builder *leagueSettingsBuilder) finish() {
 
 func findLeagueSetting(value string) (leagueSettingDefinition, string, bool) {
 	normalized := normalizeRuleText(value)
-	bestIndex := len(normalized) + 1
 	var bestDefinition leagueSettingDefinition
 	bestAlias := ""
 	for _, definition := range leagueSettingDefinitions {
 		for _, alias := range definition.Aliases {
 			normalizedAlias := normalizeRuleText(alias)
-			index := strings.Index(" "+normalized+" ", " "+normalizedAlias+" ")
-			if index >= 0 && index < bestIndex {
-				bestIndex = index
+			if (normalized == normalizedAlias || strings.HasPrefix(normalized, normalizedAlias+" ")) && len(normalizedAlias) > len(bestAlias) {
 				bestDefinition = definition
 				bestAlias = normalizedAlias
 			}
@@ -317,7 +403,7 @@ func findRosterSlot(value string) (rosterSlotDefinition, bool) {
 	normalized := normalizeRuleText(value)
 	for _, definition := range rosterSlotDefinitions {
 		for _, alias := range definition.Aliases {
-			if normalized == normalizeRuleText(alias) || strings.HasSuffix(normalized, " "+normalizeRuleText(alias)) || strings.HasPrefix(normalized, normalizeRuleText(alias)+" ") {
+			if normalized == normalizeRuleText(alias) {
 				return definition, true
 			}
 		}
