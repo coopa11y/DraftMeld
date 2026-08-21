@@ -52,12 +52,30 @@ func TestRankingSourcesExposeBuiltInProvenance(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&sources); err != nil {
 		t.Fatalf("decode ranking sources: %v", err)
 	}
-	if len(sources) != 7 {
-		t.Fatalf("expected seven built-in sources, got %d", len(sources))
+	if len(sources) != len(application.BuiltInRankingSources()) {
+		t.Fatalf("expected %d built-in sources, got %d", len(application.BuiltInRankingSources()), len(sources))
 	}
 	for _, source := range sources {
 		if source.ID == "" || source.License == "" || source.ProjectURL == "" {
 			t.Fatalf("source is missing provenance: %#v", source)
+		}
+	}
+}
+
+func TestRankingSourceRecommendationsUseLeagueRules(t *testing.T) {
+	router, closeStore := testRouter(t)
+	defer closeStore()
+	for _, test := range []struct {
+		path string
+		want int
+	}{{"/api/v1/ranking-sources/recommendations", http.StatusBadRequest}, {"/api/v1/ranking-sources/recommendations?leagueId=missing", http.StatusNotFound}, {"/api/v1/ranking-sources/recommendations?leagueId=demo", http.StatusOK}} {
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, test.path, nil))
+		if response.Code != test.want {
+			t.Fatalf("expected %d for %s, got %d: %s", test.want, test.path, response.Code, response.Body.String())
+		}
+		if test.want == http.StatusOK && (!strings.Contains(response.Body.String(), `"profile":"redraft, 1-QB, 1 PPR"`) || !strings.Contains(response.Body.String(), `"sourceId":"dynasty-1qb","fit":"not recommended"`)) {
+			t.Fatalf("recommendations did not reflect demo rules: %s", response.Body.String())
 		}
 	}
 }
@@ -529,6 +547,35 @@ func TestCreateMockDraftStartsHiddenSession(t *testing.T) {
 	}
 }
 
+func TestPlayerNewsRoutes(t *testing.T) {
+	router, closeStore, _ := testRouterWithDraftService(t)
+	defer closeStore()
+
+	sources := httptest.NewRecorder()
+	router.ServeHTTP(sources, httptest.NewRequest(http.MethodGet, "/api/v1/player-news/sources", nil))
+	if sources.Code != http.StatusOK || !strings.Contains(sources.Body.String(), `"espn-nfl-news"`) {
+		t.Fatalf("list player news sources: %d %s", sources.Code, sources.Body.String())
+	}
+
+	feed := httptest.NewRecorder()
+	router.ServeHTTP(feed, httptest.NewRequest(http.MethodGet, "/api/v1/player-news", nil))
+	if feed.Code != http.StatusOK || !strings.Contains(feed.Body.String(), `"updates":[]`) {
+		t.Fatalf("get player news: %d %s", feed.Code, feed.Body.String())
+	}
+
+	update := httptest.NewRecorder()
+	router.ServeHTTP(update, httptest.NewRequest(http.MethodPatch, "/api/v1/player-news/sources/missing", strings.NewReader(`{"enabled":false}`)))
+	if update.Code != http.StatusNotFound {
+		t.Fatalf("update missing player news source: %d %s", update.Code, update.Body.String())
+	}
+
+	add := httptest.NewRecorder()
+	router.ServeHTTP(add, httptest.NewRequest(http.MethodPost, "/api/v1/player-news/sources", strings.NewReader(`{"name":"Local","url":"https://127.0.0.1/feed","attribution":"Local","refreshMinutes":15}`)))
+	if add.Code != http.StatusBadRequest {
+		t.Fatalf("add private player news source: %d %s", add.Code, add.Body.String())
+	}
+}
+
 func testRouterWithDraftService(t *testing.T) (http.Handler, func(), *application.DraftService) {
 	t.Helper()
 	store, err := draftsqlite.Open(t.TempDir() + "/draftmeld.db")
@@ -548,6 +595,8 @@ func testRouterWithDraftService(t *testing.T) (http.Handler, func(), *applicatio
 	}
 	rankingService := application.NewRankingService(store)
 	projectionService := application.NewProjectionService(store)
+	playerNewsService := application.NewPlayerNewsService(store)
 	service.UseIntelligence(rankingService, projectionService)
-	return NewRouter(slog.New(slog.NewTextHandler(io.Discard, nil)), "test", service, leagueService, rankingService, projectionService), func() { _ = store.Close() }, service
+	service.UsePlayerNews(playerNewsService)
+	return NewRouter(slog.New(slog.NewTextHandler(io.Discard, nil)), "test", service, leagueService, rankingService, projectionService, playerNewsService), func() { _ = store.Close() }, service
 }

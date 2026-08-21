@@ -5,8 +5,8 @@ const providerCoverage = [
   { provider: "CBS Sports", status: "Connected", detail: "Current public PPR Top 200 consensus." },
   {
     provider: "Yahoo Fantasy",
-    status: "OAuth required",
-    detail: "Public rankings are league-specific; full league data requires approved API access.",
+    status: "Public Standard",
+    detail: "The public Standard Top 200 is available; league-specific XRank requires Yahoo authorization.",
   },
   {
     provider: "NFL.com",
@@ -15,8 +15,14 @@ const providerCoverage = [
   },
   {
     provider: "ESPN",
-    status: "PDF import",
-    detail: "Upload a PPR Top 300 or Dynasty Cheat Sheet that you are permitted to use.",
+    status: "Online PPR",
+    detail: "The current public PPR player service is connected, with PDF import retained as a fallback.",
+  },
+  {
+    provider: "Draft Sharks",
+    status: "League-matched presets",
+    detail:
+      "Public scoring and quarterback presets include tiers and projection evidence; private league sync requires the user's authorized export.",
   },
 ] as const;
 
@@ -151,6 +157,7 @@ function ConsensusPreview({
                 <th scope="row">
                   <span className="player-name">{player.name}</span>
                   <span className="player-meta">{player.team || "Team unavailable"}</span>
+                  {player.projection ? <ProjectionEvidenceDetails evidence={player.projection} /> : null}
                 </th>
                 <td>{player.position}</td>
                 <td>
@@ -170,4 +177,49 @@ function ConsensusPreview({
       </div>
     </Panel>
   );
+}
+
+function ProjectionEvidenceDetails({ evidence }: { evidence: NonNullable<ConsensusRanking["projection"]> }) {
+  return (
+    <details className="projection-evidence-details">
+      <summary>{evidence.sourceName} projection details</summary>
+      <dl>
+        <div>
+          <dt>Profile</dt>
+          <dd>{evidence.profile}</dd>
+        </div>
+        <div>
+          <dt>Projection range</dt>
+          <dd>
+            {evidence.floorProjection.toFixed(1)} floor, {evidence.sourceProjection.toFixed(1)} Draft Sharks,{" "}
+            {evidence.ceilingProjection.toFixed(1)} ceiling
+          </dd>
+        </div>
+        <div>
+          <dt>Consensus projection</dt>
+          <dd>{evidence.consensusProjection.toFixed(1)}</dd>
+        </div>
+        <div>
+          <dt>3D Value</dt>
+          <dd>{evidence.sourceValue.toFixed(1)}</dd>
+        </div>
+        <div>
+          <dt>Availability</dt>
+          <dd>
+            {evidence.games} games, bye week {evidence.byeWeek || "unavailable"}
+          </dd>
+        </div>
+        <div>
+          <dt>Risk and schedule</dt>
+          <dd>
+            {evidence.injuryRisk.toFixed(1)}% injury risk, {signedPercent(evidence.scheduleStrength)} schedule strength
+          </dd>
+        </div>
+      </dl>
+    </details>
+  );
+}
+
+function signedPercent(value: number) {
+  return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
 }

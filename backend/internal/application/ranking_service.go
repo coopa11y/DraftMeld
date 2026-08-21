@@ -74,9 +74,24 @@ func (service *RankingService) sourceByID(id string) (ranking.SourceDefinition, 
 }
 
 func (service *RankingService) Refresh(ctx context.Context) ([]ranking.SourceStatus, error) {
+	return service.refreshSources(ctx, nil)
+}
+
+func (service *RankingService) RefreshForLeague(ctx context.Context, rules league.Rules) ([]ranking.SourceStatus, error) {
+	preferences := RecommendedRankingSourcePreferences(rules)
+	for sourceID, preference := range rules.SourcePreferences {
+		preferences[sourceID] = preference
+	}
+	return service.refreshSources(ctx, preferences)
+}
+
+func (service *RankingService) refreshSources(ctx context.Context, preferences map[string]league.RankingSourcePreference) ([]ranking.SourceStatus, error) {
 	downloads := make(map[string][]byte)
 	for _, source := range service.sources {
 		if source.ImportMode != "download" {
+			continue
+		}
+		if preference, scoped := preferences[source.ID]; preferences != nil && (!scoped || !preference.Enabled) {
 			continue
 		}
 		contents, exists := downloads[source.DataURL]
@@ -145,6 +160,13 @@ func (service *RankingService) download(ctx context.Context, source ranking.Sour
 			return nil, fmt.Errorf("build %s request: %w", source.Name, err)
 		}
 		request.Header.Set("User-Agent", "DraftMeld/0.3 (+https://github.com/coopa11y/DraftMeld)")
+		if source.ID == "espn-ppr-online" {
+			request.Header.Set("X-Fantasy-Filter", espnPPRFilter)
+		}
+		if source.VariantGroup == "draft-sharks" {
+			request.Header.Set("HX-Request", "true")
+			request.Header.Set("Referer", draftSharksProjectURL)
+		}
 		response, err := service.client.Do(request)
 		if err != nil {
 			lastErr = err
@@ -201,5 +223,5 @@ func effectiveSourcePreference(definition ranking.SourceDefinition, preferences 
 	if preference, exists := preferences[definition.ID]; exists {
 		return preference
 	}
-	return league.RankingSourcePreference{Weight: definition.DefaultWeight, Enabled: true}
+	return league.RankingSourcePreference{Weight: definition.DefaultWeight, Enabled: definition.DefaultEnabled}
 }

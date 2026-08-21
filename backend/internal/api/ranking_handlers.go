@@ -9,6 +9,7 @@ import (
 
 	"github.com/coopa11y/DraftMeld/backend/internal/application"
 	"github.com/coopa11y/DraftMeld/backend/internal/document"
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/ranking"
 )
 
 const maxRankingCSVBytes = 10 << 20
@@ -53,8 +54,45 @@ func registerRankingRoutes(mux *http.ServeMux, service *application.RankingServi
 		}
 		writeJSON(response, http.StatusOK, sources)
 	})
+	mux.HandleFunc("GET /api/v1/ranking-sources/recommendations", func(response http.ResponseWriter, request *http.Request) {
+		leagueID := request.URL.Query().Get("leagueId")
+		if leagueID == "" {
+			writeError(response, http.StatusBadRequest, "A league ID is required.")
+			return
+		}
+		configuration, err := leagues.Get(request.Context(), leagueID)
+		if err != nil {
+			if errors.Is(err, application.ErrLeagueNotFound) {
+				writeError(response, http.StatusNotFound, "That league was not found.")
+				return
+			}
+			writeError(response, http.StatusInternalServerError, "Unable to load league rules.")
+			return
+		}
+		recommendations, err := service.Recommendations(request.Context(), configuration.Rules)
+		if err != nil {
+			writeError(response, http.StatusInternalServerError, "Unable to recommend ranking sources.")
+			return
+		}
+		writeJSON(response, http.StatusOK, recommendations)
+	})
 	mux.HandleFunc("POST /api/v1/ranking-sources/refresh", func(response http.ResponseWriter, request *http.Request) {
-		sources, err := service.Refresh(request.Context())
+		var sources []ranking.SourceStatus
+		var err error
+		if leagueID := request.URL.Query().Get("leagueId"); leagueID != "" {
+			configuration, leagueErr := leagues.Get(request.Context(), leagueID)
+			if leagueErr != nil {
+				if errors.Is(leagueErr, application.ErrLeagueNotFound) {
+					writeError(response, http.StatusNotFound, "That league was not found.")
+					return
+				}
+				writeError(response, http.StatusInternalServerError, "Unable to load league rules.")
+				return
+			}
+			sources, err = service.RefreshForLeague(request.Context(), configuration.Rules)
+		} else {
+			sources, err = service.Refresh(request.Context())
+		}
 		if err != nil {
 			writeError(response, http.StatusBadGateway, err.Error())
 			return

@@ -5,6 +5,7 @@ import { FormField } from "../shared/ui/FormField";
 import { Panel } from "../shared/ui/Panel";
 import { StatusMessage } from "../shared/ui/StatusMessage";
 import { PlayerActions } from "./PlayerActions";
+import { PlayerNewsDetails } from "./PlayerNewsDetails";
 
 const positions = ["Overall", "QB", "RB", "WR", "TE", "K", "DST"] as const;
 type PositionFilter = (typeof positions)[number];
@@ -145,6 +146,7 @@ export function PlayerBoard({
                   <span className="player-meta">
                     {player.nflTeam}, bye week {player.byeWeek}
                   </span>
+                  {player.news ? <PlayerNewsDetails player={player} update={player.news} /> : null}
                 </th>
                 <td>
                   {player.position}

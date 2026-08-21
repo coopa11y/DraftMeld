@@ -35,6 +35,7 @@ type DraftService struct {
 	leagues        LeagueConfigurationRepository
 	rankings       *RankingService
 	projections    *ProjectionService
+	playerNews     *PlayerNewsService
 	sleeperClient  *http.Client
 	sleeperBaseURL string
 	mu             sync.Mutex
@@ -42,6 +43,10 @@ type DraftService struct {
 
 func (service *DraftService) UseIntelligence(rankings *RankingService, projections *ProjectionService) {
 	service.rankings, service.projections = rankings, projections
+}
+
+func (service *DraftService) UsePlayerNews(playerNews *PlayerNewsService) {
+	service.playerNews = playerNews
 }
 
 func (service *DraftService) ConfigureSleeperClient(client *http.Client, baseURL string) {
@@ -119,6 +124,7 @@ func (service *DraftService) Snapshot(ctx context.Context, leagueID string) (dra
 	if err != nil {
 		return draft.Snapshot{}, err
 	}
+	service.overlayPlayerNews(ctx, players, playerByID)
 	trades, err := service.pickTrades(ctx, leagueID)
 	if err != nil {
 		return draft.Snapshot{}, fmt.Errorf("list draft pick trades: %w", err)

@@ -13,6 +13,7 @@ interface LeagueOverviewProps {
   onMockDraft: (draftPosition?: number) => Promise<void>;
   onOpenDraft: () => void;
   onOpenSources: () => void;
+  onOpenNews: () => void;
 }
 
 export function LeagueOverview(props: LeagueOverviewProps) {
@@ -79,6 +80,9 @@ export function LeagueOverview(props: LeagueOverviewProps) {
             </li>
             <li>
               <Button onClick={props.onOpenSources}>Ranking sources</Button>
+            </li>
+            <li>
+              <Button onClick={props.onOpenNews}>Player news sources</Button>
             </li>
           </ul>
         </section>

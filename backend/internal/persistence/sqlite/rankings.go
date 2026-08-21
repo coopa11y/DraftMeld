@@ -20,27 +20,34 @@ VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET refreshed_at=excluded.refreshe
 	}
 	if source.IsCustom {
 		if _, err = tx.ExecContext(ctx, `INSERT INTO custom_ranking_sources
-(id, name, description, methodology, license, project_url, data_url, default_weight, import_mode, role)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+(id, name, description, methodology, license, project_url, data_url, default_weight, import_mode, role, variant_group, profile)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET name=excluded.name, description=excluded.description,
 methodology=excluded.methodology, license=excluded.license, project_url=excluded.project_url,
 data_url=excluded.data_url, default_weight=excluded.default_weight,
-import_mode=excluded.import_mode, role=excluded.role`, source.ID, source.Name, source.Description,
+import_mode=excluded.import_mode, role=excluded.role, variant_group=excluded.variant_group,
+profile=excluded.profile`, source.ID, source.Name, source.Description,
 			source.Methodology, source.License, source.ProjectURL, source.DataURL, source.DefaultWeight,
-			source.ImportMode, source.Role); err != nil {
+			source.ImportMode, source.Role, source.VariantGroup, source.Profile); err != nil {
 			return fmt.Errorf("save custom ranking source: %w", err)
 		}
 	}
 	if _, err = tx.ExecContext(ctx, "DELETE FROM ranking_entries WHERE source_id = ?", source.ID); err != nil {
 		return fmt.Errorf("clear ranking entries: %w", err)
 	}
-	statement, err := tx.PrepareContext(ctx, `INSERT INTO ranking_entries (source_id, player_key, player_name, position, nfl_team, source_rank, adp, tier) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+	statement, err := tx.PrepareContext(ctx, `INSERT INTO ranking_entries
+(source_id, player_key, player_name, position, nfl_team, source_rank, adp, tier, games, bye_week,
+ floor_projection, consensus_projection, source_projection, ceiling_projection, source_value, injury_risk, schedule_strength)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return fmt.Errorf("prepare ranking entries: %w", err)
 	}
 	defer statement.Close()
 	for _, record := range records {
-		if _, err = statement.ExecContext(ctx, source.ID, record.PlayerKey, record.Name, record.Position, record.Team, record.Rank, record.ADP, record.Tier); err != nil {
+		if _, err = statement.ExecContext(ctx, source.ID, record.PlayerKey, record.Name, record.Position, record.Team,
+			record.Rank, record.ADP, record.Tier, record.Games, record.ByeWeek, record.FloorProjection,
+			record.ConsensusProjection, record.SourceProjection, record.CeilingProjection, record.SourceValue,
+			record.InjuryRisk, record.ScheduleStrength); err != nil {
 			return fmt.Errorf("save ranking entry: %w", err)
 		}
 	}
@@ -51,7 +58,9 @@ import_mode=excluded.import_mode, role=excluded.role`, source.ID, source.Name, s
 }
 
 func (store *DraftEventStore) RankingRecords(ctx context.Context) ([]ranking.Record, error) {
-	rows, err := store.database.QueryContext(ctx, `SELECT source_id, player_key, player_name, position, nfl_team, source_rank, adp, tier FROM ranking_entries ORDER BY source_id, source_rank`)
+	rows, err := store.database.QueryContext(ctx, `SELECT source_id, player_key, player_name, position, nfl_team,
+source_rank, adp, tier, games, bye_week, floor_projection, consensus_projection, source_projection,
+ceiling_projection, source_value, injury_risk, schedule_strength FROM ranking_entries ORDER BY source_id, source_rank`)
 	if err != nil {
 		return nil, fmt.Errorf("query ranking entries: %w", err)
 	}
@@ -59,7 +68,10 @@ func (store *DraftEventStore) RankingRecords(ctx context.Context) ([]ranking.Rec
 	records := make([]ranking.Record, 0)
 	for rows.Next() {
 		var record ranking.Record
-		if err = rows.Scan(&record.SourceID, &record.PlayerKey, &record.Name, &record.Position, &record.Team, &record.Rank, &record.ADP, &record.Tier); err != nil {
+		if err = rows.Scan(&record.SourceID, &record.PlayerKey, &record.Name, &record.Position, &record.Team,
+			&record.Rank, &record.ADP, &record.Tier, &record.Games, &record.ByeWeek, &record.FloorProjection,
+			&record.ConsensusProjection, &record.SourceProjection, &record.CeilingProjection,
+			&record.SourceValue, &record.InjuryRisk, &record.ScheduleStrength); err != nil {
 			return nil, fmt.Errorf("scan ranking entry: %w", err)
 		}
 		records = append(records, record)
@@ -69,7 +81,8 @@ func (store *DraftEventStore) RankingRecords(ctx context.Context) ([]ranking.Rec
 
 func (store *DraftEventStore) CustomRankingSources(ctx context.Context) ([]ranking.SourceDefinition, error) {
 	rows, err := store.database.QueryContext(ctx, `SELECT id, name, description, methodology, license,
-project_url, data_url, default_weight, import_mode, role FROM custom_ranking_sources ORDER BY name, id`)
+project_url, data_url, default_weight, import_mode, role, variant_group, profile
+FROM custom_ranking_sources ORDER BY name, id`)
 	if err != nil {
 		return nil, fmt.Errorf("query custom ranking sources: %w", err)
 	}
@@ -79,10 +92,11 @@ project_url, data_url, default_weight, import_mode, role FROM custom_ranking_sou
 		var definition ranking.SourceDefinition
 		if err = rows.Scan(&definition.ID, &definition.Name, &definition.Description, &definition.Methodology,
 			&definition.License, &definition.ProjectURL, &definition.DataURL, &definition.DefaultWeight,
-			&definition.ImportMode, &definition.Role); err != nil {
+			&definition.ImportMode, &definition.Role, &definition.VariantGroup, &definition.Profile); err != nil {
 			return nil, fmt.Errorf("scan custom ranking source: %w", err)
 		}
 		definition.IsCustom = true
+		definition.DefaultEnabled = true
 		definitions = append(definitions, definition)
 	}
 	return definitions, rows.Err()

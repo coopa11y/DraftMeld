@@ -7,6 +7,7 @@ import type {
   ProjectionSource,
   RankingPDFImport,
   RankingSource,
+  RankingSourceRecommendations,
   WatchlistPlayer,
 } from "./types";
 
@@ -15,8 +16,17 @@ export async function listRankingSources(): Promise<RankingSource[]> {
   return unwrap(data, error, response);
 }
 
-export async function refreshRankingSources(): Promise<RankingSource[]> {
-  const { data, error, response } = await apiClient.POST("/ranking-sources/refresh");
+export async function getRankingSourceRecommendations(leagueId: string): Promise<RankingSourceRecommendations> {
+  const { data, error, response } = await apiClient.GET("/ranking-sources/recommendations", {
+    params: { query: { leagueId } },
+  });
+  return unwrap(data, error, response);
+}
+
+export async function refreshRankingSources(leagueId: string): Promise<RankingSource[]> {
+  const { data, error, response } = await apiClient.POST("/ranking-sources/refresh", {
+    params: { query: { leagueId } },
+  });
   return unwrap(data, error, response);
 }
 
@@ -61,6 +71,18 @@ export async function importRankingCSV(
 
 export async function listProjectionSources(): Promise<ProjectionSource[]> {
   const { data, error, response } = await apiClient.GET("/projection-sources");
+  return unwrap(data, error, response);
+}
+
+export async function refreshProjectionSources(): Promise<ProjectionSource> {
+  const { data, error, response } = await apiClient.POST("/projection-sources/refresh");
+  return unwrap(data, error, response);
+}
+
+export async function refreshProjectionSource(sourceId: string): Promise<ProjectionSource> {
+  const { data, error, response } = await apiClient.POST("/projection-sources/{sourceId}/refresh", {
+    params: { path: { sourceId } },
+  });
   return unwrap(data, error, response);
 }
 

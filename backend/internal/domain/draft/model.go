@@ -1,6 +1,10 @@
 package draft
 
-import "time"
+import (
+	"time"
+
+	"github.com/coopa11y/DraftMeld/backend/internal/domain/news"
+)
 
 type Action string
 type SessionStatus string
@@ -18,21 +22,22 @@ const (
 )
 
 type Player struct {
-	ID                   string  `json:"id"`
-	Name                 string  `json:"name"`
-	NFLTeam              string  `json:"nflTeam"`
-	Position             string  `json:"position"`
-	ByeWeek              int     `json:"byeWeek"`
-	OverallRank          int     `json:"overallRank"`
-	PositionRank         int     `json:"positionRank"`
-	ADP                  float64 `json:"adp"`
-	Tier                 int     `json:"tier"`
-	ProjectedPoints      float64 `json:"projectedPoints"`
-	ValueOverReplacement float64 `json:"valueOverReplacement"`
-	Confidence           string  `json:"confidence"`
-	RankRange            int     `json:"rankRange"`
-	Preference           string  `json:"preference"`
-	AuctionValue         float64 `json:"auctionValue"`
+	ID                   string             `json:"id"`
+	Name                 string             `json:"name"`
+	NFLTeam              string             `json:"nflTeam"`
+	Position             string             `json:"position"`
+	ByeWeek              int                `json:"byeWeek"`
+	OverallRank          int                `json:"overallRank"`
+	PositionRank         int                `json:"positionRank"`
+	ADP                  float64            `json:"adp"`
+	Tier                 int                `json:"tier"`
+	ProjectedPoints      float64            `json:"projectedPoints"`
+	ValueOverReplacement float64            `json:"valueOverReplacement"`
+	Confidence           string             `json:"confidence"`
+	RankRange            int                `json:"rankRange"`
+	Preference           string             `json:"preference"`
+	AuctionValue         float64            `json:"auctionValue"`
+	News                 *news.PlayerUpdate `json:"news,omitempty"`
 }
 
 type Event struct {

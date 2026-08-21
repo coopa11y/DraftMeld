@@ -22,6 +22,7 @@ type consensusInputs struct {
 	adpWeights  map[string]float64
 	tierTotals  map[string]float64
 	tierWeights map[string]float64
+	projections map[string]ranking.ProjectionEvidence
 }
 
 func validateRankingSourcePreferences(definitions []ranking.SourceDefinition, preferences map[string]league.RankingSourcePreference) error {
@@ -65,6 +66,7 @@ func buildConsensusInputs(definitions []ranking.SourceDefinition, records []reso
 	sourceRanks := make(map[string]map[string]int)
 	adpTotals, adpWeights := make(map[string]float64), make(map[string]float64)
 	tierTotals, tierWeights := make(map[string]float64), make(map[string]float64)
+	projections, projectionWeights := make(map[string]ranking.ProjectionEvidence), make(map[string]float64)
 	for _, resolved := range records {
 		record := resolved.record
 		if _, exists := eligible[record.PlayerKey]; !exists {
@@ -89,6 +91,10 @@ func buildConsensusInputs(definitions []ranking.SourceDefinition, records []reso
 			tierTotals[record.PlayerKey] += float64(record.Tier) * preference.Weight
 			tierWeights[record.PlayerKey] += preference.Weight
 		}
+		if record.SourceProjection > 0 && preference.Weight > projectionWeights[record.PlayerKey] {
+			projections[record.PlayerKey] = projectionEvidence(record, definition)
+			projectionWeights[record.PlayerKey] = preference.Weight
+		}
 	}
 
 	weighted := make([]ranking.Source, 0, len(sources))
@@ -100,7 +106,18 @@ func buildConsensusInputs(definitions []ranking.SourceDefinition, records []reso
 		players = append(players, playerID)
 	}
 	return consensusInputs{sources: weighted, players: players, metadata: metadata, sourceRanks: sourceRanks,
-		adpTotals: adpTotals, adpWeights: adpWeights, tierTotals: tierTotals, tierWeights: tierWeights}
+		adpTotals: adpTotals, adpWeights: adpWeights, tierTotals: tierTotals, tierWeights: tierWeights,
+		projections: projections}
+}
+
+func projectionEvidence(record ranking.Record, definition ranking.SourceDefinition) ranking.ProjectionEvidence {
+	return ranking.ProjectionEvidence{
+		SourceID: record.SourceID, SourceName: definition.Name, Profile: definition.Profile,
+		Games: record.Games, ByeWeek: record.ByeWeek, FloorProjection: record.FloorProjection,
+		ConsensusProjection: record.ConsensusProjection, SourceProjection: record.SourceProjection,
+		CeilingProjection: record.CeilingProjection, SourceValue: record.SourceValue,
+		InjuryRisk: record.InjuryRisk, ScheduleStrength: record.ScheduleStrength,
+	}
 }
 
 func eligiblePlayerKeys(records []resolvedRankingRecord, definitions map[string]ranking.SourceDefinition) map[string]struct{} {
@@ -169,11 +186,16 @@ func playerRankings(entries []ranking.Entry, inputs consensusInputs, method stri
 		if inputs.tierWeights[entry.PlayerID] > 0 {
 			tier = int(math.Round(inputs.tierTotals[entry.PlayerID] / inputs.tierWeights[entry.PlayerID]))
 		}
+		var projection *ranking.ProjectionEvidence
+		if evidence, exists := inputs.projections[entry.PlayerID]; exists {
+			projection = &evidence
+		}
 		result = append(result, ranking.PlayerRanking{
 			PlayerKey: entry.PlayerID, Name: player.Name, Position: player.Position, Team: player.Team,
 			Rank: index + 1, Score: entry.Score, SourceCount: entry.SourceCount,
 			SourceRanks: inputs.sourceRanks[entry.PlayerID], Coverage: entry.Coverage,
 			RankRange: entry.RankRange, Confidence: entry.Confidence, Method: method, ADP: adp, Tier: tier,
+			Projection: projection,
 		})
 	}
 	return result

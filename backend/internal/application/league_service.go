@@ -292,7 +292,7 @@ func withLeagueDefaults(rules league.Rules) league.Rules {
 		}
 	}
 	rules.TeamNames = normalizedTeamNames(rules.TeamNames, rules.TeamCount, rules.UserTeamNumber)
-	defaults := DefaultRankingSourcePreferences()
+	defaults := RecommendedRankingSourcePreferences(rules)
 	if rules.SourcePreferences == nil {
 		rules.SourcePreferences = make(map[string]league.RankingSourcePreference)
 	}

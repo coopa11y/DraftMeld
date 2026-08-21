@@ -53,3 +53,32 @@ func TestImportRankingCSVRejectsInvalidMappedRowsWithoutReplacingSource(t *testi
 		t.Fatalf("invalid import changed the repository: %#v %#v", repository.records, repository.custom)
 	}
 }
+
+func TestImportRankingCSVRecognizesFantasyFootballersTop200(t *testing.T) {
+	repository := &rankingRepositoryStub{}
+	service := NewRankingService(repository)
+	input := "Rank,Name,Bye,Team,Pos,Andy,Jason,Mike,Markers\n1,Example Runner,7,BUF,RB,1,2,1,Favorite\n"
+	status, err := service.ImportCSV(t.Context(), "Fantasy Footballers UDK Top 200", strings.NewReader(input), nil)
+	if err != nil {
+		t.Fatalf("import UDK Top 200: %v", err)
+	}
+	if status.Profile != "UDK Top 200" || status.ProjectURL == "" || status.PublishedAt != "Private UDK Top 200 CSV import" {
+		t.Fatalf("unexpected UDK source metadata: %#v", status)
+	}
+	if len(repository.records) != 1 || repository.records[0].Name != "Example Runner" {
+		t.Fatalf("unexpected UDK records: %#v", repository.records)
+	}
+}
+
+func TestImportRankingCSVRejectsFantasyFootballersPositionRanks(t *testing.T) {
+	repository := &rankingRepositoryStub{}
+	service := NewRankingService(repository)
+	input := "Name,Position,Team,Bye Week,Rank,Points,Risk,Upside,ADP,Tier,Outlook,Dynasty,Markers\nExample Quarterback,QB,BUF,7,1,350,2,9,2.12,1,Private notes,,\n"
+	_, err := service.ImportCSV(t.Context(), "UDK QB", strings.NewReader(input), nil)
+	if err == nil || !strings.Contains(err.Error(), "export the UDK Top 200 CSV") {
+		t.Fatalf("expected position-ranking guidance, got %v", err)
+	}
+	if len(repository.records) != 0 {
+		t.Fatalf("position-relative rankings changed the repository: %#v", repository.records)
+	}
+}

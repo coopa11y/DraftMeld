@@ -17,6 +17,13 @@ type Record struct {
 type SourceStatus struct {
 	ID          string    `json:"id"`
 	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Methodology string    `json:"methodology"`
+	License     string    `json:"license"`
+	ProjectURL  string    `json:"projectUrl"`
+	DataURL     string    `json:"dataUrl"`
+	ImportMode  string    `json:"importMode"`
+	PublishedAt string    `json:"publishedAt"`
 	RecordCount int       `json:"recordCount"`
 	ImportedAt  time.Time `json:"importedAt"`
 }

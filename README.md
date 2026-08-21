@@ -8,7 +8,7 @@ Current prerelease version: **0.3.0**
 
 ## Project status
 
-DraftMeld is in active `0.3.0` development. It includes an accessible live board powered by normalized multi-source consensus, mapped projection imports, roster-aware VOR and tiers, targets and avoids, mock opponents, keeper-aware auction tracking, canonical alias review, and read-only reconciled Sleeper synchronization. Five downloadable ranking feeds are supported alongside review-first league setup from public ESPN URLs, private ESPN settings pasted from the browser, ESPN JSON or PDF files, and provider-neutral PDF or CSV files.
+DraftMeld is in active `0.3.0` development. It includes an accessible live board powered by normalized multi-source consensus, league-scored Sleeper and mapped CSV projections, roster-aware VOR and tiers, targets and avoids, mock opponents, keeper-aware auction tracking, canonical alias review, current player availability and linked news, and read-only reconciled Sleeper synchronization. League-aware online rankings are supported alongside review-first league setup from public ESPN URLs, private ESPN settings pasted from the browser, ESPN JSON or PDF files, and provider-neutral PDF or CSV files.
 
 ## Product goals
 
@@ -90,6 +90,10 @@ The **Export and backup center** under Manage leagues downloads versioned league
 PDF imports read selectable text first and use local OCR for scanned pages when Poppler and Tesseract are available. The Docker image includes both tools. See [local PDF OCR](docs/ocr.md) for native setup, limits, and privacy behavior.
 
 Use **Ranking sources** to review each feed's method, license, weight, freshness, and project link before refreshing the local data or privately importing a supported PDF. See [docs/ranking-sources.md](docs/ranking-sources.md) for the source set, supported PDF formats, and current matching limitations.
+
+Fantasy Footballers UDK subscribers can use **Add source**, choose **Fantasy Footballers UDK**, and upload the Top 200 CSV exported from their own account. DraftMeld recognizes the provider columns automatically and never receives UDK credentials or retains the original subscriber file.
+
+Use **Player news sources** from a league to review, enable, refresh, or extend the availability and news feeds. The draft board stays compact: it shows a status only when useful, and a player-specific details dialog contains the attributed stories. See [player news](docs/player-news.md) for source behavior, privacy, matching, and limitations.
 
 Run the same contract, type, unit-test, vet, and production-build checks used for pull requests:
 

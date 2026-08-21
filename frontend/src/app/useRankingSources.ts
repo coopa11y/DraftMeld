@@ -3,6 +3,7 @@ import { leagueToRules, updateLeague } from "../shared/api/leagues";
 import {
   getConsensusRankings,
   getPlayerDirectoryStatus,
+  getRankingSourceRecommendations,
   getRankingWatchlist,
   importRankingCSV,
   importRankingPDF,
@@ -11,6 +12,8 @@ import {
   listRankingSources,
   refreshRankingSources,
   refreshRankingSource,
+  refreshProjectionSources,
+  refreshProjectionSource as refreshProjectionSourceRequest,
 } from "../shared/api/rankings";
 import type {
   ConsensusRanking,
@@ -20,17 +23,21 @@ import type {
   PlayerDirectoryStatus,
   ProjectionSource,
   RankingSource,
+  RankingSourceRecommendations,
   RankingSourcePreference,
   WatchlistPlayer,
 } from "../shared/api/types";
+import { errorMessage, pdfImportMessage, runBusy, runSourceUpdate } from "./rankingSourceOperations";
 
 interface RankingSourcesActions {
   refresh: () => Promise<void>;
   refreshSource: (sourceId: string) => Promise<void>;
+  refreshProjectionSource: (sourceId: string) => Promise<void>;
   uploadPDF: (event: FormEvent<HTMLFormElement>) => Promise<void>;
   uploadRankingCSV: (name: string, file: File, mapping: Record<string, string>) => Promise<void>;
   saveWeights: (event: FormEvent<HTMLFormElement>) => Promise<void>;
   resetPreferences: () => void;
+  applyRecommendations: () => void;
   projectionImported: (source: ProjectionSource) => void;
   identityReviewed: (issueKey: string, resolution: IdentityIssue["resolution"], canonicalPlayerKey?: string) => void;
   setBusy: Dispatch<SetStateAction<boolean>>;
@@ -57,6 +64,7 @@ export interface RankingSourcesController {
   preferences: Record<string, RankingSourcePreference>;
   preferencesChanged: boolean;
   projectionSources: ProjectionSource[];
+  recommendations: RankingSourceRecommendations;
   rankings: ConsensusRanking[];
   sources: RankingSource[];
   watchlist: WatchlistPlayer[];
@@ -69,6 +77,7 @@ export function useRankingSources(league: League, onLeagueUpdated: (league: Leag
   const [preferences, setPreferences] = useState<Record<string, RankingSourcePreference>>({});
   const [watchlist, setWatchlist] = useState<WatchlistPlayer[]>([]);
   const [projectionSources, setProjectionSources] = useState<ProjectionSource[]>([]);
+  const [recommendations, setRecommendations] = useState<RankingSourceRecommendations>({ profile: "", sources: [] });
   const [identityIssues, setIdentityIssues] = useState<IdentityIssue[]>([]);
   const [directoryStatus, setDirectoryStatus] = useState<PlayerDirectoryStatus>(emptyDirectoryStatus);
   const [consensusMethod, setConsensusMethod] = useState<LeagueRules["consensusMethod"]>(league.consensusMethod);
@@ -87,6 +96,7 @@ export function useRankingSources(league: League, onLeagueUpdated: (league: Leag
         setRankings(loaded.rankings);
         setWatchlist(loaded.watchlist);
         setProjectionSources(loaded.projectionSources);
+        setRecommendations(loaded.recommendations);
         setIdentityIssues(loaded.identityIssues);
         setDirectoryStatus(loaded.directoryStatus);
         setConsensusMethod(initialLeague.current.consensusMethod);
@@ -117,24 +127,41 @@ export function useRankingSources(league: League, onLeagueUpdated: (league: Leag
       setMessage,
       `Downloading and normalizing ${downloadableCount} online ranking feeds. This may take a moment.`,
       async () => {
-        const loadedSources = await refreshRankingSources();
+        const [loadedSources, projectionSource] = await Promise.all([
+          refreshRankingSources(league.id),
+          refreshProjectionSources(),
+        ]);
         const evidence = await loadRankingEvidence(league.id);
         setSources(loadedSources);
+        setProjectionSources((current) => [
+          ...current.filter((source) => source.id !== projectionSource.id),
+          projectionSource,
+        ]);
         applyEvidence(evidence, setRankings, setWatchlist, setIdentityIssues, setDirectoryStatus);
         const count = loadedSources.reduce((total, source) => total + source.recordCount, 0);
-        setMessage(`Rankings refreshed. ${count} source records were normalized.`);
+        setMessage(
+          `Online sources refreshed. ${count} ranking records and ${projectionSource.recordCount} offensive projections were normalized.`,
+        );
       },
       "Unable to refresh rankings.",
     );
   }
 
+  async function refreshProjectionSource(sourceId: string) {
+    const source = projectionSources.find((candidate) => candidate.id === sourceId);
+    if (!source || source.importMode !== "download") return;
+    await runSourceUpdate(setBusySourceId, setError, setMessage, source, async () => {
+      const updated = await refreshProjectionSourceRequest(sourceId);
+      setProjectionSources((current) => [...current.filter((candidate) => candidate.id !== updated.id), updated]);
+      setDirectoryStatus(await getPlayerDirectoryStatus());
+      return `${updated.name} updated with ${updated.recordCount} offensive player projections.`;
+    });
+  }
+
   async function refreshSource(sourceId: string) {
     const source = sources.find((candidate) => candidate.id === sourceId);
     if (!source) return;
-    setBusySourceId(sourceId);
-    setError("");
-    setMessage(`Updating ${source.name}.`);
-    try {
+    await runSourceUpdate(setBusySourceId, setError, setMessage, source, async () => {
       const updated = await refreshRankingSource(sourceId);
       setSources((current) => current.map((candidate) => (candidate.id === updated.id ? updated : candidate)));
       applyEvidence(
@@ -144,13 +171,8 @@ export function useRankingSources(league: League, onLeagueUpdated: (league: Leag
         setIdentityIssues,
         setDirectoryStatus,
       );
-      setMessage(`${updated.name} updated with ${updated.recordCount} players.`);
-    } catch (reason) {
-      setError(errorMessage(reason, `Unable to update ${source.name}.`));
-      setMessage("");
-    } finally {
-      setBusySourceId("");
-    }
+      return `${updated.name} updated with ${updated.recordCount} players.`;
+    });
   }
 
   async function uploadPDF(event: FormEvent<HTMLFormElement>) {
@@ -240,23 +262,39 @@ export function useRankingSources(league: League, onLeagueUpdated: (league: Leag
 
   function resetPreferences() {
     setPreferences(initialPreferences(sources, league));
-    setMessage("All sources and default influence values restored. Choose Save preferences to apply them.");
+    setMessage("Unsaved source changes discarded.");
   }
 
-  const preferencesChanged = rankingPreferencesChanged(sources, preferences, consensusMethod, league);
-  const enabledSourceCount = Object.values(preferences).filter((preference) => preference.enabled).length;
-  const enabledImportedSourceCount = sources.filter(
-    (source) => source.recordCount > 0 && (preferences[source.id]?.enabled ?? true),
-  ).length;
+  function applyRecommendations() {
+    const recommended = Object.fromEntries(
+      recommendations.sources.map((source) => [source.sourceId, source.preference]),
+    );
+    const next = { ...preferences, ...recommended };
+    const changed = sources.some((source) => {
+      const current = preferences[source.id];
+      const replacement = next[source.id];
+      return current?.enabled !== replacement?.enabled || current?.weight !== replacement?.weight;
+    });
+    setPreferences(next);
+    setMessage(
+      changed
+        ? `Recommended settings applied for ${recommendations.profile}. Choose Save preferences to keep them.`
+        : `${league.name} already uses the recommended settings for ${recommendations.profile}.`,
+    );
+  }
+
+  const sourceState = rankingSourceState({ sources, preferences, consensusMethod, league });
 
   return {
     actions: {
       refresh,
       refreshSource,
+      refreshProjectionSource,
       uploadPDF,
       uploadRankingCSV,
       saveWeights,
       resetPreferences,
+      applyRecommendations,
       projectionImported: (source) => {
         setProjectionSources((current) => [...current.filter((candidate) => candidate.id !== source.id), source]);
         refreshDirectoryStatus();
@@ -278,16 +316,15 @@ export function useRankingSources(league: League, onLeagueUpdated: (league: Leag
     busySourceId,
     consensusMethod,
     directoryStatus,
-    enabledImportedSourceCount,
-    enabledSourceCount,
+    ...sourceState,
     error,
     identityIssues,
     league,
     message,
     pdfFile,
     preferences,
-    preferencesChanged,
     projectionSources,
+    recommendations,
     rankings,
     sources,
     watchlist,
@@ -297,15 +334,17 @@ export function useRankingSources(league: League, onLeagueUpdated: (league: Leag
 const emptyDirectoryStatus: PlayerDirectoryStatus = { playerCount: 0, identityCount: 0, providerIdCount: 0 };
 
 async function loadRankingWorkspace(league: League) {
-  const [sources, rankings, watchlist, projectionSources, identityIssues, directoryStatus] = await Promise.all([
-    listRankingSources(),
-    getConsensusRankings(league.id),
-    getRankingWatchlist(league.id),
-    listProjectionSources(),
-    listIdentityIssues(),
-    getPlayerDirectoryStatus(),
-  ]);
-  return { sources, rankings, watchlist, projectionSources, identityIssues, directoryStatus };
+  const [sources, rankings, watchlist, projectionSources, identityIssues, directoryStatus, recommendations] =
+    await Promise.all([
+      listRankingSources(),
+      getConsensusRankings(league.id),
+      getRankingWatchlist(league.id),
+      listProjectionSources(),
+      listIdentityIssues(),
+      getPlayerDirectoryStatus(),
+      getRankingSourceRecommendations(league.id),
+    ]);
+  return { sources, rankings, watchlist, projectionSources, identityIssues, directoryStatus, recommendations };
 }
 
 async function loadRankingEvidence(leagueId: string) {
@@ -322,9 +361,25 @@ function initialPreferences(sources: RankingSource[], league: League) {
   return Object.fromEntries(
     sources.map((source) => [
       source.id,
-      league.sourcePreferences[source.id] ?? { weight: source.defaultWeight, enabled: true },
+      league.sourcePreferences[source.id] ?? { weight: source.defaultWeight, enabled: source.defaultEnabled },
     ]),
   );
+}
+
+function rankingSourceState(input: {
+  sources: RankingSource[];
+  preferences: Record<string, RankingSourcePreference>;
+  consensusMethod: LeagueRules["consensusMethod"];
+  league: League;
+}) {
+  const { sources, preferences, consensusMethod, league } = input;
+  return {
+    preferencesChanged: rankingPreferencesChanged(sources, preferences, consensusMethod, league),
+    enabledSourceCount: Object.values(preferences).filter((preference) => preference.enabled).length,
+    enabledImportedSourceCount: sources.filter(
+      (source) => source.recordCount > 0 && (preferences[source.id]?.enabled ?? true),
+    ).length,
+  };
 }
 
 function rankingPreferencesChanged(
@@ -336,8 +391,11 @@ function rankingPreferencesChanged(
   return (
     consensusMethod !== league.consensusMethod ||
     sources.some((source) => {
-      const current = preferences[source.id] ?? { weight: source.defaultWeight, enabled: true };
-      const saved = league.sourcePreferences[source.id] ?? { weight: source.defaultWeight, enabled: true };
+      const current = preferences[source.id] ?? { weight: source.defaultWeight, enabled: source.defaultEnabled };
+      const saved = league.sourcePreferences[source.id] ?? {
+        weight: source.defaultWeight,
+        enabled: source.defaultEnabled,
+      };
       return current.weight !== saved.weight || current.enabled !== saved.enabled;
     })
   );
@@ -354,37 +412,4 @@ function applyEvidence(
   setWatchlist(evidence.watchlist);
   setIdentityIssues(evidence.identityIssues);
   setDirectoryStatus(evidence.directoryStatus);
-}
-
-async function runBusy(
-  setBusy: Dispatch<SetStateAction<boolean>>,
-  setError: Dispatch<SetStateAction<string>>,
-  setMessage: Dispatch<SetStateAction<string>>,
-  progressMessage: string,
-  operation: () => Promise<void>,
-  fallbackError: string,
-  rethrow = false,
-) {
-  setBusy(true);
-  setError("");
-  setMessage(progressMessage);
-  try {
-    await operation();
-  } catch (reason) {
-    setError(errorMessage(reason, fallbackError));
-    setMessage("");
-    if (rethrow) throw reason;
-  } finally {
-    setBusy(false);
-  }
-}
-
-function errorMessage(reason: unknown, fallback: string) {
-  return reason instanceof Error ? reason.message : fallback;
-}
-
-function pdfImportMessage(result: Awaited<ReturnType<typeof importRankingPDF>>) {
-  return `${result.source.name} imported: ${result.source.recordCount} players from ${result.pageCount} page${result.pageCount === 1 ? "" : "s"}.${
-    result.ocrApplied ? " Scanned pages were recognized locally with OCR; review the imported rankings carefully." : ""
-  }`;
 }

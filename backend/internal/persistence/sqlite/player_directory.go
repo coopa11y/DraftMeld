@@ -80,7 +80,11 @@ func (store *DraftEventStore) ResolvePlayer(ctx context.Context, candidate playe
 	if err != nil {
 		return player.Player{}, err
 	}
-	if _, err = tx.ExecContext(ctx, `UPDATE canonical_players SET name = ?, position = ?, nfl_team = CASE WHEN ? <> '' THEN ? ELSE nfl_team END, updated_at = ? WHERE id = ?`, candidate.Name, candidate.Position, team, team, now, playerID); err != nil {
+	if _, err = tx.ExecContext(ctx, `UPDATE canonical_players SET
+		name = CASE WHEN ? <> '' THEN ? ELSE name END,
+		position = CASE WHEN ? <> '' THEN ? ELSE position END,
+		nfl_team = CASE WHEN ? <> '' THEN ? ELSE nfl_team END,
+		updated_at = ? WHERE id = ?`, candidate.Name, candidate.Name, candidate.Position, candidate.Position, team, team, now, playerID); err != nil {
 		return player.Player{}, fmt.Errorf("update canonical player: %w", err)
 	}
 	var resolved player.Player
@@ -164,6 +168,38 @@ func (store *DraftEventStore) CanonicalPlayers(ctx context.Context, ids []string
 		return nil, fmt.Errorf("iterate canonical players: %w", err)
 	}
 	return players, nil
+}
+
+func (store *DraftEventStore) AllCanonicalPlayers(ctx context.Context) ([]player.Player, error) {
+	rows, err := store.database.QueryContext(ctx, `SELECT id, name, position, nfl_team FROM canonical_players WHERE merged_into IS NULL ORDER BY name, id`)
+	if err != nil {
+		return nil, fmt.Errorf("load all canonical players: %w", err)
+	}
+	defer rows.Close()
+	players := make([]player.Player, 0)
+	for rows.Next() {
+		var item player.Player
+		if err = rows.Scan(&item.ID, &item.Name, &item.Position, &item.Team); err != nil {
+			return nil, fmt.Errorf("scan canonical player: %w", err)
+		}
+		players = append(players, item)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate canonical players: %w", err)
+	}
+	return players, nil
+}
+
+func (store *DraftEventStore) PlayerIDByProvider(ctx context.Context, provider, providerID string) (string, bool, error) {
+	var playerID string
+	err := store.database.QueryRowContext(ctx, `SELECT player_id FROM player_provider_ids WHERE provider = ? AND provider_player_id = ?`, provider, providerID).Scan(&playerID)
+	if err == sql.ErrNoRows {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("resolve provider player: %w", err)
+	}
+	return playerID, true, nil
 }
 
 func (store *DraftEventStore) PlayerDirectoryStatus(ctx context.Context) (player.DirectoryStatus, error) {

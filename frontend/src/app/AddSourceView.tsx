@@ -7,7 +7,7 @@ import { ProjectionImport } from "./ProjectionImport";
 import { RankingCsvImport } from "./RankingCsvImport";
 import type { RankingSourcesController } from "./useRankingSources";
 
-export type SourceImportKind = "pdf" | "ranking-csv" | "projection-csv";
+export type SourceImportKind = "pdf" | "ranking-csv" | "projection-csv" | "udk";
 
 interface AddSourceViewProps {
   controller: RankingSourcesController;
@@ -45,6 +45,10 @@ export function AddSourceView({ controller, initialKind, onBack }: AddSourceView
               <strong>CSV</strong>
               <span>Import rankings or projections from any service.</span>
             </Button>
+            <Button className="source-type-choice" onClick={() => setKind("udk")}>
+              <strong>Fantasy Footballers UDK</strong>
+              <span>Import your private subscriber Top 200 export.</span>
+            </Button>
           </div>
         </Panel>
       ) : kind === "pdf" ? (
@@ -65,13 +69,19 @@ export function AddSourceView({ controller, initialKind, onBack }: AddSourceView
             </Button>
           </form>
         </Panel>
-      ) : kind === "ranking-csv" ? (
+      ) : kind === "ranking-csv" || kind === "udk" ? (
         <Panel variant="ranking">
           <div className="csv-kind-choice">
             <Button aria-pressed="true">Rankings</Button>
             <Button onClick={() => setKind("projection-csv")}>Projections</Button>
           </div>
-          <RankingCsvImport embedded busy={busy} sources={sources} onImport={actions.uploadRankingCSV} />
+          <RankingCsvImport
+            embedded
+            busy={busy}
+            provider={kind === "udk" ? "udk" : "generic"}
+            sources={sources}
+            onImport={actions.uploadRankingCSV}
+          />
         </Panel>
       ) : (
         <Panel variant="ranking">
